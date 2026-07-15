@@ -7,21 +7,30 @@ import appCss from '../styles.css?url'
 export const Route = createRootRoute({
   head: () => ({
     meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { name: 'theme-color', content: '#09090b' },
+      { title: 'Ticketio — Vstupenky bez starostí' },
       {
-        charSet: 'utf-8',
+        name: 'description',
+        content:
+          'Moderná slovenská platforma na predaj vstupeniek. Transparentný cenník, priebežný payout, mobilné odbavenie.',
       },
+      { property: 'og:title', content: 'Ticketio — Vstupenky bez starostí' },
       {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        property: 'og:description',
+        content: 'Transparentný cenník, priebežný payout, moderné odbavenie.',
       },
-      {
-        title: 'Ticketio',
-      },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
     ],
     links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
         rel: 'stylesheet',
-        href: appCss,
+        href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap',
       },
     ],
   }),
@@ -37,9 +46,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         {children}
         <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
+          config={{ position: 'bottom-right' }}
           plugins={[
             {
               name: 'Tanstack Router',

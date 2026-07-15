@@ -48,6 +48,28 @@ export const Route = createFileRoute('/e/$slug/checkout')({
   component: Checkout,
 })
 
+function Field({
+  label,
+  children,
+  required,
+}: {
+  label: string
+  children: React.ReactNode
+  required?: boolean
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-ink-200">
+        {label} {required && <span className="text-accent">*</span>}
+      </span>
+      {children}
+    </label>
+  )
+}
+
+const inputCls =
+  'w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-3 text-ink-100 placeholder:text-ink-500 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20'
+
 function Checkout() {
   const { slug } = Route.useParams()
   const { event, cart } = Route.useLoaderData()
@@ -58,7 +80,8 @@ function Checkout() {
   const [couponCode, setCouponCode] = useState('')
   const [accept, setAccept] = useState(false)
   const [discountCents, setDiscountCents] = useState(0)
-  const [couponMsg, setCouponMsg] = useState<string | null>(null)
+  const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [couponBusy, setCouponBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -72,14 +95,19 @@ function Checkout() {
 
   const applyCoupon = async () => {
     setCouponMsg(null)
-    const preview = await previewPricingFn({
-      data: { slug, items: cartPayload, couponCode: couponCode.trim() || null },
-    })
-    setDiscountCents(preview.discountCents)
-    if (preview.coupon?.ok === false) {
-      setCouponMsg(preview.coupon.message)
-    } else if (preview.coupon?.ok) {
-      setCouponMsg(`Kupón uplatnený: −${formatEur(preview.discountCents)}`)
+    setCouponBusy(true)
+    try {
+      const preview = await previewPricingFn({
+        data: { slug, items: cartPayload, couponCode: couponCode.trim() || null },
+      })
+      setDiscountCents(preview.discountCents)
+      if (preview.coupon?.ok === false) {
+        setCouponMsg({ ok: false, text: preview.coupon.message })
+      } else if (preview.coupon?.ok) {
+        setCouponMsg({ ok: true, text: `Zľava −${formatEur(preview.discountCents)}` })
+      }
+    } finally {
+      setCouponBusy(false)
     }
   }
 
@@ -92,7 +120,11 @@ function Checkout() {
         data: {
           slug,
           items: cartPayload,
-          buyer: { email: email.trim(), name: name.trim() || undefined, phone: phone.trim() || undefined },
+          buyer: {
+            email: email.trim(),
+            name: name.trim() || undefined,
+            phone: phone.trim() || undefined,
+          },
           couponCode: couponCode.trim() || null,
           acceptTerms: accept as true,
         },
@@ -102,7 +134,6 @@ function Checkout() {
         setSubmitting(false)
         return
       }
-      // Full-page redirect to GoPay gateway (or the order page for free orders).
       window.location.href = result.redirectUrl
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Neznáma chyba.')
@@ -112,129 +143,198 @@ function Checkout() {
 
   if (cart.length === 0) {
     return (
-      <div className="mx-auto max-w-md px-6 py-16 text-center">
-        <p className="text-gray-600">Košík je prázdny.</p>
-        <Link
-          to="/e/$slug"
-          params={{ slug }}
-          className="mt-4 inline-block text-indigo-600 hover:underline"
-        >
-          ← Späť na podujatie
-        </Link>
+      <div className="mx-auto max-w-md px-6 py-24 text-center">
+        <div className="card-surface p-10">
+          <p className="text-ink-300">Košík je prázdny.</p>
+          <Link
+            to="/e/$slug"
+            params={{ slug }}
+            className="btn-primary mt-6 inline-flex"
+          >
+            Späť na podujatie
+          </Link>
+        </div>
       </div>
     )
   }
 
-  return (
-    <div className="mx-auto max-w-md px-6 py-12">
-      <Link to="/e/$slug" params={{ slug }} className="text-sm text-indigo-600 hover:underline">
-        ← Späť
-      </Link>
-      <h1 className="mt-4 text-2xl font-bold">Pokladňa</h1>
-      <p className="text-gray-600">{event.title}</p>
+  const Summary = (
+    <div className="card-surface p-6">
+      <div className="text-xs font-semibold uppercase tracking-widest text-accent">
+        Súhrn objednávky
+      </div>
+      <h2 className="mt-1 font-display text-xl font-bold">{event.title}</h2>
 
-      <section className="mt-6 rounded-lg border p-4">
+      <ul className="mt-5 space-y-2 border-t border-ink-700 pt-4 text-sm">
         {cart.map((i) => (
-          <div key={i.ticketTypeId} className="flex justify-between py-1 text-sm">
+          <li key={i.ticketTypeId} className="flex justify-between text-ink-200">
             <span>
-              {i.quantity}× {i.name}
+              <span className="text-ink-400">{i.quantity}×</span> {i.name}
             </span>
-            <span>{formatEur(i.quantity * i.unitPriceCents)}</span>
-          </div>
+            <span className="tabular-nums">{formatEur(i.quantity * i.unitPriceCents)}</span>
+          </li>
         ))}
-        <div className="mt-2 border-t pt-2 text-sm">
-          <div className="flex justify-between">
-            <span>Medzisúčet</span>
-            <span>{formatEur(subtotal)}</span>
+      </ul>
+
+      <div className="mt-4 space-y-1.5 border-t border-ink-700 pt-4 text-sm">
+        <div className="flex justify-between text-ink-400">
+          <span>Medzisúčet</span>
+          <span className="tabular-nums">{formatEur(subtotal)}</span>
+        </div>
+        {discountCents > 0 && (
+          <div className="flex justify-between text-accent">
+            <span>Zľava</span>
+            <span className="tabular-nums">−{formatEur(discountCents)}</span>
           </div>
-          {discountCents > 0 && (
-            <div className="flex justify-between text-green-700">
-              <span>Zľava</span>
-              <span>−{formatEur(discountCents)}</span>
-            </div>
-          )}
-          <div className="mt-1 flex justify-between text-base font-semibold">
-            <span>Spolu</span>
-            <span>{formatEur(total)}</span>
-          </div>
-        </div>
-      </section>
-
-      <form onSubmit={submit} className="mt-6 space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">E-mail *</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Meno</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Telefón</label>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">Zľavový kupón</label>
-          <div className="flex gap-2">
-            <input
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              className="w-full rounded-md border px-3 py-2"
-            />
-            <button
-              type="button"
-              onClick={applyCoupon}
-              className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-gray-50"
-            >
-              Uplatniť
-            </button>
-          </div>
-          {couponMsg && <p className="mt-1 text-sm text-gray-600">{couponMsg}</p>}
-        </div>
-
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={accept}
-            onChange={(e) => setAccept(e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            Súhlasím s{' '}
-            <a href="/vop" className="text-indigo-600 hover:underline">
-              obchodnými podmienkami
-            </a>
-            .
-          </span>
-        </label>
-
-        {error && (
-          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>
         )}
+        <div className="mt-2 flex items-baseline justify-between border-t border-ink-700 pt-3">
+          <span className="text-sm text-ink-300">Spolu</span>
+          <span className="font-display text-2xl font-bold tabular-nums">
+            {formatEur(total)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
 
-        <button
-          type="submit"
-          disabled={!accept || submitting}
-          className="w-full rounded-md bg-indigo-600 px-5 py-3 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+  return (
+    <div className="min-h-screen">
+      <div className="mx-auto max-w-6xl px-6 py-10 md:py-16">
+        <Link
+          to="/e/$slug"
+          params={{ slug }}
+          className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-ink-100"
         >
-          {submitting ? 'Spracúvam…' : `Zaplatiť ${formatEur(total)}`}
-        </button>
-      </form>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Späť
+        </Link>
+        <h1 className="mt-6 font-display text-4xl font-bold md:text-5xl">Pokladňa</h1>
+        <p className="mt-2 text-ink-400">Vyplňte údaje a pokračujte na platbu.</p>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_400px]">
+          {/* FORM */}
+          <form onSubmit={submit} className="space-y-6">
+            <section className="card-surface p-6">
+              <h2 className="font-display text-lg font-bold">Kontaktné údaje</h2>
+              <div className="mt-4 grid gap-4">
+                <Field label="E-mail" required>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="vas@email.sk"
+                    className={inputCls}
+                  />
+                  <span className="mt-1.5 block text-xs text-ink-500">
+                    Na tento e-mail vám pošleme vstupenky s QR kódom.
+                  </span>
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Meno">
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Telefón">
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </section>
+
+            <section className="card-surface p-6">
+              <h2 className="font-display text-lg font-bold">Zľavový kupón</h2>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder="Napíšte kód"
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  onClick={applyCoupon}
+                  disabled={couponBusy || !couponCode.trim()}
+                  className="btn-ghost shrink-0 disabled:opacity-40"
+                >
+                  {couponBusy ? 'Overujem…' : 'Uplatniť'}
+                </button>
+              </div>
+              {couponMsg && (
+                <p
+                  className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+                    couponMsg.ok
+                      ? 'bg-accent/10 text-accent'
+                      : 'bg-red-500/10 text-red-400'
+                  }`}
+                >
+                  {couponMsg.text}
+                </p>
+              )}
+            </section>
+
+            <section className="card-surface p-6">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={accept}
+                  onChange={(e) => setAccept(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[color:var(--color-accent)]"
+                />
+                <span className="text-sm text-ink-300">
+                  Súhlasím s{' '}
+                  <a href="/vop" className="text-accent hover:underline">
+                    obchodnými podmienkami
+                  </a>{' '}
+                  a spracovaním osobných údajov na účel odoslania vstupeniek.
+                </span>
+              </label>
+            </section>
+
+            {error && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                <div className="font-semibold">Nepodarilo sa spracovať objednávku</div>
+                <div className="mt-1">{error}</div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={!accept || submitting}
+              className="btn-primary w-full py-4 text-base disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+            >
+              {submitting ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-950/30 border-t-ink-950" />
+                  Spracúvam…
+                </>
+              ) : (
+                <>
+                  Zaplatiť {formatEur(total)}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+            <p className="text-center text-xs text-ink-500">
+              Platba prebieha zabezpečene cez GoPay.
+            </p>
+          </form>
+
+          {/* SUMMARY */}
+          <aside className="lg:sticky lg:top-8 lg:self-start">{Summary}</aside>
+        </div>
+      </div>
     </div>
   )
 }
