@@ -17,6 +17,8 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
+import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
+import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
@@ -60,6 +62,16 @@ const ESlugCheckoutRoute = ESlugCheckoutRouteImport.update({
   path: '/e/$slug/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppEventsNewRoute = AppEventsNewRouteImport.update({
+  id: '/events/new',
+  path: '/events/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEventsEventIdRoute = AppEventsEventIdRouteImport.update({
+  id: '/events/$eventId',
+  path: '/events/$eventId',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
   id: '/api/gopay/notify',
   path: '/api/gopay/notify',
@@ -80,6 +92,8 @@ export interface FileRoutesByFullPath {
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
@@ -91,6 +105,8 @@ export interface FileRoutesByTo {
   '/order/$id': typeof OrderIdRoute
   '/app': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug': typeof ESlugIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
@@ -104,6 +120,8 @@ export interface FileRoutesById {
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
@@ -118,6 +136,8 @@ export interface FileRouteTypes {
     | '/order/$id'
     | '/app/'
     | '/api/gopay/notify'
+    | '/app/events/$eventId'
+    | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug/'
     | '/api/orders/$orderId/tickets/$ticketId'
@@ -129,6 +149,8 @@ export interface FileRouteTypes {
     | '/order/$id'
     | '/app'
     | '/api/gopay/notify'
+    | '/app/events/$eventId'
+    | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug'
     | '/api/orders/$orderId/tickets/$ticketId'
@@ -141,6 +163,8 @@ export interface FileRouteTypes {
     | '/order/$id'
     | '/app/'
     | '/api/gopay/notify'
+    | '/app/events/$eventId'
+    | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug/'
     | '/api/orders/$orderId/tickets/$ticketId'
@@ -216,6 +240,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ESlugCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/events/new': {
+      id: '/app/events/new'
+      path: '/events/new'
+      fullPath: '/app/events/new'
+      preLoaderRoute: typeof AppEventsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/events/$eventId': {
+      id: '/app/events/$eventId'
+      path: '/events/$eventId'
+      fullPath: '/app/events/$eventId'
+      preLoaderRoute: typeof AppEventsEventIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/gopay/notify': {
       id: '/api/gopay/notify'
       path: '/api/gopay/notify'
@@ -235,10 +273,14 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
+  AppEventsEventIdRoute: typeof AppEventsEventIdRoute
+  AppEventsNewRoute: typeof AppEventsNewRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppEventsEventIdRoute: AppEventsEventIdRoute,
+  AppEventsNewRoute: AppEventsNewRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
