@@ -51,7 +51,7 @@ function assertOk(label: string, error: { message: string } | null) {
  * Create (or refresh) a pre-confirmed test organizer user and attach it to the
  * seed organizer as owner. Idempotent across re-seeds.
  */
-async function ensureTestOrganizerUser(): Promise<void> {
+async function ensureTestOrganizerUser(): Promise<string> {
   // Find an existing user with this email (admin API has no get-by-email).
   const { data: list, error: listErr } = await db.auth.admin.listUsers({
     page: 1,
@@ -86,11 +86,25 @@ async function ensureTestOrganizerUser(): Promise<void> {
   }
 
   // Attach as owner of the seed organizer.
-  const { error: memberErr } = await db.from('organizer_members').upsert(
-    { organizer_id: ORG_ID, user_id: userId, role: 'owner' },
-    { onConflict: 'organizer_id,user_id' },
-  )
+  const { error: memberErr } = await db
+    .from('organizer_members')
+    .upsert(
+      { organizer_id: ORG_ID, user_id: userId, role: 'owner' },
+      { onConflict: 'organizer_id,user_id' },
+    )
   assertOk('test user → owner of seed organizer', memberErr)
+  return userId
+}
+
+/** Grant the test account platform super-admin rights (dev only). Idempotent. */
+async function ensurePlatformAdmin(userId: string): Promise<void> {
+  const { error } = await db
+    .from('platform_admins')
+    .upsert(
+      { user_id: userId, note: 'Seed dev platform admin' },
+      { onConflict: 'user_id' },
+    )
+  assertOk('test user → platform admin', error)
 }
 
 async function main() {
@@ -208,8 +222,9 @@ async function main() {
     ).error,
   )
 
-  // 5. Pre-confirmed test organizer account
-  await ensureTestOrganizerUser()
+  // 5. Pre-confirmed test organizer account (also platform super-admin in dev)
+  const testUserId = await ensureTestOrganizerUser()
+  await ensurePlatformAdmin(testUserId)
 
   console.log('\nHotovo. Preklikaj flow tu:')
   console.log(`  Event:  ${appUrl}/e/${EVENT_SLUG}`)
@@ -218,6 +233,7 @@ async function main() {
   console.log('\nPrihlásenie do organizátorského portálu (/app):')
   console.log(`  e-mail: ${TEST_EMAIL}`)
   console.log(`  heslo:  ${TEST_PASSWORD}`)
+  console.log('  (tento účet je zároveň platform super-admin → /admin)')
 }
 
 main().catch((e) => {

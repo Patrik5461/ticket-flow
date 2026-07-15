@@ -5,12 +5,10 @@
 
 export type EventStatus = 'draft' | 'published' | 'ended' | 'cancelled'
 export type OrderStatus =
-  | 'pending'
-  | 'paid'
-  | 'expired'
-  | 'cancelled'
-  | 'refunded'
+  'pending' | 'paid' | 'expired' | 'cancelled' | 'refunded'
 export type TicketStatus = 'valid' | 'used' | 'cancelled'
+
+export type OrganizerStatus = 'active' | 'suspended'
 
 export interface OrganizerRow {
   id: string
@@ -19,6 +17,19 @@ export interface OrganizerRow {
   fee_percent: number
   fee_min_cents: number
   gopay_goid: string | null
+  status: OrganizerStatus
+  admin_notes: string | null
+}
+
+export interface AuditLogRow {
+  id: string
+  actor_id: string | null
+  action: string
+  entity_type: string
+  entity_id: string | null
+  old_value: unknown
+  new_value: unknown
+  created_at: string
 }
 
 export interface EventRow {
