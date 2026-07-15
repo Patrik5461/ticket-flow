@@ -34,12 +34,63 @@ const COUPON_ID = '00000000-0000-4000-8000-000000000020'
 const EVENT_SLUG = 'letny-festival-2026'
 const COUPON_CODE = 'LETO10'
 
+// Pre-confirmed test organizer login (dev only). Fixed password so re-seeding
+// keeps the same credentials.
+const TEST_EMAIL = 'test@ticketio.sk'
+const TEST_PASSWORD = 'ticketio-dev-2026'
+
 function assertOk(label: string, error: { message: string } | null) {
   if (error) {
     console.error(`✗ ${label}: ${error.message}`)
     process.exit(1)
   }
   console.log(`✓ ${label}`)
+}
+
+/**
+ * Create (or refresh) a pre-confirmed test organizer user and attach it to the
+ * seed organizer as owner. Idempotent across re-seeds.
+ */
+async function ensureTestOrganizerUser(): Promise<void> {
+  // Find an existing user with this email (admin API has no get-by-email).
+  const { data: list, error: listErr } = await db.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  })
+  if (listErr) {
+    console.error(`✗ test user (list): ${listErr.message}`)
+    process.exit(1)
+  }
+  const existing = list.users.find((u) => u.email === TEST_EMAIL)
+
+  let userId: string
+  if (existing) {
+    const { error } = await db.auth.admin.updateUserById(existing.id, {
+      password: TEST_PASSWORD,
+      email_confirm: true,
+    })
+    assertOk('test user (updated, confirmed)', error)
+    userId = existing.id
+  } else {
+    const { data, error } = await db.auth.admin.createUser({
+      email: TEST_EMAIL,
+      password: TEST_PASSWORD,
+      email_confirm: true,
+    })
+    if (error || !data.user) {
+      console.error(`✗ test user (create): ${error?.message ?? 'unknown'}`)
+      process.exit(1)
+    }
+    assertOk('test user (created, confirmed)', null)
+    userId = data.user.id
+  }
+
+  // Attach as owner of the seed organizer.
+  const { error: memberErr } = await db.from('organizer_members').upsert(
+    { organizer_id: ORG_ID, user_id: userId, role: 'owner' },
+    { onConflict: 'organizer_id,user_id' },
+  )
+  assertOk('test user → owner of seed organizer', memberErr)
 }
 
 async function main() {
@@ -157,10 +208,16 @@ async function main() {
     ).error,
   )
 
+  // 5. Pre-confirmed test organizer account
+  await ensureTestOrganizerUser()
+
   console.log('\nHotovo. Preklikaj flow tu:')
   console.log(`  Event:  ${appUrl}/e/${EVENT_SLUG}`)
   console.log(`  Kupón:  ${COUPON_CODE} (−10 %)`)
   console.log('  Tip: vstupenka „Vstup zdarma“ prejde celým flow bez GoPay.')
+  console.log('\nPrihlásenie do organizátorského portálu (/app):')
+  console.log(`  e-mail: ${TEST_EMAIL}`)
+  console.log(`  heslo:  ${TEST_PASSWORD}`)
 }
 
 main().catch((e) => {
