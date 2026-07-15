@@ -18,6 +18,7 @@ import {
   deleteCouponFn,
   type EventDetail,
 } from '../server/dashboard'
+import { cancelEventFn } from '../server/cancel-event'
 import { utcIsoToZonedLocal } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
@@ -114,7 +115,104 @@ function ManageEvent() {
         tz={tz}
         onChanged={reload}
       />
+      <CancelEventSection event={event} onChanged={reload} />
     </div>
+  )
+}
+
+// --- Cancel event (danger zone) ----------------------------------------------
+
+function CancelEventSection({
+  event,
+  onChanged,
+}: {
+  event: EventDetail['event']
+  onChanged: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  if (event.status === 'cancelled') {
+    return (
+      <section className="rounded-lg border border-red-200 bg-red-50 p-6">
+        <h2 className="text-lg font-semibold text-red-700">
+          Podujatie je zrušené
+        </h2>
+        <p className="mt-1 text-sm text-red-600">
+          Zaplatené objednávky sa refundujú kupujúcim.
+        </p>
+      </section>
+    )
+  }
+
+  const submit = async () => {
+    setBusy(true)
+    setErr(null)
+    const res = await cancelEventFn({
+      data: { eventId: event.id, confirmTitle: title },
+    })
+    setBusy(false)
+    if ('error' in res) {
+      setErr(res.error)
+      return
+    }
+    setDone(`Podujatie zrušené. Refundácií vo fronte: ${res.enqueued}.`)
+    setOpen(false)
+    onChanged()
+  }
+
+  return (
+    <section className="rounded-lg border border-red-200 p-6">
+      <h2 className="text-lg font-semibold text-red-700">Nebezpečná zóna</h2>
+      <p className="mt-1 text-sm text-gray-600">
+        Zrušenie podujatia ho stiahne z predaja a spustí refundáciu všetkých
+        zaplatených objednávok. Túto akciu nie je možné vrátiť.
+      </p>
+      {done && <p className="mt-2 text-sm text-green-700">{done}</p>}
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+        >
+          Zrušiť podujatie…
+        </button>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <label className="block text-sm text-gray-700">
+            Pre potvrdenie napíšte presný názov podujatia:{' '}
+            <strong>{event.title}</strong>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+              placeholder={event.title}
+            />
+          </label>
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={submit}
+              disabled={busy || title.trim() !== event.title.trim()}
+              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy ? 'Rušim…' : 'Definitívne zrušiť'}
+            </button>
+            <button
+              onClick={() => {
+                setOpen(false)
+                setTitle('')
+              }}
+              className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
+            >
+              Späť
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

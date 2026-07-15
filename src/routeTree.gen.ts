@@ -26,6 +26,7 @@ import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
+import { Route as ApiCronProcessRefundsRouteImport } from './routes/api.cron.process-refunds'
 import { Route as AdminOrganizersOrganizerIdRouteImport } from './routes/admin.organizers.$organizerId'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
@@ -119,6 +120,11 @@ const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
   path: '/api/gopay/notify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronProcessRefundsRoute = ApiCronProcessRefundsRouteImport.update({
+  id: '/api/cron/process-refunds',
+  path: '/api/cron/process-refunds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminOrganizersOrganizerIdRoute =
   AdminOrganizersOrganizerIdRouteImport.update({
     id: '/organizers/$organizerId',
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
+  '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
+  '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
+  '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
+    | '/api/cron/process-refunds'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
+    | '/api/cron/process-refunds'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
+    | '/api/cron/process-refunds'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -323,6 +335,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ApiCheckinRoute: typeof ApiCheckinRoute
   OrderIdRoute: typeof OrderIdRoute
+  ApiCronProcessRefundsRoute: typeof ApiCronProcessRefundsRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
@@ -451,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGopayNotifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/process-refunds': {
+      id: '/api/cron/process-refunds'
+      path: '/api/cron/process-refunds'
+      fullPath: '/api/cron/process-refunds'
+      preLoaderRoute: typeof ApiCronProcessRefundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/organizers/$organizerId': {
       id: '/admin/organizers/$organizerId'
       path: '/organizers/$organizerId'
@@ -560,6 +580,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ApiCheckinRoute: ApiCheckinRoute,
   OrderIdRoute: OrderIdRoute,
+  ApiCronProcessRefundsRoute: ApiCronProcessRefundsRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugIndexRoute: ESlugIndexRoute,

@@ -54,7 +54,7 @@ export async function runAdmin<T>(
 }
 
 export interface AuditEntry {
-  actorId: string
+  actorId: string | null
   action: string
   entityType: string
   entityId?: string | null

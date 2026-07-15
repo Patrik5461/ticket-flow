@@ -26,7 +26,7 @@ export interface RefundEmail {
 }
 
 export interface RefundAudit {
-  actorId: string
+  actorId: string | null
   action: string
   orderId: string
   oldStatus: OrderStatus
@@ -141,7 +141,7 @@ async function bookRefund(
   deps: RefundDeps,
   order: OrderRow,
   amountCents: number,
-  actorId: string,
+  actorId: string | null,
   ticketId: string | null,
   reason: string | null,
 ): Promise<void> {
@@ -186,7 +186,7 @@ async function bookRefund(
 /** Refund the whole remaining balance of an order and cancel all its tickets. */
 export async function refundWholeOrder(
   deps: RefundDeps,
-  args: { orderId: string; actorId: string; reason?: string | null },
+  args: { orderId: string; actorId: string | null; reason?: string | null },
 ): Promise<RefundResult> {
   const order = await loadOrder(deps, args.orderId)
   if (order.status === 'refunded') {
@@ -247,7 +247,7 @@ export async function refundWholeOrder(
 /** Refund a single ticket (its share of the paid total) and cancel it. */
 export async function refundSingleTicket(
   deps: RefundDeps,
-  args: { ticketId: string; actorId: string; reason?: string | null },
+  args: { ticketId: string; actorId: string | null; reason?: string | null },
 ): Promise<RefundResult> {
   const { data: ticket } = await deps.db
     .from('tickets')

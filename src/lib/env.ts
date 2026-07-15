@@ -43,6 +43,8 @@ const schema = z.object({
   GOPAY_CLIENT_SECRET: z.string().default(''),
   GOPAY_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   APP_URL: z.string().url().default('http://localhost:3000'),
+  // Shared secret guarding internal cron endpoints (e.g. refund-queue worker).
+  CRON_SECRET: z.string().default(''),
 })
 
 export type Env = z.infer<typeof schema>
@@ -54,7 +56,8 @@ export function getEnv(): Env {
     cached = schema.parse({
       // Order: SUPABASE_* env → TICKETIO_* alias → hardcoded public default.
       SUPABASE_URL: pick('SUPABASE_URL') ?? PUBLIC_DEFAULTS.SUPABASE_URL,
-      SUPABASE_ANON_KEY: pick('SUPABASE_ANON_KEY') ?? PUBLIC_DEFAULTS.SUPABASE_ANON_KEY,
+      SUPABASE_ANON_KEY:
+        pick('SUPABASE_ANON_KEY') ?? PUBLIC_DEFAULTS.SUPABASE_ANON_KEY,
       // No hardcoded fallback — service role stays env-only, checked lazily.
       SUPABASE_SERVICE_ROLE_KEY: pick('SUPABASE_SERVICE_ROLE_KEY'),
       GOPAY_GOID: process.env.GOPAY_GOID,
@@ -62,6 +65,7 @@ export function getEnv(): Env {
       GOPAY_CLIENT_SECRET: process.env.GOPAY_CLIENT_SECRET,
       GOPAY_ENV: process.env.GOPAY_ENV,
       APP_URL: process.env.APP_URL,
+      CRON_SECRET: process.env.CRON_SECRET,
     })
   }
   return cached
