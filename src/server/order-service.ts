@@ -6,7 +6,7 @@
  * Server-only.
  */
 
-import { serviceClient } from '../lib/supabase/server'
+import { serviceClient, anonClient } from '../lib/supabase/server'
 import { getEnv, isGoPayConfigured } from '../lib/env'
 import { computePricing } from '../lib/pricing'
 import {
@@ -58,7 +58,9 @@ export class OrderError extends Error {}
 export async function getPublicEvent(
   slug: string,
 ): Promise<{ event: PublicEvent; ticketTypes: PublicTicketType[] } | null> {
-  const db = serviceClient()
+  // Public read: anon client (RLS allows published events + non-hidden types),
+  // so the landing/event pages render without a service role key.
+  const db = anonClient()
   const { data: event } = await db
     .from('events')
     .select(PUBLIC_EVENT_COLS)
@@ -94,7 +96,7 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
 }
 
 export async function listPublishedEvents(): Promise<PublicEvent[]> {
-  const db = serviceClient()
+  const db = anonClient()
   const { data } = await db
     .from('events')
     .select(PUBLIC_EVENT_COLS)

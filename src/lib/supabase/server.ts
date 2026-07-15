@@ -7,7 +7,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { getEnv } from '../env'
+import { getEnv, getServiceRoleKey } from '../env'
 
 const authOpts = { auth: { persistSession: false, autoRefreshToken: false } }
 
@@ -17,7 +17,9 @@ let anon: SupabaseClient | null = null
 export function serviceClient(): SupabaseClient {
   if (!service) {
     const env = getEnv()
-    service = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, authOpts)
+    // Lazy: throws here (not at env parse) if the service role key is absent,
+    // so public pages using anonClient keep working without it.
+    service = createClient(env.SUPABASE_URL, getServiceRoleKey(), authOpts)
   }
   return service
 }
