@@ -169,7 +169,9 @@ export async function previewPricing(
     .from('events')
     .select('organizers(fee_percent, fee_min_cents)')
     .eq('id', event.id)
-    .single<{ organizers: Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'> }>()
+    .single<{
+      organizers: Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'>
+    }>()
 
   const types = await loadPurchasableTypes(event.id, items)
 
@@ -178,8 +180,15 @@ export async function previewPricing(
   for (const item of items) {
     const t = types.get(item.ticketTypeId)
     if (!t || item.quantity <= 0) continue
-    lines.push({ name: t.name, quantity: item.quantity, unitPriceCents: t.price_cents })
-    pricingItems.push({ quantity: item.quantity, unitPriceCents: t.price_cents })
+    lines.push({
+      name: t.name,
+      quantity: item.quantity,
+      unitPriceCents: t.price_cents,
+    })
+    pricingItems.push({
+      quantity: item.quantity,
+      unitPriceCents: t.price_cents,
+    })
   }
 
   const subtotalCents = pricingItems.reduce(
@@ -260,14 +269,20 @@ export async function createOrder(
     .eq('slug', input.slug)
     .eq('status', 'published')
     .maybeSingle<EventRow>()
-  if (!event) throw new OrderError('Podujatie sa nenašlo alebo nie je zverejnené.')
+  if (!event)
+    throw new OrderError('Podujatie sa nenašlo alebo nie je zverejnené.')
 
-  // 2. Organizer fee.
+  // 2. Organizer fee + status. A suspended organizer may not sell.
   const { data: organizer } = await db
     .from('organizers')
-    .select('fee_percent, fee_min_cents')
+    .select('fee_percent, fee_min_cents, status')
     .eq('id', event.organizer_id)
-    .single<Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'>>()
+    .single<Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents' | 'status'>>()
+  if (organizer?.status === 'suspended') {
+    throw new OrderError(
+      'Predaj vstupeniek je pre tohto organizátora pozastavený.',
+    )
+  }
 
   // 3. Ticket types on sale.
   const types = await loadPurchasableTypes(event.id, input.items)
@@ -275,7 +290,9 @@ export async function createOrder(
     (i) => i.quantity > 0 && types.has(i.ticketTypeId),
   )
   if (cleanItems.length === 0) {
-    throw new OrderError('Košík je prázdny alebo vybrané vstupenky nie sú v predaji.')
+    throw new OrderError(
+      'Košík je prázdny alebo vybrané vstupenky nie sú v predaji.',
+    )
   }
   for (const item of cleanItems) {
     const t = types.get(item.ticketTypeId)!
@@ -326,13 +343,17 @@ export async function createOrder(
     if (!ok) {
       await releaseAll(reserved)
       const name = types.get(item.ticketTypeId)!.name
-      throw new OrderError(`"${name}" je vypredaná alebo nie je dostatok kusov.`)
+      throw new OrderError(
+        `"${name}" je vypredaná alebo nie je dostatok kusov.`,
+      )
     }
     reserved.push(item)
   }
 
   // 7. Persist the order + items. Compensate capacity if this fails.
-  const expiresAt = new Date(Date.now() + RESERVATION_MINUTES * 60_000).toISOString()
+  const expiresAt = new Date(
+    Date.now() + RESERVATION_MINUTES * 60_000,
+  ).toISOString()
   const { data: order, error: orderErr } = await db
     .from('orders')
     .insert({
@@ -434,7 +455,10 @@ async function releaseAll(items: CartItemInput[]): Promise<void> {
 // Fulfilment
 // ---------------------------------------------------------------------------
 
-async function markPaidAndFulfill(order: OrderRow, event: EventRow): Promise<void> {
+async function markPaidAndFulfill(
+  order: OrderRow,
+  event: EventRow,
+): Promise<void> {
   const db = serviceClient()
 
   // Guard the paid transition: only the first caller flips pending -> paid.
@@ -609,7 +633,11 @@ export async function getOrderView(
   if (!verifyOrderToken(order.id, token, event.qr_secret)) return null
 
   // Reconcile a pending payment on demand.
-  if (order.status === 'pending' && order.gopay_payment_id && isGoPayConfigured()) {
+  if (
+    order.status === 'pending' &&
+    order.gopay_payment_id &&
+    isGoPayConfigured()
+  ) {
     try {
       await reconcileGoPay(order, event)
       const { data: fresh } = await db
@@ -628,7 +656,9 @@ export async function getOrderView(
     .select('*')
     .eq('order_id', order.id)
     .returns<TicketRow[]>()
-  const names = await ticketTypeNames((ticketRows ?? []).map((t) => t.ticket_type_id))
+  const names = await ticketTypeNames(
+    (ticketRows ?? []).map((t) => t.ticket_type_id),
+  )
 
   const tickets = await Promise.all(
     (ticketRows ?? []).map(async (t) => {
@@ -703,14 +733,21 @@ export async function getTicketPdf(
 async function reconcileGoPay(order: OrderRow, event: EventRow): Promise<void> {
   if (!order.gopay_payment_id) return
   const status = await getPaymentStatus(order.gopay_payment_id)
-  await recordPaymentEvent(order.id, order.gopay_payment_id, status.state, status)
+  await recordPaymentEvent(
+    order.id,
+    order.gopay_payment_id,
+    status.state,
+    status,
+  )
   if (status.state === 'PAID') {
     await markPaidAndFulfill(order, event)
   }
 }
 
 /** Idempotent webhook entry point: called by /api/gopay/notify. */
-export async function handleGoPayNotification(paymentId: string): Promise<void> {
+export async function handleGoPayNotification(
+  paymentId: string,
+): Promise<void> {
   const db = serviceClient()
   const { data: order } = await db
     .from('orders')

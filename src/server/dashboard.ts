@@ -271,6 +271,19 @@ async function setEventStatus(eventId: string, status: EventStatus) {
     const actor = await requireOrganizer()
     assertCanEdit(actor)
     const event = await assertEventOwned(actor.organizerId, eventId)
+    // A suspended organizer may not publish (they may still unpublish to draft).
+    if (status === 'published') {
+      const { data: org } = await serviceClient()
+        .from('organizers')
+        .select('status')
+        .eq('id', actor.organizerId)
+        .maybeSingle<{ status: 'active' | 'suspended' }>()
+      if (org?.status === 'suspended') {
+        throw new DashboardError(
+          'Váš účet je pozastavený, podujatie nie je možné zverejniť. Kontaktujte podporu.',
+        )
+      }
+    }
     const { error } = await serviceClient()
       .from('events')
       .update({ status })

@@ -10,6 +10,16 @@ export type TicketStatus = 'valid' | 'used' | 'cancelled'
 
 export type OrganizerStatus = 'active' | 'suspended'
 
+/** JSON-compatible value (matches a jsonb column, and stays serializable across
+ *  the server-fn boundary — `unknown` would not). */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
+
 export interface OrganizerRow {
   id: string
   name: string
@@ -27,8 +37,8 @@ export interface AuditLogRow {
   action: string
   entity_type: string
   entity_id: string | null
-  old_value: unknown
-  new_value: unknown
+  old_value: JsonValue
+  new_value: JsonValue
   created_at: string
 }
 
