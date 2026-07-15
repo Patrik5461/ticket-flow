@@ -21,7 +21,7 @@
     "db:seed": "node --env-file=.env scripts/seed.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.5",
+    "@supabase/supabase-js": "^2.110.6",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-router": "latest",
