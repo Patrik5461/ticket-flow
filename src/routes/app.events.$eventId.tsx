@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useRouter, notFound } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  useRouter,
+  notFound,
+} from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   getMyEventFn,
@@ -77,6 +82,13 @@ function ManageEvent() {
           >
             Predaj a tržby →
           </Link>
+          <Link
+            to="/app/events/$eventId/checkin"
+            params={{ eventId: event.id }}
+            className="font-medium text-indigo-600 hover:underline"
+          >
+            Check-in →
+          </Link>
           {event.status === 'published' && (
             <a
               href={`/e/${event.slug}`}
@@ -91,8 +103,17 @@ function ManageEvent() {
       </div>
 
       <EventDetailsForm event={event} onSaved={reload} tz={tz} />
-      <TicketTypesSection eventId={event.id} types={ticketTypes} onChanged={reload} />
-      <CouponsSection eventId={event.id} coupons={coupons} tz={tz} onChanged={reload} />
+      <TicketTypesSection
+        eventId={event.id}
+        types={ticketTypes}
+        onChanged={reload}
+      />
+      <CouponsSection
+        eventId={event.id}
+        coupons={coupons}
+        tz={tz}
+        onChanged={reload}
+      />
     </div>
   )
 }
@@ -118,8 +139,10 @@ function EventDetailsForm({
   })
   const [msg, setMsg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }))
+  const set =
+    (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -146,24 +169,61 @@ function EventDetailsForm({
     <section className="rounded-lg border bg-white p-6">
       <h2 className="mb-4 text-lg font-semibold">Detaily podujatia</h2>
       <form onSubmit={save} className="space-y-4">
-        <input value={form.title} onChange={set('title')} className={inputCls} placeholder="Názov" required />
-        <textarea value={form.description} onChange={set('description')} rows={3} className={inputCls} placeholder="Popis" />
+        <input
+          value={form.title}
+          onChange={set('title')}
+          className={inputCls}
+          placeholder="Názov"
+          required
+        />
+        <textarea
+          value={form.description}
+          onChange={set('description')}
+          rows={3}
+          className={inputCls}
+          placeholder="Popis"
+        />
         <div className="grid grid-cols-2 gap-4">
-          <input value={form.venueName} onChange={set('venueName')} className={inputCls} placeholder="Miesto" />
-          <input value={form.venueAddress} onChange={set('venueAddress')} className={inputCls} placeholder="Adresa" />
+          <input
+            value={form.venueName}
+            onChange={set('venueName')}
+            className={inputCls}
+            placeholder="Miesto"
+          />
+          <input
+            value={form.venueAddress}
+            onChange={set('venueAddress')}
+            className={inputCls}
+            placeholder="Adresa"
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <label className="text-sm">
             <span className="mb-1 block text-gray-600">Začiatok</span>
-            <input type="datetime-local" value={form.startsAtLocal} onChange={set('startsAtLocal')} className={inputCls} required />
+            <input
+              type="datetime-local"
+              value={form.startsAtLocal}
+              onChange={set('startsAtLocal')}
+              className={inputCls}
+              required
+            />
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-gray-600">Koniec</span>
-            <input type="datetime-local" value={form.endsAtLocal} onChange={set('endsAtLocal')} className={inputCls} />
+            <input
+              type="datetime-local"
+              value={form.endsAtLocal}
+              onChange={set('endsAtLocal')}
+              className={inputCls}
+            />
           </label>
         </div>
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
             {saving ? 'Ukladám…' : 'Uložiť'}
           </button>
           {msg && <span className="text-sm text-gray-600">{msg}</span>}
@@ -189,7 +249,12 @@ function TicketTypesSection({
       <h2 className="mb-4 text-lg font-semibold">Typy vstupeniek</h2>
       <div className="space-y-3">
         {types.map((t) => (
-          <TicketTypeForm key={t.id} eventId={eventId} type={t} onChanged={onChanged} />
+          <TicketTypeForm
+            key={t.id}
+            eventId={eventId}
+            type={t}
+            onChanged={onChanged}
+          />
         ))}
       </div>
       <div className="mt-4 border-t pt-4">
@@ -232,14 +297,23 @@ function TicketTypeForm({
       hidden: form.hidden,
     }
     const res = editing
-      ? await updateTicketTypeFn({ data: { ...payload, ticketTypeId: type!.id } })
+      ? await updateTicketTypeFn({
+          data: { ...payload, ticketTypeId: type!.id },
+        })
       : await createTicketTypeFn({ data: { ...payload, eventId } })
     setBusy(false)
     if ('error' in res) {
       setErr(res.error)
       return
     }
-    if (!editing) setForm({ name: '', priceEur: '', capacity: '', maxPerOrder: '10', hidden: false })
+    if (!editing)
+      setForm({
+        name: '',
+        priceEur: '',
+        capacity: '',
+        maxPerOrder: '10',
+        hidden: false,
+      })
     onChanged()
   }
 
@@ -257,35 +331,82 @@ function TicketTypeForm({
       <div className="grid grid-cols-12 items-end gap-2">
         <label className="col-span-4 text-xs text-gray-500">
           Názov
-          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} />
+          <input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            className={inputCls}
+          />
         </label>
         <label className="col-span-2 text-xs text-gray-500">
           Cena (€)
-          <input type="number" step="0.01" min="0" value={form.priceEur} onChange={(e) => setForm((f) => ({ ...f, priceEur: e.target.value }))} className={inputCls} />
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.priceEur}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, priceEur: e.target.value }))
+            }
+            className={inputCls}
+          />
         </label>
         <label className="col-span-2 text-xs text-gray-500">
           Kapacita
-          <input type="number" min="0" value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} className={inputCls} />
+          <input
+            type="number"
+            min="0"
+            value={form.capacity}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, capacity: e.target.value }))
+            }
+            className={inputCls}
+          />
         </label>
         <label className="col-span-2 text-xs text-gray-500">
           Max/obj.
-          <input type="number" min="1" value={form.maxPerOrder} onChange={(e) => setForm((f) => ({ ...f, maxPerOrder: e.target.value }))} className={inputCls} />
+          <input
+            type="number"
+            min="1"
+            value={form.maxPerOrder}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, maxPerOrder: e.target.value }))
+            }
+            className={inputCls}
+          />
         </label>
         <label className="col-span-2 flex items-center gap-1 pb-2 text-xs text-gray-600">
-          <input type="checkbox" checked={form.hidden} onChange={(e) => setForm((f) => ({ ...f, hidden: e.target.checked }))} />
+          <input
+            type="checkbox"
+            checked={form.hidden}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, hidden: e.target.checked }))
+            }
+          />
           Skryté
         </label>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <button onClick={submit} disabled={busy} className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
           {editing ? 'Uložiť' : '+ Pridať typ'}
         </button>
         {editing && (
-          <button onClick={remove} disabled={busy} className="rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+          >
             Zmazať
           </button>
         )}
-        {type && <span className="ml-auto text-xs text-gray-400">{type.sold_count} predaných · {formatEur(type.price_cents)}</span>}
+        {type && (
+          <span className="ml-auto text-xs text-gray-400">
+            {type.sold_count} predaných · {formatEur(type.price_cents)}
+          </span>
+        )}
         {err && <span className="text-xs text-red-600">{err}</span>}
       </div>
     </div>
@@ -310,7 +431,13 @@ function CouponsSection({
       <h2 className="mb-4 text-lg font-semibold">Kupóny</h2>
       <div className="space-y-3">
         {coupons.map((c) => (
-          <CouponForm key={c.id} eventId={eventId} coupon={c} tz={tz} onChanged={onChanged} />
+          <CouponForm
+            key={c.id}
+            eventId={eventId}
+            coupon={c}
+            tz={tz}
+            onChanged={onChanged}
+          />
         ))}
       </div>
       <div className="mt-4 border-t pt-4">
@@ -379,34 +506,74 @@ function CouponForm({
       <div className="grid grid-cols-12 items-end gap-2">
         <label className="col-span-3 text-xs text-gray-500">
           Kód
-          <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className={inputCls} />
+          <input
+            value={form.code}
+            onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+            className={inputCls}
+          />
         </label>
         <label className="col-span-3 text-xs text-gray-500">
           Typ
-          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as 'percent' | 'fixed' }))} className={inputCls}>
+          <select
+            value={form.type}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                type: e.target.value as 'percent' | 'fixed',
+              }))
+            }
+            className={inputCls}
+          >
             <option value="percent">Percentá (%)</option>
             <option value="fixed">Pevná (centy)</option>
           </select>
         </label>
         <label className="col-span-3 text-xs text-gray-500">
           Hodnota {form.type === 'percent' ? '(%)' : '(centy)'}
-          <input type="number" min="0" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} className={inputCls} />
+          <input
+            type="number"
+            min="0"
+            value={form.value}
+            onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+            className={inputCls}
+          />
         </label>
         <label className="col-span-3 text-xs text-gray-500">
           Max použití
-          <input type="number" min="1" value={form.maxUses} onChange={(e) => setForm((f) => ({ ...f, maxUses: e.target.value }))} className={inputCls} placeholder="∞" />
+          <input
+            type="number"
+            min="1"
+            value={form.maxUses}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, maxUses: e.target.value }))
+            }
+            className={inputCls}
+            placeholder="∞"
+          />
         </label>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <button onClick={submit} disabled={busy} className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
           {editing ? 'Uložiť' : '+ Pridať kupón'}
         </button>
         {editing && (
-          <button onClick={remove} disabled={busy} className="rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+          >
             Zmazať
           </button>
         )}
-        {coupon && <span className="ml-auto text-xs text-gray-400">použité {coupon.used_count}×</span>}
+        {coupon && (
+          <span className="ml-auto text-xs text-gray-400">
+            použité {coupon.used_count}×
+          </span>
+        )}
         {err && <span className="text-xs text-red-600">{err}</span>}
       </div>
     </div>

@@ -15,6 +15,7 @@ import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData, type SalesData } from './sales-data'
+import { getCheckinSummary } from './checkin-service'
 import type {
   EventRow,
   TicketTypeRow,
@@ -50,14 +51,20 @@ function assertCanEdit(actor: Actor): void {
   }
 }
 
-async function assertEventOwned(organizerId: string, eventId: string): Promise<EventRow> {
+async function assertEventOwned(
+  organizerId: string,
+  eventId: string,
+): Promise<EventRow> {
   const { data } = await serviceClient()
     .from('events')
     .select('*')
     .eq('id', eventId)
     .eq('organizer_id', organizerId)
     .maybeSingle<EventRow>()
-  if (!data) throw new DashboardError('Podujatie sa nenašlo alebo naň nemáte oprávnenie.')
+  if (!data)
+    throw new DashboardError(
+      'Podujatie sa nenašlo alebo naň nemáte oprávnenie.',
+    )
   return data
 }
 
@@ -132,7 +139,10 @@ export const listMyEventsFn = createServerFn({ method: 'GET' }).handler(
       .eq('organizer_id', actor.organizerId)
       .order('starts_at', { ascending: false })
       .returns<
-        Pick<EventRow, 'id' | 'title' | 'slug' | 'status' | 'starts_at' | 'timezone'>[]
+        Pick<
+          EventRow,
+          'id' | 'title' | 'slug' | 'status' | 'starts_at' | 'timezone'
+        >[]
       >()
 
     const list = events ?? []
@@ -222,13 +232,16 @@ export const createEventFn = createServerFn({ method: 'POST' })
         })
         .select('id')
         .single<{ id: string }>()
-      if (error || !created) throw new DashboardError('Podujatie sa nepodarilo vytvoriť.')
+      if (error || !created)
+        throw new DashboardError('Podujatie sa nepodarilo vytvoriť.')
       return { ok: true, eventId: created.id }
     })
   })
 
 export const updateEventFn = createServerFn({ method: 'POST' })
-  .validator((d: unknown) => eventInput.extend({ eventId: z.string().uuid() }).parse(d))
+  .validator((d: unknown) =>
+    eventInput.extend({ eventId: z.string().uuid() }).parse(d),
+  )
   .handler(async ({ data }) => {
     return run(async () => {
       const actor = await requireOrganizer()
@@ -298,17 +311,20 @@ export const createTicketTypeFn = createServerFn({ method: 'POST' })
       const actor = await requireOrganizer()
       assertCanEdit(actor)
       await assertEventOwned(actor.organizerId, data.eventId)
-      const { error } = await serviceClient().from('ticket_types').insert({
-        event_id: data.eventId,
-        name: data.name,
-        description: data.description ?? null,
-        price_cents: data.priceCents,
-        capacity: data.capacity,
-        max_per_order: data.maxPerOrder,
-        sort_order: data.sortOrder,
-        hidden: data.hidden,
-      })
-      if (error) throw new DashboardError('Typ vstupenky sa nepodarilo vytvoriť.')
+      const { error } = await serviceClient()
+        .from('ticket_types')
+        .insert({
+          event_id: data.eventId,
+          name: data.name,
+          description: data.description ?? null,
+          price_cents: data.priceCents,
+          capacity: data.capacity,
+          max_per_order: data.maxPerOrder,
+          sort_order: data.sortOrder,
+          hidden: data.hidden,
+        })
+      if (error)
+        throw new DashboardError('Typ vstupenky sa nepodarilo vytvoriť.')
       return { ok: true }
     })
   })
@@ -341,7 +357,9 @@ export const updateTicketTypeFn = createServerFn({ method: 'POST' })
   })
 
 export const deleteTicketTypeFn = createServerFn({ method: 'POST' })
-  .validator((d: unknown) => z.object({ ticketTypeId: z.string().uuid() }).parse(d))
+  .validator((d: unknown) =>
+    z.object({ ticketTypeId: z.string().uuid() }).parse(d),
+  )
   .handler(async ({ data }) => {
     return run(async () => {
       const actor = await requireOrganizer()
@@ -416,7 +434,9 @@ export const createCouponFn = createServerFn({ method: 'POST' })
         })
       if (error) {
         if (error.code === '23505') {
-          throw new DashboardError('Kupón s týmto kódom už pre podujatie existuje.')
+          throw new DashboardError(
+            'Kupón s týmto kódom už pre podujatie existuje.',
+          )
         }
         throw new DashboardError('Kupón sa nepodarilo vytvoriť.')
       }
@@ -446,7 +466,9 @@ export const updateCouponFn = createServerFn({ method: 'POST' })
         .eq('id', data.couponId)
       if (error) {
         if (error.code === '23505') {
-          throw new DashboardError('Kupón s týmto kódom už pre podujatie existuje.')
+          throw new DashboardError(
+            'Kupón s týmto kódom už pre podujatie existuje.',
+          )
         }
         throw new DashboardError('Kupón sa nepodarilo uložiť.')
       }
@@ -483,7 +505,47 @@ export const getEventSalesFn = createServerFn({ method: 'GET' })
     return run(async () => {
       const actor = await requireOrganizer()
       const sales = await buildSalesData(data.eventId, actor.organizerId)
-      if (!sales) throw new DashboardError('Podujatie sa nenašlo alebo naň nemáte oprávnenie.')
+      if (!sales)
+        throw new DashboardError(
+          'Podujatie sa nenašlo alebo naň nemáte oprávnenie.',
+        )
       return sales
+    })
+  })
+
+// ---------------------------------------------------------------------------
+// Check-in (scan processing lives in ./checkin-service; the POST /api/checkin
+// route is the scanning endpoint. This fn only backs the board's initial load.)
+// ---------------------------------------------------------------------------
+
+export interface CheckinBoard {
+  event: { id: string; title: string; slug: string; timezone: string }
+  summary: { total: number; checkedIn: number }
+}
+
+/** Event header + admitted/total counters for the check-in board. Any member
+ *  (owner, admin or the dedicated checkin role) may open it. */
+export const getCheckinBoardFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) => z.object({ eventId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<CheckinBoard | { error: string }> => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      const event = await assertEventOwned(actor.organizerId, data.eventId)
+      const summary = (await getCheckinSummary(
+        data.eventId,
+        actor.organizerId,
+      )) ?? {
+        total: 0,
+        checkedIn: 0,
+      }
+      return {
+        event: {
+          id: event.id,
+          title: event.title,
+          slug: event.slug,
+          timezone: event.timezone,
+        },
+        summary,
+      }
     })
   })

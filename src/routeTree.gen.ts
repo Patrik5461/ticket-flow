@@ -15,12 +15,14 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
+import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
@@ -54,6 +56,11 @@ const OrderIdRoute = OrderIdRouteImport.update({
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCheckinRoute = ApiCheckinRouteImport.update({
+  id: '/api/checkin',
+  path: '/api/checkin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ESlugIndexRoute = ESlugIndexRouteImport.update({
   id: '/e/$slug/',
   path: '/e/$slug/',
@@ -84,6 +91,11 @@ const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
   path: '/sales',
   getParentRoute: () => AppEventsEventIdRoute,
 } as any)
+const AppEventsEventIdCheckinRoute = AppEventsEventIdCheckinRouteImport.update({
+  id: '/checkin',
+  path: '/checkin',
+  getParentRoute: () => AppEventsEventIdRoute,
+} as any)
 const ApiEventsEventIdSalesCsvRoute =
   ApiEventsEventIdSalesCsvRouteImport.update({
     id: '/api/events/$eventId/sales-csv',
@@ -102,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
@@ -110,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
@@ -117,6 +131,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/app': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
@@ -125,6 +140,7 @@ export interface FileRoutesByTo {
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
@@ -134,6 +150,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
@@ -142,6 +159,7 @@ export interface FileRoutesById {
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
@@ -152,6 +170,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/register'
+    | '/api/checkin'
     | '/order/$id'
     | '/app/'
     | '/api/gopay/notify'
@@ -160,6 +179,7 @@ export interface FileRouteTypes {
     | '/e/$slug/checkout'
     | '/e/$slug/'
     | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesByTo: FileRoutesByTo
@@ -167,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/api/checkin'
     | '/order/$id'
     | '/app'
     | '/api/gopay/notify'
@@ -175,6 +196,7 @@ export interface FileRouteTypes {
     | '/e/$slug/checkout'
     | '/e/$slug'
     | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   id:
@@ -183,6 +205,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/register'
+    | '/api/checkin'
     | '/order/$id'
     | '/app/'
     | '/api/gopay/notify'
@@ -191,6 +214,7 @@ export interface FileRouteTypes {
     | '/e/$slug/checkout'
     | '/e/$slug/'
     | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesById: FileRoutesById
@@ -200,6 +224,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  ApiCheckinRoute: typeof ApiCheckinRoute
   OrderIdRoute: typeof OrderIdRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
@@ -252,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/checkin': {
+      id: '/api/checkin'
+      path: '/api/checkin'
+      fullPath: '/api/checkin'
+      preLoaderRoute: typeof ApiCheckinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/e/$slug/': {
       id: '/e/$slug/'
       path: '/e/$slug'
@@ -294,6 +326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventsEventIdSalesRouteImport
       parentRoute: typeof AppEventsEventIdRoute
     }
+    '/app/events/$eventId/checkin': {
+      id: '/app/events/$eventId/checkin'
+      path: '/checkin'
+      fullPath: '/app/events/$eventId/checkin'
+      preLoaderRoute: typeof AppEventsEventIdCheckinRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
     '/api/events/$eventId/sales-csv': {
       id: '/api/events/$eventId/sales-csv'
       path: '/api/events/$eventId/sales-csv'
@@ -312,10 +351,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppEventsEventIdRouteChildren {
+  AppEventsEventIdCheckinRoute: typeof AppEventsEventIdCheckinRoute
   AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
 }
 
 const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
+  AppEventsEventIdCheckinRoute: AppEventsEventIdCheckinRoute,
   AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
 }
 
@@ -341,6 +382,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  ApiCheckinRoute: ApiCheckinRoute,
   OrderIdRoute: OrderIdRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
