@@ -18,12 +18,7 @@ export type OrganizerStatus = 'active' | 'suspended'
 /** JSON-compatible value (matches a jsonb column, and stays serializable across
  *  the server-fn boundary — `unknown` would not). */
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 export interface OrganizerRow {
   id: string
@@ -95,6 +90,11 @@ export interface OrderRow {
   expires_at: string | null
   created_at: string
   paid_at: string | null
+  billing_ico: string | null
+  billing_dic: string | null
+  billing_ic_dph: string | null
+  billing_name: string | null
+  billing_address: string | null
 }
 
 export interface OrderItemRow {

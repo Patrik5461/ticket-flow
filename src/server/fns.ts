@@ -14,6 +14,7 @@ import {
   previewPricing,
   OrderError,
 } from './order-service'
+import { lookupCompanyByIco, normalizeIco } from '../lib/rpo'
 
 const cartItemsSchema = z
   .array(
@@ -30,9 +31,11 @@ export const getEventFn = createServerFn({ method: 'GET' })
     return getPublicEvent(data.slug)
   })
 
-export const listEventsFn = createServerFn({ method: 'GET' }).handler(async () => {
-  return listPublishedEvents()
-})
+export const listEventsFn = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    return listPublishedEvents()
+  },
+)
 
 export const previewPricingFn = createServerFn({ method: 'POST' })
   .validator((d: unknown) =>
@@ -60,6 +63,16 @@ export const createOrderFn = createServerFn({ method: 'POST' })
           phone: z.string().trim().max(40).optional(),
         }),
         couponCode: z.string().trim().min(1).max(64).optional().nullable(),
+        billing: z
+          .object({
+            ico: z.string().trim().max(20).optional().nullable(),
+            dic: z.string().trim().max(20).optional().nullable(),
+            icDph: z.string().trim().max(20).optional().nullable(),
+            name: z.string().trim().max(200).optional().nullable(),
+            address: z.string().trim().max(300).optional().nullable(),
+          })
+          .optional()
+          .nullable(),
         acceptTerms: z.boolean().refine((v) => v === true, {
           message: 'Musíte súhlasiť s obchodnými podmienkami.',
         }),
@@ -73,6 +86,7 @@ export const createOrderFn = createServerFn({ method: 'POST' })
         items: data.items,
         buyer: data.buyer,
         couponCode: data.couponCode,
+        billing: data.billing,
       })
     } catch (e) {
       if (e instanceof OrderError) {
@@ -88,4 +102,18 @@ export const getOrderFn = createServerFn({ method: 'GET' })
   )
   .handler(async ({ data }) => {
     return getOrderView(data.orderId, data.token)
+  })
+
+/** RPO company lookup by IČO for the "kúpiť na firmu" checkout option. */
+export const lookupCompanyFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z.object({ ico: z.string().trim().min(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    if (!normalizeIco(data.ico)) {
+      return { error: 'Neplatné IČO.' } as const
+    }
+    const company = await lookupCompanyByIco(data.ico)
+    if (!company) return { error: 'Firma sa nenašla v registri.' } as const
+    return { company } as const
   })

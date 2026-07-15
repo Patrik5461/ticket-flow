@@ -14,6 +14,10 @@ import { serviceClient } from '../lib/supabase/server'
 import { requirePlatformAdmin, runAdmin, AdminError } from './admin'
 import { listSettlements } from './settlement-service'
 import type { SettlementRow } from './settlement-service'
+import {
+  issueSettlementInvoices,
+  realInvoicingDeps,
+} from './settlement-invoicing'
 
 export type { SettlementRow } from './settlement-service'
 
@@ -47,6 +51,10 @@ export const generateSettlementsNowFn = createServerFn({ method: 'POST' })
           { p_period_month: `${data.periodMonth}-01` },
         )
         if (error) throw new AdminError('Generovanie vyúčtovaní zlyhalo.')
+        // Issue commission invoices for the freshly generated month.
+        await issueSettlementInvoices(realInvoicingDeps(), {
+          periodMonth: data.periodMonth,
+        })
         return { ok: true as const, count: (count as number | null) ?? 0 }
       })
     },

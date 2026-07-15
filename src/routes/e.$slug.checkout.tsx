@@ -1,6 +1,11 @@
 import { createFileRoute, notFound, Link } from '@tanstack/react-router'
 import { useState } from 'react'
-import { getEventFn, previewPricingFn, createOrderFn } from '../server/fns'
+import {
+  getEventFn,
+  previewPricingFn,
+  createOrderFn,
+  lookupCompanyFn,
+} from '../server/fns'
 import { formatEur } from '../lib/money'
 
 interface CartItem {
@@ -18,7 +23,9 @@ function parseItems(raw: string): { ticketTypeId: string; quantity: number }[] {
       const [ticketTypeId, qty] = part.split(':')
       return { ticketTypeId, quantity: Number(qty) }
     })
-    .filter((i) => i.ticketTypeId && Number.isInteger(i.quantity) && i.quantity > 0)
+    .filter(
+      (i) => i.ticketTypeId && Number.isInteger(i.quantity) && i.quantity > 0,
+    )
 }
 
 export const Route = createFileRoute('/e/$slug/checkout')({
@@ -79,8 +86,20 @@ function Checkout() {
   const [phone, setPhone] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [accept, setAccept] = useState(false)
+  // "Kúpiť na firmu"
+  const [companyBuy, setCompanyBuy] = useState(false)
+  const [ico, setIco] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [companyAddress, setCompanyAddress] = useState('')
+  const [companyDic, setCompanyDic] = useState('')
+  const [companyIcDph, setCompanyIcDph] = useState('')
+  const [companyBusy, setCompanyBusy] = useState(false)
+  const [companyMsg, setCompanyMsg] = useState<string | null>(null)
   const [discountCents, setDiscountCents] = useState(0)
-  const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [couponMsg, setCouponMsg] = useState<{
+    ok: boolean
+    text: string
+  } | null>(null)
   const [couponBusy, setCouponBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -98,16 +117,40 @@ function Checkout() {
     setCouponBusy(true)
     try {
       const preview = await previewPricingFn({
-        data: { slug, items: cartPayload, couponCode: couponCode.trim() || null },
+        data: {
+          slug,
+          items: cartPayload,
+          couponCode: couponCode.trim() || null,
+        },
       })
       setDiscountCents(preview.discountCents)
       if (preview.coupon?.ok === false) {
         setCouponMsg({ ok: false, text: preview.coupon.message })
       } else if (preview.coupon?.ok) {
-        setCouponMsg({ ok: true, text: `Zľava −${formatEur(preview.discountCents)}` })
+        setCouponMsg({
+          ok: true,
+          text: `Zľava −${formatEur(preview.discountCents)}`,
+        })
       }
     } finally {
       setCouponBusy(false)
+    }
+  }
+
+  const lookupCompany = async () => {
+    setCompanyMsg(null)
+    setCompanyBusy(true)
+    try {
+      const res = await lookupCompanyFn({ data: { ico: ico.trim() } })
+      if ('company' in res && res.company) {
+        setCompanyName(res.company.name)
+        setCompanyAddress(res.company.address ?? '')
+        setCompanyMsg(null)
+      } else {
+        setCompanyMsg(res.error)
+      }
+    } finally {
+      setCompanyBusy(false)
     }
   }
 
@@ -126,6 +169,16 @@ function Checkout() {
             phone: phone.trim() || undefined,
           },
           couponCode: couponCode.trim() || null,
+          billing:
+            companyBuy && companyName.trim()
+              ? {
+                  ico: ico.trim() || null,
+                  dic: companyDic.trim() || null,
+                  icDph: companyIcDph.trim() || null,
+                  name: companyName.trim(),
+                  address: companyAddress.trim() || null,
+                }
+              : null,
           acceptTerms: accept as true,
         },
       })
@@ -167,11 +220,16 @@ function Checkout() {
 
       <ul className="mt-5 space-y-2 border-t border-ink-700 pt-4 text-sm">
         {cart.map((i) => (
-          <li key={i.ticketTypeId} className="flex justify-between text-ink-200">
+          <li
+            key={i.ticketTypeId}
+            className="flex justify-between text-ink-200"
+          >
             <span>
               <span className="text-ink-400">{i.quantity}×</span> {i.name}
             </span>
-            <span className="tabular-nums">{formatEur(i.quantity * i.unitPriceCents)}</span>
+            <span className="tabular-nums">
+              {formatEur(i.quantity * i.unitPriceCents)}
+            </span>
           </li>
         ))}
       </ul>
@@ -205,19 +263,32 @@ function Checkout() {
           params={{ slug }}
           className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-ink-100"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           Späť
         </Link>
-        <h1 className="mt-6 font-display text-4xl font-bold md:text-5xl">Pokladňa</h1>
-        <p className="mt-2 text-ink-400">Vyplňte údaje a pokračujte na platbu.</p>
+        <h1 className="mt-6 font-display text-4xl font-bold md:text-5xl">
+          Pokladňa
+        </h1>
+        <p className="mt-2 text-ink-400">
+          Vyplňte údaje a pokračujte na platbu.
+        </p>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_400px]">
           {/* FORM */}
           <form onSubmit={submit} className="space-y-6">
             <section className="card-surface p-6">
-              <h2 className="font-display text-lg font-bold">Kontaktné údaje</h2>
+              <h2 className="font-display text-lg font-bold">
+                Kontaktné údaje
+              </h2>
               <div className="mt-4 grid gap-4">
                 <Field label="E-mail" required>
                   <input
@@ -249,6 +320,76 @@ function Checkout() {
                   </Field>
                 </div>
               </div>
+            </section>
+
+            <section className="card-surface p-6">
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={companyBuy}
+                  onChange={(e) => setCompanyBuy(e.target.checked)}
+                />
+                <span className="font-display text-lg font-bold">
+                  Kúpiť na firmu
+                </span>
+              </label>
+              {companyBuy && (
+                <div className="mt-4 grid gap-4">
+                  <Field label="IČO">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={ico}
+                        onChange={(e) => setIco(e.target.value)}
+                        placeholder="12345678"
+                        className={inputCls}
+                      />
+                      <button
+                        type="button"
+                        onClick={lookupCompany}
+                        disabled={companyBusy || !ico.trim()}
+                        className="btn-ghost shrink-0 disabled:opacity-40"
+                      >
+                        {companyBusy ? 'Načítavam…' : 'Načítať z registra'}
+                      </button>
+                    </div>
+                    {companyMsg && (
+                      <span className="mt-1.5 block text-xs text-red-400">
+                        {companyMsg}
+                      </span>
+                    )}
+                  </Field>
+                  <Field label="Názov firmy" required>
+                    <input
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Adresa">
+                    <input
+                      value={companyAddress}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="DIČ">
+                      <input
+                        value={companyDic}
+                        onChange={(e) => setCompanyDic(e.target.value)}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="IČ DPH">
+                      <input
+                        value={companyIcDph}
+                        onChange={(e) => setCompanyIcDph(e.target.value)}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className="card-surface p-6">
@@ -302,7 +443,9 @@ function Checkout() {
 
             {error && (
               <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-                <div className="font-semibold">Nepodarilo sa spracovať objednávku</div>
+                <div className="font-semibold">
+                  Nepodarilo sa spracovať objednávku
+                </div>
                 <div className="mt-1">{error}</div>
               </div>
             )}
@@ -320,7 +463,14 @@ function Checkout() {
               ) : (
                 <>
                   Zaplatiť {formatEur(total)}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
                     <path d="M5 12h14M13 5l7 7-7 7" />
                   </svg>
                 </>

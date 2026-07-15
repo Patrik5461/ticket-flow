@@ -45,6 +45,10 @@ const schema = z.object({
   APP_URL: z.string().url().default('http://localhost:3000'),
   // Shared secret guarding internal cron endpoints (e.g. refund-queue worker).
   CRON_SECRET: z.string().default(''),
+  // Faktero (commission invoicing). Without both, invoicing falls back to a log
+  // provider (no external call).
+  FAKTERO_API_KEY: z.string().default(''),
+  FAKTERO_API_URL: z.string().default(''),
 })
 
 export type Env = z.infer<typeof schema>
@@ -66,6 +70,8 @@ export function getEnv(): Env {
       GOPAY_ENV: process.env.GOPAY_ENV,
       APP_URL: process.env.APP_URL,
       CRON_SECRET: process.env.CRON_SECRET,
+      FAKTERO_API_KEY: process.env.FAKTERO_API_KEY,
+      FAKTERO_API_URL: process.env.FAKTERO_API_URL,
     })
   }
   return cached

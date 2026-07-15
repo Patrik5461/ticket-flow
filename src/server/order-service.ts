@@ -243,11 +243,20 @@ export async function previewPricing(
 // Create order
 // ---------------------------------------------------------------------------
 
+export interface CreateOrderBilling {
+  ico?: string | null
+  dic?: string | null
+  icDph?: string | null
+  name?: string | null
+  address?: string | null
+}
+
 export interface CreateOrderInput {
   slug: string
   items: CartItemInput[]
   buyer: { email: string; name?: string; phone?: string }
   couponCode?: string | null
+  billing?: CreateOrderBilling | null
 }
 
 export interface CreateOrderResult {
@@ -368,6 +377,11 @@ export async function createOrder(
       fee_cents: pricing.feeCents,
       coupon_id: coupon?.id ?? null,
       expires_at: expiresAt,
+      billing_ico: input.billing?.ico ?? null,
+      billing_dic: input.billing?.dic ?? null,
+      billing_ic_dph: input.billing?.icDph ?? null,
+      billing_name: input.billing?.name ?? null,
+      billing_address: input.billing?.address ?? null,
     })
     .select('*')
     .single<OrderRow>()
