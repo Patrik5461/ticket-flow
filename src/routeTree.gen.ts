@@ -18,15 +18,16 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
-import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
 import { Route as AdminOrganizersIndexRouteImport } from './routes/admin.organizers.index'
+import { Route as AdminOrdersIndexRouteImport } from './routes/admin.orders.index'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as AdminOrganizersOrganizerIdRouteImport } from './routes/admin.organizers.$organizerId'
+import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
 import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
@@ -77,11 +78,6 @@ const ApiCheckinRoute = ApiCheckinRouteImport.update({
   path: '/api/checkin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminOrdersRoute = AdminOrdersRouteImport.update({
-  id: '/orders',
-  path: '/orders',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminEventsRoute = AdminEventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -95,6 +91,11 @@ const ESlugIndexRoute = ESlugIndexRouteImport.update({
 const AdminOrganizersIndexRoute = AdminOrganizersIndexRouteImport.update({
   id: '/organizers/',
   path: '/organizers/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminOrdersIndexRoute = AdminOrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
   getParentRoute: () => AdminRoute,
 } as any)
 const ESlugCheckoutRoute = ESlugCheckoutRouteImport.update({
@@ -123,6 +124,11 @@ const AdminOrganizersOrganizerIdRoute =
     path: '/organizers/$organizerId',
     getParentRoute: () => AdminRoute,
   } as any)
+const AdminOrdersOrderIdRoute = AdminOrdersOrderIdRouteImport.update({
+  id: '/orders/$orderId',
+  path: '/orders/$orderId',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
@@ -153,16 +159,17 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
-  '/admin/orders': typeof AdminOrdersRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
@@ -175,16 +182,17 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
-  '/admin/orders': typeof AdminOrdersRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
+  '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/admin/orders': typeof AdminOrdersIndexRoute
   '/admin/organizers': typeof AdminOrganizersIndexRoute
   '/e/$slug': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
@@ -200,16 +208,17 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
-  '/admin/orders': typeof AdminOrdersRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/order/$id': typeof OrderIdRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/organizers/$organizerId': typeof AdminOrganizersOrganizerIdRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
@@ -226,16 +235,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/admin/events'
-    | '/admin/orders'
     | '/api/checkin'
     | '/order/$id'
     | '/admin/'
     | '/app/'
+    | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
     | '/api/events/$eventId/sales-csv'
@@ -248,16 +258,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/admin/events'
-    | '/admin/orders'
     | '/api/checkin'
     | '/order/$id'
     | '/admin'
     | '/app'
+    | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/admin/orders'
     | '/admin/organizers'
     | '/e/$slug'
     | '/api/events/$eventId/sales-csv'
@@ -272,16 +283,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/admin/events'
-    | '/admin/orders'
     | '/api/checkin'
     | '/order/$id'
     | '/admin/'
     | '/app/'
+    | '/admin/orders/$orderId'
     | '/admin/organizers/$organizerId'
     | '/api/gopay/notify'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
     | '/api/events/$eventId/sales-csv'
@@ -370,13 +382,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCheckinRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/orders': {
-      id: '/admin/orders'
-      path: '/orders'
-      fullPath: '/admin/orders'
-      preLoaderRoute: typeof AdminOrdersRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/events': {
       id: '/admin/events'
       path: '/events'
@@ -396,6 +401,13 @@ declare module '@tanstack/react-router' {
       path: '/organizers'
       fullPath: '/admin/organizers/'
       preLoaderRoute: typeof AdminOrganizersIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/orders/': {
+      id: '/admin/orders/'
+      path: '/orders'
+      fullPath: '/admin/orders/'
+      preLoaderRoute: typeof AdminOrdersIndexRouteImport
       parentRoute: typeof AdminRoute
     }
     '/e/$slug/checkout': {
@@ -433,6 +445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrganizersOrganizerIdRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/orders/$orderId': {
+      id: '/admin/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/admin/orders/$orderId'
+      preLoaderRoute: typeof AdminOrdersOrderIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/app/events/$eventId/sales': {
       id: '/app/events/$eventId/sales'
       path: '/sales'
@@ -466,17 +485,19 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminEventsRoute: typeof AdminEventsRoute
-  AdminOrdersRoute: typeof AdminOrdersRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminOrdersOrderIdRoute: typeof AdminOrdersOrderIdRoute
   AdminOrganizersOrganizerIdRoute: typeof AdminOrganizersOrganizerIdRoute
+  AdminOrdersIndexRoute: typeof AdminOrdersIndexRoute
   AdminOrganizersIndexRoute: typeof AdminOrganizersIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminEventsRoute: AdminEventsRoute,
-  AdminOrdersRoute: AdminOrdersRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminOrdersOrderIdRoute: AdminOrdersOrderIdRoute,
   AdminOrganizersOrganizerIdRoute: AdminOrganizersOrganizerIdRoute,
+  AdminOrdersIndexRoute: AdminOrdersIndexRoute,
   AdminOrganizersIndexRoute: AdminOrganizersIndexRoute,
 }
 
