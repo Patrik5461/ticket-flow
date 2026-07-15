@@ -20,6 +20,8 @@ import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
+import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
+import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -77,6 +79,17 @@ const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
   path: '/api/gopay/notify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => AppEventsEventIdRoute,
+} as any)
+const ApiEventsEventIdSalesCsvRoute =
+  ApiEventsEventIdSalesCsvRouteImport.update({
+    id: '/api/events/$eventId/sales-csv',
+    path: '/api/events/$eventId/sales-csv',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOrdersOrderIdTicketsTicketIdRoute =
   ApiOrdersOrderIdTicketsTicketIdRouteImport.update({
     id: '/api/orders/$orderId/tickets/$ticketId',
@@ -92,10 +105,12 @@ export interface FileRoutesByFullPath {
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
-  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
+  '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRoutesByTo {
@@ -105,10 +120,12 @@ export interface FileRoutesByTo {
   '/order/$id': typeof OrderIdRoute
   '/app': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
-  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug': typeof ESlugIndexRoute
+  '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRoutesById {
@@ -120,10 +137,12 @@ export interface FileRoutesById {
   '/order/$id': typeof OrderIdRoute
   '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
-  '/app/events/$eventId': typeof AppEventsEventIdRoute
+  '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
+  '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +159,8 @@ export interface FileRouteTypes {
     | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug/'
+    | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -153,6 +174,8 @@ export interface FileRouteTypes {
     | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug'
+    | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   id:
     | '__root__'
@@ -167,6 +190,8 @@ export interface FileRouteTypes {
     | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug/'
+    | '/api/events/$eventId/sales-csv'
+    | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesById: FileRoutesById
 }
@@ -179,6 +204,7 @@ export interface RootRouteChildren {
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
+  ApiEventsEventIdSalesCsvRoute: typeof ApiEventsEventIdSalesCsvRoute
   ApiOrdersOrderIdTicketsTicketIdRoute: typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 
@@ -261,6 +287,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGopayNotifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/events/$eventId/sales': {
+      id: '/app/events/$eventId/sales'
+      path: '/sales'
+      fullPath: '/app/events/$eventId/sales'
+      preLoaderRoute: typeof AppEventsEventIdSalesRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
+    '/api/events/$eventId/sales-csv': {
+      id: '/api/events/$eventId/sales-csv'
+      path: '/api/events/$eventId/sales-csv'
+      fullPath: '/api/events/$eventId/sales-csv'
+      preLoaderRoute: typeof ApiEventsEventIdSalesCsvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/$orderId/tickets/$ticketId': {
       id: '/api/orders/$orderId/tickets/$ticketId'
       path: '/api/orders/$orderId/tickets/$ticketId'
@@ -271,15 +311,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppEventsEventIdRouteChildren {
+  AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
+}
+
+const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
+  AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
+}
+
+const AppEventsEventIdRouteWithChildren =
+  AppEventsEventIdRoute._addFileChildren(AppEventsEventIdRouteChildren)
+
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
-  AppEventsEventIdRoute: typeof AppEventsEventIdRoute
+  AppEventsEventIdRoute: typeof AppEventsEventIdRouteWithChildren
   AppEventsNewRoute: typeof AppEventsNewRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
-  AppEventsEventIdRoute: AppEventsEventIdRoute,
+  AppEventsEventIdRoute: AppEventsEventIdRouteWithChildren,
   AppEventsNewRoute: AppEventsNewRoute,
 }
 
@@ -294,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugIndexRoute: ESlugIndexRoute,
+  ApiEventsEventIdSalesCsvRoute: ApiEventsEventIdSalesCsvRoute,
   ApiOrdersOrderIdTicketsTicketIdRoute: ApiOrdersOrderIdTicketsTicketIdRoute,
 }
 export const routeTree = rootRouteImport

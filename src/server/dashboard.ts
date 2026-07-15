@@ -14,6 +14,7 @@ import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { zonedLocalToUtcIso } from '../lib/datetime'
+import { buildSalesData, type SalesData } from './sales-data'
 import type {
   EventRow,
   TicketTypeRow,
@@ -467,5 +468,22 @@ export const deleteCouponFn = createServerFn({ method: 'POST' })
         .eq('id', data.couponId)
       if (error) throw new DashboardError('Kupón sa nepodarilo zmazať.')
       return { ok: true }
+    })
+  })
+
+// ---------------------------------------------------------------------------
+// Sales (data building lives in ./sales-data, which is auth/client-free)
+// ---------------------------------------------------------------------------
+
+export type { SalesData, SalesOrder } from './sales-data'
+
+export const getEventSalesFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) => z.object({ eventId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<SalesData | { error: string }> => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      const sales = await buildSalesData(data.eventId, actor.organizerId)
+      if (!sales) throw new DashboardError('Podujatie sa nenašlo alebo naň nemáte oprávnenie.')
+      return sales
     })
   })

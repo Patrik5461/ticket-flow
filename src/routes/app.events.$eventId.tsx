@@ -69,16 +69,25 @@ function ManageEvent() {
             </button>
           </div>
         </div>
-        {event.status === 'published' && (
-          <a
-            href={`/e/${event.slug}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-1 inline-block text-sm text-indigo-600 hover:underline"
+        <div className="mt-2 flex items-center gap-4 text-sm">
+          <Link
+            to="/app/events/$eventId/sales"
+            params={{ eventId: event.id }}
+            className="font-medium text-indigo-600 hover:underline"
           >
-            Verejná stránka: /e/{event.slug} ↗
-          </a>
-        )}
+            Predaj a tržby →
+          </Link>
+          {event.status === 'published' && (
+            <a
+              href={`/e/${event.slug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-indigo-600 hover:underline"
+            >
+              Verejná stránka: /e/{event.slug} ↗
+            </a>
+          )}
+        </div>
       </div>
 
       <EventDetailsForm event={event} onSaved={reload} tz={tz} />
