@@ -15,6 +15,7 @@ const STATUS_SK: Record<OrderStatus, string> = {
   expired: 'Expirované',
   cancelled: 'Zrušené',
   refunded: 'Vrátené',
+  partially_refunded: 'Čiastočne vrátené',
 }
 const STATUS_CLS: Record<OrderStatus, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -22,6 +23,7 @@ const STATUS_CLS: Record<OrderStatus, string> = {
   expired: 'bg-gray-100 text-gray-500',
   cancelled: 'bg-gray-100 text-gray-500',
   refunded: 'bg-red-100 text-red-700',
+  partially_refunded: 'bg-amber-100 text-amber-800',
 }
 
 function OrdersSearch() {

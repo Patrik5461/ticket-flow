@@ -31,6 +31,7 @@ import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$o
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
 import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
+import { Route as AppEventsEventIdOrdersOrderIdRouteImport } from './routes/app.events.$eventId.orders.$orderId'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -145,6 +146,12 @@ const ApiEventsEventIdSalesCsvRoute =
     path: '/api/events/$eventId/sales-csv',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AppEventsEventIdOrdersOrderIdRoute =
+  AppEventsEventIdOrdersOrderIdRouteImport.update({
+    id: '/orders/$orderId',
+    path: '/orders/$orderId',
+    getParentRoute: () => AppEventsEventIdRoute,
+  } as any)
 const ApiOrdersOrderIdTicketsTicketIdRoute =
   ApiOrdersOrderIdTicketsTicketIdRouteImport.update({
     id: '/api/orders/$orderId/tickets/$ticketId',
@@ -176,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -199,6 +207,7 @@ export interface FileRoutesByTo {
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -225,6 +234,7 @@ export interface FileRoutesById {
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/app/events/$eventId/orders/$orderId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -275,6 +286,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/app/events/$eventId/orders/$orderId'
   id:
     | '__root__'
     | '/'
@@ -300,6 +312,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/app/events/$eventId/orders/$orderId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -473,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEventsEventIdSalesCsvRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/events/$eventId/orders/$orderId': {
+      id: '/app/events/$eventId/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/app/events/$eventId/orders/$orderId'
+      preLoaderRoute: typeof AppEventsEventIdOrdersOrderIdRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
     '/api/orders/$orderId/tickets/$ticketId': {
       id: '/api/orders/$orderId/tickets/$ticketId'
       path: '/api/orders/$orderId/tickets/$ticketId'
@@ -506,11 +526,13 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 interface AppEventsEventIdRouteChildren {
   AppEventsEventIdCheckinRoute: typeof AppEventsEventIdCheckinRoute
   AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
+  AppEventsEventIdOrdersOrderIdRoute: typeof AppEventsEventIdOrdersOrderIdRoute
 }
 
 const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
   AppEventsEventIdCheckinRoute: AppEventsEventIdCheckinRoute,
   AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
+  AppEventsEventIdOrdersOrderIdRoute: AppEventsEventIdOrdersOrderIdRoute,
 }
 
 const AppEventsEventIdRouteWithChildren =

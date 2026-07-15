@@ -44,6 +44,11 @@ const STATUS: Record<
     tone: 'muted',
     desc: 'Platba bola vrátená.',
   },
+  partially_refunded: {
+    text: 'Čiastočne vrátené',
+    tone: 'warn',
+    desc: 'Časť objednávky bola refundovaná.',
+  },
 }
 
 const TONE = {

@@ -55,7 +55,7 @@ function assertConfigured(): void {
   }
 }
 
-async function accessToken(): Promise<string> {
+async function accessToken(scope = 'payment-create'): Promise<string> {
   const env = getEnv()
   const basic = Buffer.from(
     `${env.GOPAY_CLIENT_ID}:${env.GOPAY_CLIENT_SECRET}`,
@@ -68,7 +68,7 @@ async function accessToken(): Promise<string> {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
     },
-    body: 'grant_type=client_credentials&scope=payment-create',
+    body: `grant_type=client_credentials&scope=${encodeURIComponent(scope)}`,
   })
 
   if (!res.ok) {
@@ -121,12 +121,16 @@ export async function createPayment(
   })
 
   if (!res.ok) {
-    throw new Error(`GoPay createPayment failed: ${res.status} ${await res.text()}`)
+    throw new Error(
+      `GoPay createPayment failed: ${res.status} ${await res.text()}`,
+    )
   }
   return (await res.json()) as GoPayPayment
 }
 
-export async function getPaymentStatus(paymentId: string): Promise<GoPayPayment> {
+export async function getPaymentStatus(
+  paymentId: string,
+): Promise<GoPayPayment> {
   assertConfigured()
   const token = await accessToken()
   const res = await fetch(`${baseUrl()}/payments/payment/${paymentId}`, {
@@ -137,4 +141,40 @@ export async function getPaymentStatus(paymentId: string): Promise<GoPayPayment>
     throw new Error(`GoPay getStatus failed: ${res.status} ${await res.text()}`)
   }
   return (await res.json()) as GoPayPayment
+}
+
+export interface GoPayRefundResult {
+  id: number
+  /** e.g. 'FINISHED' / 'ACCEPTED' — present on the refund response. */
+  result?: string
+  state?: GoPayState
+}
+
+/**
+ * Refund `amountCents` of a payment (full or partial). GoPay endpoint:
+ *   POST /payments/payment/{id}/refund   (application/x-www-form-urlencoded, amount=<cents>)
+ * Refunds need a token in scope `payment-all`. On success the payment transitions
+ * to REFUNDED (full) or PARTIALLY_REFUNDED (partial), and GoPay also sends the
+ * usual notification. `amount` must be a whole number of cents, never exceeding
+ * the amount paid.
+ */
+export async function refundPayment(
+  paymentId: string,
+  amountCents: number,
+): Promise<GoPayRefundResult> {
+  assertConfigured()
+  const token = await accessToken('payment-all')
+  const res = await fetch(`${baseUrl()}/payments/payment/${paymentId}/refund`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body: `amount=${encodeURIComponent(String(Math.round(amountCents)))}`,
+  })
+  if (!res.ok) {
+    throw new Error(`GoPay refund failed: ${res.status} ${await res.text()}`)
+  }
+  return (await res.json()) as GoPayRefundResult
 }

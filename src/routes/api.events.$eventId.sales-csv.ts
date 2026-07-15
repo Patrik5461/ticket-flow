@@ -12,6 +12,7 @@ const STATUS_SK: Record<OrderStatus, string> = {
   expired: 'Expirované',
   cancelled: 'Zrušené',
   refunded: 'Vrátené',
+  partially_refunded: 'Čiastočne vrátené',
 }
 
 // Excel-friendly CSV: UTF-8 BOM (diacritics) + ';' delimiter (SK/EU list separator)

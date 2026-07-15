@@ -5,7 +5,12 @@
 
 export type EventStatus = 'draft' | 'published' | 'ended' | 'cancelled'
 export type OrderStatus =
-  'pending' | 'paid' | 'expired' | 'cancelled' | 'refunded'
+  | 'pending'
+  | 'paid'
+  | 'expired'
+  | 'cancelled'
+  | 'refunded'
+  | 'partially_refunded'
 export type TicketStatus = 'valid' | 'used' | 'cancelled'
 
 export type OrganizerStatus = 'active' | 'suspended'

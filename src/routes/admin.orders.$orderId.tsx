@@ -1,13 +1,23 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useRouter,
+} from '@tanstack/react-router'
 import { getOrderAdminFn } from '../server/admin-orders'
+import { getOrderRefundDetailFn } from '../server/refunds'
+import { OrderRefundPanel } from '../components/OrderRefundPanel'
 import { formatEur } from '../lib/money'
 import type { OrderStatus } from '../lib/db-types'
 
 export const Route = createFileRoute('/admin/orders/$orderId')({
   loader: async ({ params }) => {
-    const res = await getOrderAdminFn({ data: { orderId: params.orderId } })
+    const [res, refund] = await Promise.all([
+      getOrderAdminFn({ data: { orderId: params.orderId } }),
+      getOrderRefundDetailFn({ data: { orderId: params.orderId } }),
+    ])
     if ('error' in res) throw notFound()
-    return res
+    return { detail: res, refund: 'error' in refund ? null : refund }
   },
   component: OrderDetail,
 })
@@ -18,6 +28,7 @@ const STATUS_SK: Record<OrderStatus, string> = {
   expired: 'Expirované',
   cancelled: 'Zrušené',
   refunded: 'Vrátené',
+  partially_refunded: 'Čiastočne vrátené',
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -30,7 +41,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function OrderDetail() {
-  const { order, event, items, tickets, payments } = Route.useLoaderData()
+  const { detail, refund } = Route.useLoaderData()
+  const { order, event, items, tickets, payments } = detail
+  const router = useRouter()
 
   const fmt = (iso: string | null) =>
     iso
@@ -155,6 +168,13 @@ function OrderDetail() {
           )}
         </section>
       </div>
+
+      {refund && (
+        <OrderRefundPanel
+          detail={refund}
+          onChanged={() => router.invalidate()}
+        />
+      )}
     </div>
   )
 }

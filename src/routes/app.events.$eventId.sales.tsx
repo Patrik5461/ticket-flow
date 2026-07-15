@@ -19,6 +19,7 @@ const STATUS_SK: Record<OrderStatus, string> = {
   expired: 'Expirované',
   cancelled: 'Zrušené',
   refunded: 'Vrátené',
+  partially_refunded: 'Čiastočne vrátené',
 }
 
 const STATUS_CLS: Record<OrderStatus, string> = {
@@ -27,6 +28,7 @@ const STATUS_CLS: Record<OrderStatus, string> = {
   expired: 'bg-gray-100 text-gray-500',
   cancelled: 'bg-gray-100 text-gray-500',
   refunded: 'bg-red-100 text-red-700',
+  partially_refunded: 'bg-amber-100 text-amber-800',
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -152,7 +154,15 @@ function SalesPage() {
             <tbody>
               {orders.map((o) => (
                 <tr key={o.id} className="border-t">
-                  <td className="py-2 pr-3 font-mono text-xs">{o.ref}</td>
+                  <td className="py-2 pr-3 font-mono text-xs">
+                    <Link
+                      to="/app/events/$eventId/orders/$orderId"
+                      params={{ eventId, orderId: o.id }}
+                      className="text-indigo-600 hover:underline"
+                    >
+                      {o.ref}
+                    </Link>
+                  </td>
                   <td className="py-2 pr-3 whitespace-nowrap text-gray-600">
                     {fmtDate(o.created_at)}
                   </td>
