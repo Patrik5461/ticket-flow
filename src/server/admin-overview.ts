@@ -9,12 +9,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { serviceClient } from '../lib/supabase/server'
 import { requirePlatformAdmin, runAdmin } from './admin'
+import { buildDailySeries } from '../lib/daily-series'
+import type { DailyPoint } from '../lib/daily-series'
 
-export interface DailyPoint {
-  date: string // YYYY-MM-DD (Europe/Bratislava)
-  grossCents: number
-  orders: number
-}
+export type { DailyPoint } from '../lib/daily-series'
 
 export interface AdminOverview {
   grossCents: number
@@ -26,16 +24,6 @@ export interface AdminOverview {
   paidOrderCount: number
   daily: DailyPoint[]
 }
-
-const TZ = 'Europe/Bratislava'
-const DAY_MS = 24 * 60 * 60 * 1000
-const dayKeyFmt = new Intl.DateTimeFormat('en-CA', {
-  timeZone: TZ,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
-const dayKey = (d: Date) => dayKeyFmt.format(d)
 
 export const getAdminOverviewFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<AdminOverview | { error: string }> => {
@@ -74,27 +62,7 @@ export const getAdminOverviewFn = createServerFn({ method: 'GET' }).handler(
         feeCents += o.fee_cents
       }
 
-      // 30-day axis (oldest → newest), zero-filled, bucketed in Bratislava time.
-      const buckets = new Map<string, { grossCents: number; orders: number }>()
-      const axis: string[] = []
-      const now = Date.now()
-      for (let i = 29; i >= 0; i--) {
-        const key = dayKey(new Date(now - i * DAY_MS))
-        axis.push(key)
-        buckets.set(key, { grossCents: 0, orders: 0 })
-      }
-      for (const o of orders) {
-        const key = dayKey(new Date(o.paid_at ?? o.created_at))
-        const b = buckets.get(key)
-        if (!b) continue // older than 30 days
-        b.grossCents += o.total_cents
-        b.orders += 1
-      }
-      const daily: DailyPoint[] = axis.map((date) => ({
-        date,
-        grossCents: buckets.get(date)!.grossCents,
-        orders: buckets.get(date)!.orders,
-      }))
+      const daily: DailyPoint[] = buildDailySeries(orders, Date.now())
 
       return {
         grossCents,
