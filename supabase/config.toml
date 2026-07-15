@@ -1,1 +1,16 @@
-project_id = "upymwphlrkxcegnyslky"
+# Minimal Supabase CLI config — remote (cloud) project only.
+#
+# We intentionally do NOT use the local Docker stack (`supabase start`).
+# Migrations in supabase/migrations are applied straight to the cloud project:
+#
+#   npx supabase login                       # once, with a personal access token
+#   npx supabase link --project-ref <ref>    # <ref> = the project ref from the dashboard URL
+#   npx supabase db push                     # applies pending migrations to the linked project
+#
+# `project_id` is just a local label for the CLI; it does not need to match the remote ref.
+project_id = "ticketio"
+
+[db]
+# Set this to the Postgres major version of your cloud project
+# (Dashboard → Settings → Infrastructure). Only used by local tooling; safe to leave at 17.
+major_version = 17
