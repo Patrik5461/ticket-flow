@@ -52,4 +52,15 @@ describe('env Supabase aliases', () => {
     const { getServiceRoleKey } = await import('./env')
     expect(getServiceRoleKey()).toBe('alias-service')
   })
+
+  it('falls back to the hardcoded public default when nothing is set', async () => {
+    // beforeEach cleared every SUPABASE_/TICKETIO_ var.
+    const { getEnv, getServiceRoleKey } = await import('./env')
+    const env = getEnv()
+    expect(env.SUPABASE_URL).toBe('https://upymwphlrkxcegnyslky.supabase.co')
+    expect(env.SUPABASE_ANON_KEY).toMatch(/^eyJ/)
+    // Service role must NOT have a hardcoded fallback.
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined()
+    expect(() => getServiceRoleKey()).toThrow(/service role/i)
+  })
 })

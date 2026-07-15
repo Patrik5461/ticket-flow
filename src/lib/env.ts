@@ -11,6 +11,21 @@
 
 import { z } from 'zod'
 
+/**
+ * Public fallback defaults, used as the LAST resort when neither the plain env
+ * var nor its TICKETIO_ alias is set. The Lovable sandbox does not deliver our
+ * custom secrets into preview, so env validation would otherwise fail there.
+ *
+ * SAFE to hardcode/commit: the anon key is a PUBLIC client key (Supabase ships it
+ * to browsers by design) and access is gated entirely by RLS. The SERVICE ROLE
+ * key must NEVER have a hardcoded fallback — it stays env-only (see getEnv).
+ */
+const PUBLIC_DEFAULTS = {
+  SUPABASE_URL: 'https://upymwphlrkxcegnyslky.supabase.co',
+  SUPABASE_ANON_KEY:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweW13cGhscmt4Y2VnbnlzbGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMTMxMzMsImV4cCI6MjA5OTY4OTEzM30.iydVpeFkHOjACc4_U6q_NtUwPDrel2QHu0UuL9nL3pA',
+} as const
+
 /** Read an env var, falling back to its TICKETIO_-prefixed alias. */
 function pick(name: string): string | undefined {
   return process.env[name] ?? process.env[`TICKETIO_${name}`]
@@ -37,8 +52,10 @@ let cached: Env | null = null
 export function getEnv(): Env {
   if (!cached) {
     cached = schema.parse({
-      SUPABASE_URL: pick('SUPABASE_URL'),
-      SUPABASE_ANON_KEY: pick('SUPABASE_ANON_KEY'),
+      // Order: SUPABASE_* env → TICKETIO_* alias → hardcoded public default.
+      SUPABASE_URL: pick('SUPABASE_URL') ?? PUBLIC_DEFAULTS.SUPABASE_URL,
+      SUPABASE_ANON_KEY: pick('SUPABASE_ANON_KEY') ?? PUBLIC_DEFAULTS.SUPABASE_ANON_KEY,
+      // No hardcoded fallback — service role stays env-only, checked lazily.
       SUPABASE_SERVICE_ROLE_KEY: pick('SUPABASE_SERVICE_ROLE_KEY'),
       GOPAY_GOID: process.env.GOPAY_GOID,
       GOPAY_CLIENT_ID: process.env.GOPAY_CLIENT_ID,
