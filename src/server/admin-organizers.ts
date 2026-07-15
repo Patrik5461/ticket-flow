@@ -40,10 +40,30 @@ export interface OrganizerListItem extends OrganizerStats {
   fee_min_cents: number
 }
 
+/** An audit row with the actor's email resolved for display. */
+export interface AuditEntryView extends AuditLogRow {
+  actorEmail: string | null
+}
+
 export interface OrganizerAdminDetail {
   organizer: OrganizerRow
   stats: OrganizerStats
-  audit: AuditLogRow[]
+  audit: AuditEntryView[]
+}
+
+/** Resolve actor_id → email for a batch of audit rows (distinct ids only). */
+async function withActorEmails(rows: AuditLogRow[]): Promise<AuditEntryView[]> {
+  const db = serviceClient()
+  const ids = [...new Set(rows.map((r) => r.actor_id).filter(Boolean))] as string[]
+  const emailById = new Map<string, string | null>()
+  for (const id of ids) {
+    const { data } = await db.auth.admin.getUserById(id)
+    emailById.set(id, data.user?.email ?? null)
+  }
+  return rows.map((r) => ({
+    ...r,
+    actorEmail: r.actor_id ? (emailById.get(r.actor_id) ?? null) : null,
+  }))
 }
 
 /** Aggregate paid-order stats per organizer, in a handful of queries (admin-only,
@@ -147,7 +167,11 @@ export const getOrganizerAdminFn = createServerFn({ method: 'GET' })
           .limit(30)
           .returns<AuditLogRow[]>()
 
-        return { organizer, stats, audit: audit ?? [] }
+        return {
+          organizer,
+          stats,
+          audit: await withActorEmails(audit ?? []),
+        }
       })
     },
   )

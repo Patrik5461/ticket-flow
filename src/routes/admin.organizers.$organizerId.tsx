@@ -11,9 +11,11 @@ import {
   setOrganizerStatusFn,
   updateOrganizerNotesFn,
 } from '../server/admin-organizers'
-import type { OrganizerAdminDetail } from '../server/admin-organizers'
+import type {
+  OrganizerAdminDetail,
+  AuditEntryView,
+} from '../server/admin-organizers'
 import { formatEur } from '../lib/money'
-import type { AuditLogRow } from '../lib/db-types'
 
 export const Route = createFileRoute('/admin/organizers/$organizerId')({
   loader: async ({ params }) => {
@@ -265,7 +267,7 @@ const ACTION_SK: Record<string, string> = {
   'organizer.update_notes': 'Zmena poznámok',
 }
 
-function AuditSection({ audit, tz }: { audit: AuditLogRow[]; tz: string }) {
+function AuditSection({ audit, tz }: { audit: AuditEntryView[]; tz: string }) {
   const fmt = (iso: string) =>
     new Intl.DateTimeFormat('sk-SK', {
       dateStyle: 'short',
@@ -294,6 +296,9 @@ function AuditSection({ audit, tz }: { audit: AuditLogRow[]; tz: string }) {
                 <span className="text-xs text-gray-400">
                   {fmt(a.created_at)}
                 </span>
+              </div>
+              <div className="mt-0.5 text-xs text-gray-500">
+                {a.actorEmail ?? 'neznámy admin'}
               </div>
               <div className="mt-1 font-mono text-xs text-gray-500">
                 {JSON.stringify(a.old_value)} → {JSON.stringify(a.new_value)}
