@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { getAdminOverviewFn } from '../server/admin-overview'
 import type { DailyPoint } from '../server/admin-overview'
+import { generateSettlementsNowFn } from '../server/settlements'
 import { formatEur } from '../lib/money'
 
 export const Route = createFileRoute('/admin/')({
@@ -95,6 +97,57 @@ function AdminOverview() {
       </div>
 
       <SalesChart daily={o.daily} />
+      <GenerateSettlements />
     </div>
+  )
+}
+
+function prevMonthValue(): string {
+  const now = new Date()
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function GenerateSettlements() {
+  const [month, setMonth] = useState(prevMonthValue())
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const run = async () => {
+    setBusy(true)
+    setMsg(null)
+    const res = await generateSettlementsNowFn({ data: { periodMonth: month } })
+    setBusy(false)
+    setMsg(
+      'error' in res
+        ? res.error
+        : `Vygenerované vyúčtovania: ${res.count} organizátorov.`,
+    )
+  }
+
+  return (
+    <section className="rounded-lg border bg-white p-5">
+      <h2 className="mb-1 text-sm font-semibold">Vyúčtovania</h2>
+      <p className="mb-3 text-xs text-gray-500">
+        Mesačné vyúčtovania beží automaticky 1. deň v mesiaci. Tu ich vieš
+        vygenerovať (alebo pregenerovať) manuálne.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="rounded-md border px-3 py-2 text-sm"
+        />
+        <button
+          onClick={run}
+          disabled={busy}
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+        >
+          {busy ? 'Generujem…' : 'Generovať'}
+        </button>
+        {msg && <span className="text-sm text-gray-600">{msg}</span>}
+      </div>
+    </section>
   )
 }

@@ -29,12 +29,20 @@ function Dashboard() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Moje podujatia</h1>
-        <Link
-          to="/app/events/new"
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          + Nové podujatie
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/app/settlements"
+            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            Vyúčtovania
+          </Link>
+          <Link
+            to="/app/events/new"
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + Nové podujatie
+          </Link>
+        </div>
       </div>
 
       {events.length === 0 ? (
@@ -55,7 +63,9 @@ function Dashboard() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{e.title}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}
+                      >
                         {s.label}
                       </span>
                     </div>
@@ -67,7 +77,9 @@ function Dashboard() {
                     <div className="tabular-nums">
                       {e.soldCount}/{e.capacity} predaných
                     </div>
-                    <div className="text-xs">{e.ticketTypeCount} typov vstupeniek</div>
+                    <div className="text-xs">
+                      {e.ticketTypeCount} typov vstupeniek
+                    </div>
                   </div>
                 </Link>
               </li>
