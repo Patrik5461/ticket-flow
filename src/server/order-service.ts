@@ -1,0 +1,769 @@
+/**
+ * Public order flow — the server-authoritative core. Prices, discounts, capacity
+ * reservation, payment and fulfilment all live here. Callers (server functions,
+ * server routes) pass validated input; this module never trusts a client price.
+ *
+ * Server-only.
+ */
+
+import { serviceClient } from '../lib/supabase/server'
+import { getEnv, isGoPayConfigured } from '../lib/env'
+import { computePricing } from '../lib/pricing'
+import {
+  validateCoupon,
+  couponRejectMessage,
+  couponDiscountCents,
+} from '../lib/coupons'
+import { signOrderToken, verifyOrderToken } from '../lib/order-token'
+import { signTicket } from '../lib/qr'
+import { qrDataUrl } from '../lib/tickets/qr-image'
+import { renderTicketPdf } from '../lib/tickets/pdf'
+import { getEmailProvider } from '../lib/email'
+import { createPayment, getPaymentStatus } from '../lib/gopay'
+import type {
+  EventRow,
+  OrganizerRow,
+  TicketTypeRow,
+  OrderRow,
+  OrderItemRow,
+  TicketRow,
+  CouponRow,
+} from '../lib/db-types'
+
+const RESERVATION_MINUTES = 15
+
+// Columns safe to expose publicly (qr_secret intentionally excluded).
+const PUBLIC_EVENT_COLS =
+  'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status'
+
+export type PublicEvent = Omit<EventRow, 'qr_secret'>
+
+export interface PublicTicketType {
+  id: string
+  name: string
+  description: string | null
+  price_cents: number
+  currency: string
+  max_per_order: number
+  sort_order: number
+  sold_out: boolean
+}
+
+export class OrderError extends Error {}
+
+// ---------------------------------------------------------------------------
+// Reads
+// ---------------------------------------------------------------------------
+
+export async function getPublicEvent(
+  slug: string,
+): Promise<{ event: PublicEvent; ticketTypes: PublicTicketType[] } | null> {
+  const db = serviceClient()
+  const { data: event } = await db
+    .from('events')
+    .select(PUBLIC_EVENT_COLS)
+    .eq('slug', slug)
+    .eq('status', 'published')
+    .maybeSingle<PublicEvent>()
+
+  if (!event) return null
+
+  const { data: types } = await db
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', event.id)
+    .eq('hidden', false)
+    .order('sort_order', { ascending: true })
+    .returns<TicketTypeRow[]>()
+
+  const ticketTypes = (types ?? []).map(toPublicTicketType)
+  return { event, ticketTypes }
+}
+
+function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    price_cents: t.price_cents,
+    currency: t.currency,
+    max_per_order: t.max_per_order,
+    sort_order: t.sort_order,
+    sold_out: t.sold_count >= t.capacity,
+  }
+}
+
+export async function listPublishedEvents(): Promise<PublicEvent[]> {
+  const db = serviceClient()
+  const { data } = await db
+    .from('events')
+    .select(PUBLIC_EVENT_COLS)
+    .eq('status', 'published')
+    .order('starts_at', { ascending: true })
+    .returns<PublicEvent[]>()
+  return data ?? []
+}
+
+// ---------------------------------------------------------------------------
+// Pricing preview (+ coupon)
+// ---------------------------------------------------------------------------
+
+export interface CartItemInput {
+  ticketTypeId: string
+  quantity: number
+}
+
+export interface PricingPreview {
+  subtotalCents: number
+  discountCents: number
+  totalCents: number
+  currency: string
+  lines: { name: string; quantity: number; unitPriceCents: number }[]
+  coupon:
+    | { ok: true; code: string; discountCents: number }
+    | { ok: false; message: string }
+    | null
+}
+
+async function loadPurchasableTypes(
+  eventId: string,
+  items: CartItemInput[],
+): Promise<Map<string, TicketTypeRow>> {
+  const ids = items.map((i) => i.ticketTypeId)
+  const db = serviceClient()
+  const { data } = await db
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', eventId)
+    .in('id', ids)
+    .returns<TicketTypeRow[]>()
+
+  const now = Date.now()
+  const map = new Map<string, TicketTypeRow>()
+  for (const t of data ?? []) {
+    if (t.hidden) continue
+    if (t.sale_starts_at && now < new Date(t.sale_starts_at).getTime()) continue
+    if (t.sale_ends_at && now > new Date(t.sale_ends_at).getTime()) continue
+    map.set(t.id, t)
+  }
+  return map
+}
+
+export async function previewPricing(
+  slug: string,
+  items: CartItemInput[],
+  couponCode?: string | null,
+): Promise<PricingPreview> {
+  const db = serviceClient()
+  const { data: event } = await db
+    .from('events')
+    .select('id')
+    .eq('slug', slug)
+    .eq('status', 'published')
+    .maybeSingle<{ id: string }>()
+  if (!event) throw new OrderError('Podujatie sa nenašlo.')
+
+  const { data: organizer } = await db
+    .from('events')
+    .select('organizers(fee_percent, fee_min_cents)')
+    .eq('id', event.id)
+    .single<{ organizers: Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'> }>()
+
+  const types = await loadPurchasableTypes(event.id, items)
+
+  const lines: PricingPreview['lines'] = []
+  const pricingItems = []
+  for (const item of items) {
+    const t = types.get(item.ticketTypeId)
+    if (!t || item.quantity <= 0) continue
+    lines.push({ name: t.name, quantity: item.quantity, unitPriceCents: t.price_cents })
+    pricingItems.push({ quantity: item.quantity, unitPriceCents: t.price_cents })
+  }
+
+  const subtotalCents = pricingItems.reduce(
+    (s, i) => s + i.quantity * i.unitPriceCents,
+    0,
+  )
+
+  let couponResult: PricingPreview['coupon'] = null
+  let pricingCoupon: { type: 'percent' | 'fixed'; value: number } | null = null
+  if (couponCode) {
+    const { data: coupon } = await db
+      .from('coupons')
+      .select('*')
+      .eq('event_id', event.id)
+      .eq('code', couponCode)
+      .maybeSingle<CouponRow>()
+    if (!coupon) {
+      couponResult = { ok: false, message: couponRejectMessage('not_found') }
+    } else {
+      const v = validateCoupon(coupon)
+      if (!v.ok) {
+        couponResult = { ok: false, message: couponRejectMessage(v.reason!) }
+      } else {
+        pricingCoupon = { type: coupon.type, value: coupon.value }
+        couponResult = {
+          ok: true,
+          code: coupon.code,
+          discountCents: couponDiscountCents(pricingCoupon, subtotalCents),
+        }
+      }
+    }
+  }
+
+  const pricing = computePricing({
+    items: pricingItems,
+    coupon: pricingCoupon,
+    feePercent: organizer?.organizers.fee_percent ?? 4.0,
+    feeMinCents: organizer?.organizers.fee_min_cents ?? 40,
+  })
+
+  return {
+    subtotalCents: pricing.subtotalCents,
+    discountCents: pricing.discountCents,
+    totalCents: pricing.totalCents,
+    currency: 'EUR',
+    lines,
+    coupon: couponResult,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Create order
+// ---------------------------------------------------------------------------
+
+export interface CreateOrderInput {
+  slug: string
+  items: CartItemInput[]
+  buyer: { email: string; name?: string; phone?: string }
+  couponCode?: string | null
+}
+
+export interface CreateOrderResult {
+  orderId: string
+  token: string
+  /** Where to send the buyer next: GoPay gateway, or the order page for free orders. */
+  redirectUrl: string
+}
+
+export async function createOrder(
+  input: CreateOrderInput,
+): Promise<CreateOrderResult> {
+  const db = serviceClient()
+
+  // 1. Event (need qr_secret to sign the access token).
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('slug', input.slug)
+    .eq('status', 'published')
+    .maybeSingle<EventRow>()
+  if (!event) throw new OrderError('Podujatie sa nenašlo alebo nie je zverejnené.')
+
+  // 2. Organizer fee.
+  const { data: organizer } = await db
+    .from('organizers')
+    .select('fee_percent, fee_min_cents')
+    .eq('id', event.organizer_id)
+    .single<Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'>>()
+
+  // 3. Ticket types on sale.
+  const types = await loadPurchasableTypes(event.id, input.items)
+  const cleanItems = input.items.filter(
+    (i) => i.quantity > 0 && types.has(i.ticketTypeId),
+  )
+  if (cleanItems.length === 0) {
+    throw new OrderError('Košík je prázdny alebo vybrané vstupenky nie sú v predaji.')
+  }
+  for (const item of cleanItems) {
+    const t = types.get(item.ticketTypeId)!
+    if (item.quantity > t.max_per_order) {
+      throw new OrderError(
+        `Pre "${t.name}" je maximum ${t.max_per_order} ks na objednávku.`,
+      )
+    }
+  }
+
+  // 4. Coupon.
+  let coupon: CouponRow | null = null
+  if (input.couponCode) {
+    const { data } = await db
+      .from('coupons')
+      .select('*')
+      .eq('event_id', event.id)
+      .eq('code', input.couponCode)
+      .maybeSingle<CouponRow>()
+    if (!data) throw new OrderError(couponRejectMessage('not_found'))
+    const v = validateCoupon(data)
+    if (!v.ok) throw new OrderError(couponRejectMessage(v.reason!))
+    coupon = data
+  }
+
+  // 5. Server-side pricing.
+  const pricing = computePricing({
+    items: cleanItems.map((i) => ({
+      quantity: i.quantity,
+      unitPriceCents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+    coupon: coupon ? { type: coupon.type, value: coupon.value } : null,
+    feePercent: organizer?.fee_percent ?? 4.0,
+    feeMinCents: organizer?.fee_min_cents ?? 40,
+  })
+
+  // 6. Reserve capacity atomically, compensating on the first failure.
+  const reserved: CartItemInput[] = []
+  for (const item of cleanItems) {
+    const { data: ok, error } = await db.rpc('reserve_ticket_capacity', {
+      p_ticket_type_id: item.ticketTypeId,
+      p_qty: item.quantity,
+    })
+    if (error) {
+      await releaseAll(reserved)
+      throw new OrderError('Nepodarilo sa rezervovať vstupenky, skúste znova.')
+    }
+    if (!ok) {
+      await releaseAll(reserved)
+      const name = types.get(item.ticketTypeId)!.name
+      throw new OrderError(`"${name}" je vypredaná alebo nie je dostatok kusov.`)
+    }
+    reserved.push(item)
+  }
+
+  // 7. Persist the order + items. Compensate capacity if this fails.
+  const expiresAt = new Date(Date.now() + RESERVATION_MINUTES * 60_000).toISOString()
+  const { data: order, error: orderErr } = await db
+    .from('orders')
+    .insert({
+      event_id: event.id,
+      buyer_email: input.buyer.email,
+      buyer_name: input.buyer.name ?? null,
+      buyer_phone: input.buyer.phone ?? null,
+      status: 'pending',
+      subtotal_cents: pricing.subtotalCents,
+      discount_cents: pricing.discountCents,
+      total_cents: pricing.totalCents,
+      fee_cents: pricing.feeCents,
+      coupon_id: coupon?.id ?? null,
+      expires_at: expiresAt,
+    })
+    .select('*')
+    .single<OrderRow>()
+  if (orderErr || !order) {
+    await releaseAll(reserved)
+    throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
+  }
+
+  const { error: itemsErr } = await db.from('order_items').insert(
+    cleanItems.map((i) => ({
+      order_id: order.id,
+      ticket_type_id: i.ticketTypeId,
+      quantity: i.quantity,
+      unit_price_cents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+  )
+  if (itemsErr) {
+    await releaseAll(reserved)
+    await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
+  }
+
+  const token = signOrderToken(order.id, event.qr_secret)
+  const orderPageUrl = buildOrderUrl(order.id, token)
+
+  // 8. Free order → fulfil immediately, no gateway.
+  if (pricing.totalCents === 0) {
+    await markPaidAndFulfill(order, event)
+    return { orderId: order.id, token, redirectUrl: orderPageUrl }
+  }
+
+  // 9. Paid order → create the GoPay payment.
+  if (!isGoPayConfigured()) {
+    await releaseAll(reserved)
+    await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    throw new OrderError(
+      'Platobná brána GoPay zatiaľ nie je nakonfigurovaná (doplňte GOPAY_* do .env).',
+    )
+  }
+
+  try {
+    const payment = await createPayment({
+      amountCents: pricing.totalCents,
+      orderNumber: order.id,
+      description: event.title,
+      buyer: { email: input.buyer.email, name: input.buyer.name },
+      items: cleanItems.map((i) => {
+        const t = types.get(i.ticketTypeId)!
+        return { name: t.name, amountCents: t.price_cents, count: i.quantity }
+      }),
+      returnUrl: orderPageUrl,
+      notificationUrl: `${getEnv().APP_URL}/api/gopay/notify`,
+    })
+
+    await db
+      .from('orders')
+      .update({ gopay_payment_id: String(payment.id) })
+      .eq('id', order.id)
+
+    return {
+      orderId: order.id,
+      token,
+      redirectUrl: payment.gw_url ?? orderPageUrl,
+    }
+  } catch (e) {
+    await releaseAll(reserved)
+    await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    throw new OrderError(
+      e instanceof Error ? e.message : 'Platbu sa nepodarilo vytvoriť.',
+    )
+  }
+}
+
+async function releaseAll(items: CartItemInput[]): Promise<void> {
+  const db = serviceClient()
+  for (const i of items) {
+    await db.rpc('release_ticket_capacity', {
+      p_ticket_type_id: i.ticketTypeId,
+      p_qty: i.quantity,
+    })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment
+// ---------------------------------------------------------------------------
+
+async function markPaidAndFulfill(order: OrderRow, event: EventRow): Promise<void> {
+  const db = serviceClient()
+
+  // Guard the paid transition: only the first caller flips pending -> paid.
+  const { data: updated } = await db
+    .from('orders')
+    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .eq('id', order.id)
+    .in('status', ['pending'])
+    .select('id')
+    .maybeSingle()
+
+  if (!updated) {
+    // Already paid/fulfilled by a concurrent caller (webhook vs return page).
+    return
+  }
+
+  if (order.coupon_id) {
+    await db.rpc('increment_coupon_use', { p_coupon_id: order.coupon_id }).then(
+      () => undefined,
+      () => undefined, // best-effort; coupon accounting must not block fulfilment
+    )
+  }
+
+  const tickets = await ensureTickets(order)
+  await sendTicketEmail(order, event, tickets)
+}
+
+async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {
+  const db = serviceClient()
+  const { data: existing } = await db
+    .from('tickets')
+    .select('*')
+    .eq('order_id', order.id)
+    .returns<TicketRow[]>()
+  if (existing && existing.length > 0) return existing
+
+  const { data: items } = await db
+    .from('order_items')
+    .select('*')
+    .eq('order_id', order.id)
+    .returns<OrderItemRow[]>()
+
+  const rows: Array<Partial<TicketRow>> = []
+  for (const item of items ?? []) {
+    for (let n = 0; n < item.quantity; n++) {
+      rows.push({
+        order_id: order.id,
+        ticket_type_id: item.ticket_type_id,
+        event_id: order.event_id,
+        status: 'valid',
+      })
+    }
+  }
+
+  const { data: created } = await db
+    .from('tickets')
+    .insert(rows)
+    .select('*')
+    .returns<TicketRow[]>()
+  return created ?? []
+}
+
+async function sendTicketEmail(
+  order: OrderRow,
+  event: EventRow,
+  tickets: TicketRow[],
+): Promise<void> {
+  const typeNames = await ticketTypeNames(tickets.map((t) => t.ticket_type_id))
+  const startsLabel = formatEventDate(event.starts_at, event.timezone)
+
+  const attachments = []
+  const qrBlocks: string[] = []
+  for (const t of tickets) {
+    const qrToken = signTicket(t.id, event.qr_secret)
+    const pdf = await renderTicketPdf({
+      eventTitle: event.title,
+      venue: event.venue_name,
+      startsAtLabel: startsLabel,
+      ticketTypeName: typeNames.get(t.ticket_type_id) ?? 'Vstupenka',
+      holderName: t.holder_name,
+      ticketRef: t.id.slice(0, 8).toUpperCase(),
+      qrToken,
+    })
+    attachments.push({
+      filename: `vstupenka-${t.id.slice(0, 8)}.pdf`,
+      content: pdf,
+      contentType: 'application/pdf',
+    })
+    qrBlocks.push(
+      `<div style="margin:16px 0"><div style="font-weight:600">${escapeHtml(
+        typeNames.get(t.ticket_type_id) ?? 'Vstupenka',
+      )}</div><img src="${await qrDataUrl(qrToken)}" width="180" height="180" alt="QR"/></div>`,
+    )
+  }
+
+  const html = `
+    <h2>Ďakujeme za nákup na Ticketio</h2>
+    <p><strong>${escapeHtml(event.title)}</strong><br/>${escapeHtml(startsLabel)}</p>
+    <p>Vaše vstupenky nájdete v prílohe (PDF) a aj tu:</p>
+    ${qrBlocks.join('')}
+    <p style="color:#666;font-size:12px">Objednávka ${order.id}</p>`
+
+  await getEmailProvider().send({
+    to: order.buyer_email,
+    subject: `Vstupenky — ${event.title}`,
+    html,
+    attachments,
+  })
+}
+
+async function ticketTypeNames(ids: string[]): Promise<Map<string, string>> {
+  const db = serviceClient()
+  const unique = [...new Set(ids)]
+  const { data } = await db
+    .from('ticket_types')
+    .select('id, name')
+    .in('id', unique)
+    .returns<{ id: string; name: string }[]>()
+  return new Map((data ?? []).map((t) => [t.id, t.name]))
+}
+
+// ---------------------------------------------------------------------------
+// Order page + reconciliation
+// ---------------------------------------------------------------------------
+
+export interface OrderView {
+  order: Pick<
+    OrderRow,
+    | 'id'
+    | 'status'
+    | 'buyer_email'
+    | 'buyer_name'
+    | 'subtotal_cents'
+    | 'discount_cents'
+    | 'total_cents'
+    | 'created_at'
+  >
+  event: PublicEvent
+  tickets: Array<{
+    id: string
+    typeName: string
+    status: TicketRow['status']
+    qrDataUrl: string
+    qrToken: string
+  }>
+}
+
+/**
+ * Load an order for the buyer's status page. Verifies the signed token, and if
+ * the order is still pending, reconciles against GoPay (covers a delayed/missed
+ * webhook) before returning.
+ */
+export async function getOrderView(
+  orderId: string,
+  token: string,
+): Promise<OrderView | null> {
+  const db = serviceClient()
+  let { data: order } = await db
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .maybeSingle<OrderRow>()
+  if (!order) return null
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', order.event_id)
+    .single<EventRow>()
+  if (!event) return null
+
+  if (!verifyOrderToken(order.id, token, event.qr_secret)) return null
+
+  // Reconcile a pending payment on demand.
+  if (order.status === 'pending' && order.gopay_payment_id && isGoPayConfigured()) {
+    try {
+      await reconcileGoPay(order, event)
+      const { data: fresh } = await db
+        .from('orders')
+        .select('*')
+        .eq('id', order.id)
+        .single<OrderRow>()
+      if (fresh) order = fresh
+    } catch {
+      // network hiccup — show current state, cron/webhook will catch up
+    }
+  }
+
+  const { data: ticketRows } = await db
+    .from('tickets')
+    .select('*')
+    .eq('order_id', order.id)
+    .returns<TicketRow[]>()
+  const names = await ticketTypeNames((ticketRows ?? []).map((t) => t.ticket_type_id))
+
+  const tickets = await Promise.all(
+    (ticketRows ?? []).map(async (t) => {
+      const qrToken = signTicket(t.id, event.qr_secret)
+      return {
+        id: t.id,
+        typeName: names.get(t.ticket_type_id) ?? 'Vstupenka',
+        status: t.status,
+        qrToken,
+        qrDataUrl: await qrDataUrl(qrToken),
+      }
+    }),
+  )
+
+  const { qr_secret, ...publicEvent } = event
+  return {
+    order: {
+      id: order.id,
+      status: order.status,
+      buyer_email: order.buyer_email,
+      buyer_name: order.buyer_name,
+      subtotal_cents: order.subtotal_cents,
+      discount_cents: order.discount_cents,
+      total_cents: order.total_cents,
+      created_at: order.created_at,
+    },
+    event: publicEvent,
+    tickets,
+  }
+}
+
+/**
+ * Render a single ticket's PDF for the buyer download link. Verifies the order
+ * token and that the ticket belongs to the order. Returns null on any mismatch.
+ */
+export async function getTicketPdf(
+  orderId: string,
+  ticketId: string,
+  token: string,
+): Promise<{ bytes: Uint8Array; filename: string } | null> {
+  const db = serviceClient()
+  const { data: ticket } = await db
+    .from('tickets')
+    .select('*')
+    .eq('id', ticketId)
+    .eq('order_id', orderId)
+    .maybeSingle<TicketRow>()
+  if (!ticket) return null
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', ticket.event_id)
+    .single<EventRow>()
+  if (!event) return null
+
+  if (!verifyOrderToken(orderId, token, event.qr_secret)) return null
+
+  const names = await ticketTypeNames([ticket.ticket_type_id])
+  const bytes = await renderTicketPdf({
+    eventTitle: event.title,
+    venue: event.venue_name,
+    startsAtLabel: formatEventDate(event.starts_at, event.timezone),
+    ticketTypeName: names.get(ticket.ticket_type_id) ?? 'Vstupenka',
+    holderName: ticket.holder_name,
+    ticketRef: ticket.id.slice(0, 8).toUpperCase(),
+    qrToken: signTicket(ticket.id, event.qr_secret),
+  })
+  return { bytes, filename: `vstupenka-${ticket.id.slice(0, 8)}.pdf` }
+}
+
+async function reconcileGoPay(order: OrderRow, event: EventRow): Promise<void> {
+  if (!order.gopay_payment_id) return
+  const status = await getPaymentStatus(order.gopay_payment_id)
+  await recordPaymentEvent(order.id, order.gopay_payment_id, status.state, status)
+  if (status.state === 'PAID') {
+    await markPaidAndFulfill(order, event)
+  }
+}
+
+/** Idempotent webhook entry point: called by /api/gopay/notify. */
+export async function handleGoPayNotification(paymentId: string): Promise<void> {
+  const db = serviceClient()
+  const { data: order } = await db
+    .from('orders')
+    .select('*')
+    .eq('gopay_payment_id', paymentId)
+    .maybeSingle<OrderRow>()
+  if (!order) return
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', order.event_id)
+    .single<EventRow>()
+  if (!event) return
+
+  await reconcileGoPay(order, event)
+}
+
+async function recordPaymentEvent(
+  orderId: string,
+  paymentId: string,
+  state: string,
+  raw: unknown,
+): Promise<void> {
+  const db = serviceClient()
+  // unique(gopay_payment_id, state) makes this the idempotency guard.
+  await db
+    .from('payment_events')
+    .insert({ order_id: orderId, gopay_payment_id: paymentId, state, raw })
+    .then(
+      () => undefined,
+      () => undefined, // duplicate (already processed this state) — ignore
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function buildOrderUrl(orderId: string, token: string): string {
+  return `${getEnv().APP_URL}/order/${orderId}?t=${encodeURIComponent(token)}`
+}
+
+function formatEventDate(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('sk-SK', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone,
+  }).format(new Date(iso))
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}

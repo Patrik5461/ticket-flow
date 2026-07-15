@@ -10,33 +10,103 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
+import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
+import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
+import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrderIdRoute = OrderIdRouteImport.update({
+  id: '/order/$id',
+  path: '/order/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ESlugIndexRoute = ESlugIndexRouteImport.update({
+  id: '/e/$slug/',
+  path: '/e/$slug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ESlugCheckoutRoute = ESlugCheckoutRouteImport.update({
+  id: '/e/$slug/checkout',
+  path: '/e/$slug/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
+  id: '/api/gopay/notify',
+  path: '/api/gopay/notify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersOrderIdTicketsTicketIdRoute =
+  ApiOrdersOrderIdTicketsTicketIdRouteImport.update({
+    id: '/api/orders/$orderId/tickets/$ticketId',
+    path: '/api/orders/$orderId/tickets/$ticketId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/order/$id': typeof OrderIdRoute
+  '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug/': typeof ESlugIndexRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/order/$id': typeof OrderIdRoute
+  '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug': typeof ESlugIndexRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/order/$id': typeof OrderIdRoute
+  '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug/': typeof ESlugIndexRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/order/$id'
+    | '/api/gopay/notify'
+    | '/e/$slug/checkout'
+    | '/e/$slug/'
+    | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/order/$id'
+    | '/api/gopay/notify'
+    | '/e/$slug/checkout'
+    | '/e/$slug'
+    | '/api/orders/$orderId/tickets/$ticketId'
+  id:
+    | '__root__'
+    | '/'
+    | '/order/$id'
+    | '/api/gopay/notify'
+    | '/e/$slug/checkout'
+    | '/e/$slug/'
+    | '/api/orders/$orderId/tickets/$ticketId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  OrderIdRoute: typeof OrderIdRoute
+  ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
+  ESlugCheckoutRoute: typeof ESlugCheckoutRoute
+  ESlugIndexRoute: typeof ESlugIndexRoute
+  ApiOrdersOrderIdTicketsTicketIdRoute: typeof ApiOrdersOrderIdTicketsTicketIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +118,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/order/$id': {
+      id: '/order/$id'
+      path: '/order/$id'
+      fullPath: '/order/$id'
+      preLoaderRoute: typeof OrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/e/$slug/': {
+      id: '/e/$slug/'
+      path: '/e/$slug'
+      fullPath: '/e/$slug/'
+      preLoaderRoute: typeof ESlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/e/$slug/checkout': {
+      id: '/e/$slug/checkout'
+      path: '/e/$slug/checkout'
+      fullPath: '/e/$slug/checkout'
+      preLoaderRoute: typeof ESlugCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gopay/notify': {
+      id: '/api/gopay/notify'
+      path: '/api/gopay/notify'
+      fullPath: '/api/gopay/notify'
+      preLoaderRoute: typeof ApiGopayNotifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders/$orderId/tickets/$ticketId': {
+      id: '/api/orders/$orderId/tickets/$ticketId'
+      path: '/api/orders/$orderId/tickets/$ticketId'
+      fullPath: '/api/orders/$orderId/tickets/$ticketId'
+      preLoaderRoute: typeof ApiOrdersOrderIdTicketsTicketIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  OrderIdRoute: OrderIdRoute,
+  ApiGopayNotifyRoute: ApiGopayNotifyRoute,
+  ESlugCheckoutRoute: ESlugCheckoutRoute,
+  ESlugIndexRoute: ESlugIndexRoute,
+  ApiOrdersOrderIdTicketsTicketIdRoute: ApiOrdersOrderIdTicketsTicketIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
