@@ -37,6 +37,20 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - Vitest na doménovú logiku: výpočet ceny, kupóny, HMAC podpis/verifikácia QR, kapacitné rezervácie.
 - Platobný flow testovať proti GoPay sandboxu.
 
+## Git a spolupráca s Lovable
+- Remote: `origin` = https://github.com/Patrik5461/ticket-flow.git, hlavná vetva `main` (žiadny `master`).
+- Pred každým začiatkom práce: `git pull origin main`.
+- Po každej dokončenej a odsúhlasenej fáze: commit + `git push origin main`.
+- Repo je napojené na **Lovable**, ktorý commituje UI zmeny (routes, komponenty, štýly).
+  - **UI vrstva (`src/routes/`, UI komponenty) patrí Lovable.**
+  - **`src/server/`, `src/lib/` a `supabase/` patria Claude Code.**
+  - Pri konflikte v súboroch sa spýtať používateľa, ale toto rozdelenie platí ako default.
+
+## Auth
+- Auth je cookie-based (httpOnly), spravuje ju výhradne server vrstva (server functions v `src/server/`, `src/lib/supabase/auth.ts` cez `@supabase/ssr`).
+- Lovable NESMIE pridávať auth logiku, tokeny ani Supabase auth volania v klientovi — len UI formuláre napojené na existujúce server functions.
+- Onboarding (vytvorenie `organizers` + `organizer_members` s rolou owner) rieši server fn.
+
 ## Deploy (fáza 2, zatiaľ len lokálny dev)
 - VM podľa vzoru ostatných projektov: webhook deploy, PM2, HAProxy SNI routing na ticketio.sk.
 - Pred buildom na VM zmazať stale build artefakty.

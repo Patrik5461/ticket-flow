@@ -9,17 +9,41 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
 } as any)
 const OrderIdRoute = OrderIdRouteImport.update({
   id: '/order/$id',
@@ -50,7 +74,11 @@ const ApiOrdersOrderIdTicketsTicketIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/order/$id': typeof OrderIdRoute
+  '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
@@ -58,7 +86,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/order/$id': typeof OrderIdRoute
+  '/app': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug': typeof ESlugIndexRoute
@@ -67,7 +98,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/order/$id': typeof OrderIdRoute
+  '/app/': typeof AppIndexRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/': typeof ESlugIndexRoute
@@ -77,7 +112,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
+    | '/login'
+    | '/register'
     | '/order/$id'
+    | '/app/'
     | '/api/gopay/notify'
     | '/e/$slug/checkout'
     | '/e/$slug/'
@@ -85,7 +124,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/login'
+    | '/register'
     | '/order/$id'
+    | '/app'
     | '/api/gopay/notify'
     | '/e/$slug/checkout'
     | '/e/$slug'
@@ -93,7 +135,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/app'
+    | '/login'
+    | '/register'
     | '/order/$id'
+    | '/app/'
     | '/api/gopay/notify'
     | '/e/$slug/checkout'
     | '/e/$slug/'
@@ -102,6 +148,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
   OrderIdRoute: typeof OrderIdRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
@@ -111,12 +160,40 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/order/$id': {
       id: '/order/$id'
@@ -156,8 +233,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppRouteChildren {
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
   OrderIdRoute: OrderIdRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
