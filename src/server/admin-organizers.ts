@@ -23,6 +23,8 @@ import type {
   OrganizerStatus,
   AuditLogRow,
 } from '../lib/db-types'
+import { buildDailySeries, dayKey } from '../lib/daily-series'
+import type { DailyPoint } from '../lib/daily-series'
 
 export interface OrganizerStats {
   eventCount: number
@@ -54,7 +56,9 @@ export interface OrganizerAdminDetail {
 /** Resolve actor_id → email for a batch of audit rows (distinct ids only). */
 async function withActorEmails(rows: AuditLogRow[]): Promise<AuditEntryView[]> {
   const db = serviceClient()
-  const ids = [...new Set(rows.map((r) => r.actor_id).filter(Boolean))] as string[]
+  const ids = [
+    ...new Set(rows.map((r) => r.actor_id).filter(Boolean)),
+  ] as string[]
   const emailById = new Map<string, string | null>()
   for (const id of ids) {
     const { data } = await db.auth.admin.getUserById(id)
@@ -292,3 +296,184 @@ export const updateOrganizerNotesFn = createServerFn({ method: 'POST' })
       return { ok: true } as const
     })
   })
+
+// ---------------------------------------------------------------------------
+// Detailed organizer stats: chart, per-event breakdown, totals.
+// ---------------------------------------------------------------------------
+
+export interface OrganizerEventSales {
+  id: string
+  title: string
+  starts_at: string
+  status: string
+  soldCount: number
+  capacity: number
+  grossCents: number
+  feeCents: number
+  orderCount: number
+  isPast: boolean
+}
+
+export interface OrganizerStatsDetail {
+  daily: DailyPoint[]
+  events: OrganizerEventSales[]
+  totals: {
+    grossCents: number
+    feeCents: number
+    netCents: number
+    orderCount: number
+    avgOrderCents: number
+  }
+}
+
+export const getOrganizerStatsFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        organizerId: z.string().uuid(),
+        period: z.enum(['30d', '90d', 'all']).default('30d'),
+      })
+      .parse(d),
+  )
+  .handler(
+    async ({ data }): Promise<OrganizerStatsDetail | { error: string }> => {
+      return runAdmin(async () => {
+        await requirePlatformAdmin()
+        const db = serviceClient()
+
+        const { data: events } = await db
+          .from('events')
+          .select('id, title, starts_at, ends_at, status')
+          .eq('organizer_id', data.organizerId)
+          .order('starts_at', { ascending: false })
+          .returns<
+            {
+              id: string
+              title: string
+              starts_at: string
+              ends_at: string | null
+              status: string
+            }[]
+          >()
+        const evs = events ?? []
+        const eventIds = evs.map((e) => e.id)
+
+        const empty: OrganizerStatsDetail = {
+          daily: buildDailySeries([], Date.now(), 30),
+          events: [],
+          totals: {
+            grossCents: 0,
+            feeCents: 0,
+            netCents: 0,
+            orderCount: 0,
+            avgOrderCents: 0,
+          },
+        }
+        if (eventIds.length === 0) return empty
+
+        const [{ data: orders }, { data: types }] = await Promise.all([
+          db
+            .from('orders')
+            .select('event_id, total_cents, fee_cents, paid_at, created_at')
+            .in('event_id', eventIds)
+            .eq('status', 'paid')
+            .returns<
+              {
+                event_id: string
+                total_cents: number
+                fee_cents: number
+                paid_at: string | null
+                created_at: string
+              }[]
+            >(),
+          db
+            .from('ticket_types')
+            .select('event_id, sold_count, capacity')
+            .in('event_id', eventIds)
+            .returns<
+              { event_id: string; sold_count: number; capacity: number }[]
+            >(),
+        ])
+        const paid = orders ?? []
+
+        // Chart window: fixed for 30d/90d; for 'all' span from earliest order.
+        let days = 30
+        if (data.period === '90d') days = 90
+        else if (data.period === 'all') {
+          const earliest = paid.reduce((min, o) => {
+            const t = new Date(o.paid_at ?? o.created_at).getTime()
+            return t < min ? t : min
+          }, Date.now())
+          const span = Math.ceil(
+            (Date.now() - earliest) / (24 * 60 * 60 * 1000),
+          )
+          days = Math.min(365, Math.max(30, span + 1))
+        }
+        const daily = buildDailySeries(paid, Date.now(), days)
+
+        // Per-event aggregation.
+        const byEvent = new Map<
+          string,
+          { grossCents: number; feeCents: number; orderCount: number }
+        >()
+        for (const o of paid) {
+          const b = byEvent.get(o.event_id) ?? {
+            grossCents: 0,
+            feeCents: 0,
+            orderCount: 0,
+          }
+          b.grossCents += o.total_cents
+          b.feeCents += o.fee_cents
+          b.orderCount += 1
+          byEvent.set(o.event_id, b)
+        }
+        const cap = new Map<string, { sold: number; capacity: number }>()
+        for (const t of types ?? []) {
+          const c = cap.get(t.event_id) ?? { sold: 0, capacity: 0 }
+          c.sold += t.sold_count
+          c.capacity += t.capacity
+          cap.set(t.event_id, c)
+        }
+
+        const todayKey = dayKey(new Date())
+        const eventRows: OrganizerEventSales[] = evs.map((e) => {
+          const b = byEvent.get(e.id)
+          const c = cap.get(e.id)
+          const endKey = dayKey(new Date(e.ends_at ?? e.starts_at))
+          return {
+            id: e.id,
+            title: e.title,
+            starts_at: e.starts_at,
+            status: e.status,
+            soldCount: c?.sold ?? 0,
+            capacity: c?.capacity ?? 0,
+            grossCents: b?.grossCents ?? 0,
+            feeCents: b?.feeCents ?? 0,
+            orderCount: b?.orderCount ?? 0,
+            isPast: endKey < todayKey,
+          }
+        })
+
+        let grossCents = 0
+        let feeCents = 0
+        for (const o of paid) {
+          grossCents += o.total_cents
+          feeCents += o.fee_cents
+        }
+        const orderCount = paid.length
+
+        return {
+          daily,
+          events: eventRows,
+          totals: {
+            grossCents,
+            feeCents,
+            netCents: grossCents - feeCents,
+            orderCount,
+            avgOrderCents:
+              orderCount > 0 ? Math.round(grossCents / orderCount) : 0,
+          },
+        }
+      })
+    },
+  )

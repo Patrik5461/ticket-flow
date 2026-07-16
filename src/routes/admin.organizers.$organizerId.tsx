@@ -7,6 +7,7 @@ import {
 import { useState } from 'react'
 import {
   getOrganizerAdminFn,
+  getOrganizerStatsFn,
   updateOrganizerFeeFn,
   setOrganizerStatusFn,
   updateOrganizerNotesFn,
@@ -14,19 +15,26 @@ import {
 import type {
   OrganizerAdminDetail,
   AuditEntryView,
+  OrganizerStatsDetail,
 } from '../server/admin-organizers'
 import { formatEur } from '../lib/money'
+import { SalesChart } from '../components/SalesChart'
 
 export const Route = createFileRoute('/admin/organizers/$organizerId')({
   loader: async ({ params }) => {
-    const res = await getOrganizerAdminFn({
-      data: { organizerId: params.organizerId },
-    })
-    if ('error' in res) throw notFound()
-    return res
+    const [detail, stats] = await Promise.all([
+      getOrganizerAdminFn({ data: { organizerId: params.organizerId } }),
+      getOrganizerStatsFn({
+        data: { organizerId: params.organizerId, period: '30d' },
+      }),
+    ])
+    if ('error' in detail) throw notFound()
+    return { detail, stats: 'error' in stats ? null : stats }
   },
   component: OrganizerDetail,
 })
+
+type Period = '30d' | '90d' | 'all'
 
 const inputCls = 'w-full rounded-md border px-3 py-2 text-sm'
 
@@ -42,7 +50,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function OrganizerDetail() {
-  const { organizer, stats, audit } = Route.useLoaderData()
+  const { detail, stats } = Route.useLoaderData()
+  const { organizer, stats: quickStats, audit } = detail
   const router = useRouter()
   const reload = () => router.invalidate()
 
@@ -71,16 +80,155 @@ function OrganizerDetail() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Podujatia" value={String(stats.eventCount)} />
-        <Stat label="Zaplatené obj." value={String(stats.paidOrders)} />
-        <Stat label="Hrubé tržby" value={formatEur(stats.grossCents)} />
-        <Stat label="Provízia platformy" value={formatEur(stats.feeCents)} />
+        <Stat label="Podujatia" value={String(quickStats.eventCount)} />
+        <Stat label="Zaplatené obj." value={String(quickStats.paidOrders)} />
+        <Stat label="Hrubé tržby" value={formatEur(quickStats.grossCents)} />
+        <Stat
+          label="Provízia platformy"
+          value={formatEur(quickStats.feeCents)}
+        />
       </div>
+
+      {stats && <StatsSection organizerId={organizer.id} initial={stats} />}
 
       <FeeForm organizer={organizer} onSaved={reload} />
       <StatusSection organizer={organizer} onChanged={reload} />
       <NotesForm organizer={organizer} onSaved={reload} />
       <AuditSection audit={audit} tz="Europe/Bratislava" />
+    </div>
+  )
+}
+
+function StatsSection({
+  organizerId,
+  initial,
+}: {
+  organizerId: string
+  initial: OrganizerStatsDetail
+}) {
+  const [period, setPeriod] = useState<Period>('30d')
+  const [data, setData] = useState<OrganizerStatsDetail>(initial)
+  const [busy, setBusy] = useState(false)
+
+  const switchPeriod = async (p: Period) => {
+    if (p === period) return
+    setPeriod(p)
+    setBusy(true)
+    try {
+      const res = await getOrganizerStatsFn({
+        data: { organizerId, period: p },
+      })
+      if (!('error' in res)) setData(res)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fmtDate = (iso: string) =>
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'short',
+      timeZone: 'Europe/Bratislava',
+    }).format(new Date(iso))
+
+  const upcoming = data.events.filter((e) => !e.isPast)
+  const past = data.events.filter((e) => e.isPast)
+
+  const EventTable = ({ rows }: { rows: OrganizerStatsDetail['events'] }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-xs uppercase text-gray-500">
+            <th className="py-2 pr-3">Podujatie</th>
+            <th className="py-2 pr-3">Termín</th>
+            <th className="py-2 pr-3 text-right">Predané</th>
+            <th className="py-2 pr-3 text-right">Tržby</th>
+            <th className="py-2 pr-3 text-right">Provízia</th>
+            <th className="py-2">Stav</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((e) => (
+            <tr key={e.id} className="border-b last:border-0">
+              <td className="py-2 pr-3 font-medium">
+                <Link
+                  to="/admin/events"
+                  className="text-indigo-600 hover:underline"
+                >
+                  {e.title}
+                </Link>
+              </td>
+              <td className="py-2 pr-3 whitespace-nowrap text-gray-500">
+                {fmtDate(e.starts_at)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-gray-600">
+                {e.soldCount} / {e.capacity}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {formatEur(e.grossCents)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-gray-500">
+                {formatEur(e.feeCents)}
+              </td>
+              <td className="py-2 text-gray-500">{e.status}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={6} className="py-4 text-center text-gray-400">
+                Žiadne podujatia.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Štatistiky predaja</h2>
+        <div className="inline-flex overflow-hidden rounded-md border text-xs">
+          {(['30d', '90d', 'all'] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => switchPeriod(p)}
+              className={`px-3 py-1.5 ${
+                period === p
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {p === '30d' ? '30 dní' : p === '90d' ? '90 dní' : 'Celkovo'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Celkové tržby" value={formatEur(data.totals.grossCents)} />
+        <Stat label="Moja provízia" value={formatEur(data.totals.feeCents)} />
+        <Stat label="Objednávky" value={String(data.totals.orderCount)} />
+        <Stat
+          label="Priem. objednávka"
+          value={formatEur(data.totals.avgOrderCents)}
+        />
+      </div>
+
+      <div className={busy ? 'opacity-60' : ''}>
+        <SalesChart daily={data.daily} title="Predaj v čase" />
+      </div>
+
+      <section className="rounded-lg border bg-white p-5">
+        <h3 className="mb-3 text-sm font-semibold">
+          Aktuálne a budúce podujatia
+        </h3>
+        <EventTable rows={upcoming} />
+      </section>
+      <section className="rounded-lg border bg-white p-5">
+        <h3 className="mb-3 text-sm font-semibold">Minulé podujatia</h3>
+        <EventTable rows={past} />
+      </section>
     </div>
   )
 }

@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { getAdminOverviewFn } from '../server/admin-overview'
-import type { DailyPoint } from '../server/admin-overview'
 import { generateSettlementsNowFn } from '../server/settlements'
 import { formatEur } from '../lib/money'
+import { SalesChart } from '../components/SalesChart'
 
 export const Route = createFileRoute('/admin/')({
   loader: async () => {
@@ -34,44 +34,6 @@ function Stat({
   )
 }
 
-function SalesChart({ daily }: { daily: DailyPoint[] }) {
-  const max = Math.max(1, ...daily.map((d) => d.grossCents))
-  const totalOrders = daily.reduce((s, d) => s + d.orders, 0)
-  const fmtDay = (key: string) => {
-    const [, m, d] = key.split('-')
-    return `${Number(d)}.${Number(m)}.`
-  }
-
-  return (
-    <section className="rounded-lg border bg-white p-5">
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold">Predaj za posledných 30 dní</h2>
-        <span className="text-xs text-gray-400">{totalOrders} objednávok</span>
-      </div>
-      <div className="flex h-40 items-end gap-1">
-        {daily.map((d) => (
-          <div
-            key={d.date}
-            className="group relative flex-1"
-            title={`${fmtDay(d.date)} — ${formatEur(d.grossCents)} · ${d.orders} obj.`}
-          >
-            <div
-              className="w-full rounded-t bg-indigo-500/80 transition-colors group-hover:bg-indigo-600"
-              style={{
-                height: `${Math.max(2, Math.round((d.grossCents / max) * 100))}%`,
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between text-[10px] text-gray-400">
-        <span>{fmtDay(daily[0]?.date ?? '')}</span>
-        <span>{fmtDay(daily[daily.length - 1]?.date ?? '')}</span>
-      </div>
-    </section>
-  )
-}
-
 function AdminOverview() {
   const o = Route.useLoaderData()
 
@@ -96,7 +58,7 @@ function AdminOverview() {
         />
       </div>
 
-      <SalesChart daily={o.daily} />
+      <SalesChart daily={o.daily} title="Predaj za posledných 30 dní" />
       <GenerateSettlements />
     </div>
   )
