@@ -39,9 +39,17 @@ function Nav() {
             Cenník
           </a>
         </div>
-        <a href="#events" className="btn-primary text-sm">
-          Preskúmať
-        </a>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/login"
+            className="hidden text-sm text-ink-300 transition hover:text-ink-100 sm:inline-flex sm:px-3 sm:py-1.5"
+          >
+            Prihlásiť sa
+          </Link>
+          <Link to="/register" className="btn-primary text-sm">
+            Predávať vstupenky
+          </Link>
+        </div>
       </div>
     </nav>
   )
