@@ -88,8 +88,62 @@ function AdminOverview() {
         </>
       )}
 
+      <ExportData />
       <GenerateSettlements />
     </div>
+  )
+}
+
+function ExportData() {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const qs = () => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+  return (
+    <section className="rounded-lg border bg-white p-5">
+      <h2 className="mb-1 text-sm font-semibold">Export dát (účtovníctvo)</h2>
+      <p className="mb-3 text-xs text-gray-500">
+        CSV s diakritikou pre Excel. Obdobie filtruje podľa dátumu vytvorenia
+        (prázdne = všetko).
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Od</span>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Do</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <a
+          href={`/api/admin/export/orders.csv${qs()}`}
+          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50"
+        >
+          Export objednávok
+        </a>
+        <a
+          href={`/api/admin/export/organizers.csv${qs()}`}
+          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50"
+        >
+          Export organizátorov
+        </a>
+      </div>
+    </section>
   )
 }
 

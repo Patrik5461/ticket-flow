@@ -62,6 +62,8 @@ import { Route as ApiV1EventsIdRouteImport } from './routes/api.v1.events.$id'
 import { Route as ApiSettlementsSettlementIdPdfRouteImport } from './routes/api.settlements.$settlementId.pdf'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as ApiEventsEventIdAttendeesCsvRouteImport } from './routes/api.events.$eventId.attendees-csv'
+import { Route as ApiAdminExportOrganizersDotcsvRouteImport } from './routes/api.admin.export.organizers[.]csv'
+import { Route as ApiAdminExportOrdersDotcsvRouteImport } from './routes/api.admin.export.orders[.]csv'
 import { Route as AppEventsEventIdOrdersOrderIdRouteImport } from './routes/app.events.$eventId.orders.$orderId'
 import { Route as ApiV1EventsIdTicketsRouteImport } from './routes/api.v1.events.$id.tickets'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
@@ -338,6 +340,18 @@ const ApiEventsEventIdAttendeesCsvRoute =
     path: '/api/events/$eventId/attendees-csv',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminExportOrganizersDotcsvRoute =
+  ApiAdminExportOrganizersDotcsvRouteImport.update({
+    id: '/api/admin/export/organizers.csv',
+    path: '/api/admin/export/organizers.csv',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminExportOrdersDotcsvRoute =
+  ApiAdminExportOrdersDotcsvRouteImport.update({
+    id: '/api/admin/export/orders.csv',
+    path: '/api/admin/export/orders.csv',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppEventsEventIdOrdersOrderIdRoute =
   AppEventsEventIdOrdersOrderIdRouteImport.update({
     id: '/orders/$orderId',
@@ -408,6 +422,8 @@ export interface FileRoutesByFullPath {
   '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
+  '/api/admin/export/orders.csv': typeof ApiAdminExportOrdersDotcsvRoute
+  '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
@@ -465,6 +481,8 @@ export interface FileRoutesByTo {
   '/admin/orders': typeof AdminOrdersIndexRoute
   '/admin/organizers': typeof AdminOrganizersIndexRoute
   '/e/$slug': typeof ESlugIndexRoute
+  '/api/admin/export/orders.csv': typeof ApiAdminExportOrdersDotcsvRoute
+  '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
@@ -525,6 +543,8 @@ export interface FileRoutesById {
   '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
+  '/api/admin/export/orders.csv': typeof ApiAdminExportOrdersDotcsvRoute
+  '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
@@ -586,6 +606,8 @@ export interface FileRouteTypes {
     | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
+    | '/api/admin/export/orders.csv'
+    | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
@@ -643,6 +665,8 @@ export interface FileRouteTypes {
     | '/admin/orders'
     | '/admin/organizers'
     | '/e/$slug'
+    | '/api/admin/export/orders.csv'
+    | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
@@ -702,6 +726,8 @@ export interface FileRouteTypes {
     | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
+    | '/api/admin/export/orders.csv'
+    | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
@@ -748,6 +774,8 @@ export interface RootRouteChildren {
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugEmbedRoute: typeof ESlugEmbedRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
+  ApiAdminExportOrdersDotcsvRoute: typeof ApiAdminExportOrdersDotcsvRoute
+  ApiAdminExportOrganizersDotcsvRoute: typeof ApiAdminExportOrganizersDotcsvRoute
   ApiEventsEventIdAttendeesCsvRoute: typeof ApiEventsEventIdAttendeesCsvRoute
   ApiEventsEventIdSalesCsvRoute: typeof ApiEventsEventIdSalesCsvRoute
   ApiSettlementsSettlementIdPdfRoute: typeof ApiSettlementsSettlementIdPdfRoute
@@ -1127,6 +1155,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEventsEventIdAttendeesCsvRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/export/organizers.csv': {
+      id: '/api/admin/export/organizers.csv'
+      path: '/api/admin/export/organizers.csv'
+      fullPath: '/api/admin/export/organizers.csv'
+      preLoaderRoute: typeof ApiAdminExportOrganizersDotcsvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/export/orders.csv': {
+      id: '/api/admin/export/orders.csv'
+      path: '/api/admin/export/orders.csv'
+      fullPath: '/api/admin/export/orders.csv'
+      preLoaderRoute: typeof ApiAdminExportOrdersDotcsvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/events/$eventId/orders/$orderId': {
       id: '/app/events/$eventId/orders/$orderId'
       path: '/orders/$orderId'
@@ -1292,6 +1334,8 @@ const rootRouteChildren: RootRouteChildren = {
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugEmbedRoute: ESlugEmbedRoute,
   ESlugIndexRoute: ESlugIndexRoute,
+  ApiAdminExportOrdersDotcsvRoute: ApiAdminExportOrdersDotcsvRoute,
+  ApiAdminExportOrganizersDotcsvRoute: ApiAdminExportOrganizersDotcsvRoute,
   ApiEventsEventIdAttendeesCsvRoute: ApiEventsEventIdAttendeesCsvRoute,
   ApiEventsEventIdSalesCsvRoute: ApiEventsEventIdSalesCsvRoute,
   ApiSettlementsSettlementIdPdfRoute: ApiSettlementsSettlementIdPdfRoute,
