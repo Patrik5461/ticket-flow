@@ -6,6 +6,7 @@ import {
   updateTicketHolderFn,
   cancelTicketFn,
   transferTicketFn,
+  regenerateTicketFn,
 } from '../server/ticket-admin'
 import { formatEur } from '../lib/money'
 import type { TicketStatus } from '../lib/db-types'
@@ -109,6 +110,16 @@ export function OrderRefundPanel({
     void act(ticketId, () => cancelTicketFn({ data: { ticketId } }))
   }
 
+  const regenerate = (ticketId: string) => {
+    if (
+      !confirm(
+        'Re-generovať QR? Pôvodný kód sa zneplatní a na e-mail príde nová vstupenka.',
+      )
+    )
+      return
+    void act(ticketId, () => regenerateTicketFn({ data: { ticketId } }))
+  }
+
   return (
     <section className="space-y-4 rounded-lg border bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -183,6 +194,13 @@ export function OrderRefundPanel({
                         className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                       >
                         Presunúť
+                      </button>
+                      <button
+                        onClick={() => regenerate(t.id)}
+                        disabled={busy !== null}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Re-generovať QR
                       </button>
                       <button
                         onClick={() => cancelTicket(t.id)}
