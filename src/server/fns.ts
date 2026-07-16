@@ -94,6 +94,7 @@ export const createOrderFn = createServerFn({ method: 'POST' })
         couponCode: data.couponCode,
         billing: data.billing,
         answers: data.answers,
+        acceptTerms: data.acceptTerms,
       })
     } catch (e) {
       if (e instanceof OrderError) {

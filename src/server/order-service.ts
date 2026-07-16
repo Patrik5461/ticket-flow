@@ -300,6 +300,8 @@ export interface CreateOrderInput {
   billing?: CreateOrderBilling | null
   /** Attendee answers keyed by ticket_type_id, one entry per quantity unit. */
   answers?: Record<string, Array<Record<string, string>>> | null
+  /** Buyer accepted the terms — records the consent time on the order. */
+  acceptTerms?: boolean
 }
 
 export interface CreateOrderResult {
@@ -463,6 +465,18 @@ export async function createOrder(
     await db
       .from('orders')
       .update({ custom_answers: input.answers })
+      .eq('id', order.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+  }
+
+  // Record terms-consent time (best-effort: tolerate a pre-migration DB).
+  if (input.acceptTerms) {
+    await db
+      .from('orders')
+      .update({ terms_accepted_at: new Date().toISOString() })
       .eq('id', order.id)
       .then(
         () => undefined,

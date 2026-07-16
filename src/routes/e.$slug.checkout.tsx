@@ -484,8 +484,7 @@ function Checkout() {
                                   value={
                                     (
                                       answers[c.ticketTypeId] as
-                                        | Record<string, string>[]
-                                        | undefined
+                                        Record<string, string>[] | undefined
                                     )?.[idx]?.[f.key] ?? ''
                                   }
                                   onChange={(v) =>
@@ -543,10 +542,24 @@ function Checkout() {
                 />
                 <span className="text-sm text-ink-300">
                   Súhlasím s{' '}
-                  <a href="/vop" className="text-accent hover:underline">
+                  <a
+                    href="/obchodne-podmienky"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent hover:underline"
+                  >
                     obchodnými podmienkami
                   </a>{' '}
-                  a spracovaním osobných údajov na účel odoslania vstupeniek.
+                  a{' '}
+                  <a
+                    href="/gdpr"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    spracovaním osobných údajov
+                  </a>{' '}
+                  na účel odoslania vstupeniek.
                 </span>
               </label>
             </section>
