@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { listAllEventsFn, adminUnpublishEventFn } from '../server/admin-events'
 import type { AdminEventItem } from '../server/admin-events'
+import { cancelEventFn } from '../server/cancel-event'
 import { formatEur } from '../lib/money'
 import type { EventStatus } from '../lib/db-types'
 
@@ -53,6 +54,28 @@ function AdminEvents() {
     await adminUnpublishEventFn({ data: { eventId: e.id } })
     setBusyId(null)
     router.invalidate()
+  }
+
+  const cancelEvent = async (e: AdminEventItem) => {
+    const typed = prompt(
+      `ZRUŠIŤ podujatie a spustiť hromadné refundácie všetkých zaplatených objednávok.\n\nPre potvrdenie napíšte presný názov podujatia:\n„${e.title}“`,
+    )
+    if (typed === null) return
+    setBusyId(e.id)
+    const res = await cancelEventFn({
+      data: { eventId: e.id, confirmTitle: typed },
+    })
+    setBusyId(null)
+    if ('error' in res) {
+      alert(res.error)
+    } else {
+      alert(
+        res.alreadyCancelled
+          ? 'Podujatie už bolo zrušené. Refundácie boli doplnené.'
+          : `Podujatie zrušené. Zaradených refundácií: ${res.enqueued}.`,
+      )
+      router.invalidate()
+    }
   }
 
   const fmtDate = (iso: string, tz: string) =>
@@ -130,15 +153,26 @@ function AdminEvents() {
                   {formatEur(e.grossCents)}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {e.status === 'published' && (
-                    <button
-                      onClick={() => unpublish(e)}
-                      disabled={busyId === e.id}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Skryť
-                    </button>
-                  )}
+                  <div className="flex justify-end gap-1.5">
+                    {e.status === 'published' && (
+                      <button
+                        onClick={() => unpublish(e)}
+                        disabled={busyId === e.id}
+                        className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Skryť
+                      </button>
+                    )}
+                    {e.status !== 'cancelled' && (
+                      <button
+                        onClick={() => cancelEvent(e)}
+                        disabled={busyId === e.id}
+                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Zrušiť + refund
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
