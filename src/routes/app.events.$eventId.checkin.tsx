@@ -35,12 +35,12 @@ const RESULT_HOLD_MS = 2500
 
 const OUTCOME_UI: Record<
   Outcome,
-  { label: string; cls: string; icon: string }
+  { label: string; color: string; icon: string }
 > = {
-  ok: { label: 'Vstup povolený', cls: 'bg-green-600', icon: '✓' },
-  already_used: { label: 'Už použitá', cls: 'bg-amber-500', icon: '!' },
-  cancelled: { label: 'Zrušená vstupenka', cls: 'bg-red-600', icon: '✕' },
-  invalid: { label: 'Neplatný kód', cls: 'bg-red-600', icon: '✕' },
+  ok: { label: 'Vstup povolený', color: '#16a34a', icon: '✓' },
+  already_used: { label: 'Už použitá', color: '#ea580c', icon: '!' },
+  cancelled: { label: 'Zrušená vstupenka', color: '#dc2626', icon: '✕' },
+  invalid: { label: 'Neplatný kód', color: '#dc2626', icon: '✕' },
 }
 
 function CheckinPage() {
@@ -57,12 +57,10 @@ function CheckinPage() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  // Guards so the RAF loop doesn't fire the same code repeatedly / while a
-  // submission is in flight. Refs (not state) to stay readable inside the loop.
   const pausedUntilRef = useRef(0)
   const inFlightRef = useRef(false)
   const frameRef = useRef(0)
-  const tickRef = useRef(0) // logical clock; avoids Date.now in the hot loop
+  const tickRef = useRef(0)
 
   const fmtTime = useCallback(
     (iso: string) =>
@@ -109,7 +107,6 @@ function CheckinPage() {
       } finally {
         inFlightRef.current = false
         setBusy(false)
-        // Pause the camera loop briefly so the operator can read the banner.
         pausedUntilRef.current = tickRef.current + RESULT_HOLD_MS
       }
     },
@@ -124,8 +121,6 @@ function CheckinPage() {
     setManual('')
   }
 
-  // Camera lifecycle: start on mount, tear down on unmount. jsQR is imported
-  // client-only (SSR-safe — this effect never runs on the server).
   useEffect(() => {
     let stream: MediaStream | null = null
     let cancelled = false
@@ -172,8 +167,6 @@ function CheckinPage() {
 
       const loop = (ts: number) => {
         frameRef.current = requestAnimationFrame(loop)
-        // Advance the logical clock by real elapsed ms so pause windows work
-        // without calling Date.now() every frame.
         if (lastTs) tickRef.current += ts - lastTs
         lastTs = ts
 
@@ -190,8 +183,6 @@ function CheckinPage() {
         const img = ctx.getImageData(0, 0, w, h)
         const code = jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' })
         if (code && code.data) {
-          // inFlight + the post-result pause window (set in submit) prevent the
-          // same code being re-submitted on every frame while it sits in view.
           void submit(code.data)
         }
       }
@@ -210,110 +201,187 @@ function CheckinPage() {
   const banner = result ? OUTCOME_UI[result.result] : null
 
   return (
-    <div className="mx-auto max-w-md space-y-5">
-      <div>
-        <Link
-          to="/app/events/$eventId"
-          params={{ eventId }}
-          className="text-sm text-indigo-600 hover:underline"
+    <>
+      {/* Fullscreen response overlay — the whole viewport flashes green/orange/red
+          so the operator can read it in direct sunlight without looking closely. */}
+      {banner && (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 text-center text-white animate-fade-up"
+          style={{ background: banner.color }}
         >
-          ← Späť na podujatie
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">
-          Check-in — {board.event.title}
-        </h1>
-      </div>
-
-      {/* Counter */}
-      <div className="flex items-center justify-between rounded-lg border bg-white p-4">
-        <span className="text-sm text-gray-500">Odbavených</span>
-        <span className="text-2xl font-bold tabular-nums">
-          {checkedIn}
-          <span className="text-base font-normal text-gray-400">
-            {' '}
-            / {total}
-          </span>
-        </span>
-      </div>
-
-      {/* Camera + result overlay */}
-      <div className="relative overflow-hidden rounded-lg border bg-black">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          className="aspect-square w-full object-cover"
-        />
-        <canvas ref={canvasRef} className="hidden" />
-        {!scanning && !camError && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
-            Spúšťam kameru…
-          </div>
-        )}
-        {/* Aiming frame */}
-        {scanning && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-2/3 w-2/3 rounded-lg border-4 border-white/60" />
-          </div>
-        )}
-        {banner && (
           <div
-            className={`absolute inset-0 flex flex-col items-center justify-center text-center text-white ${banner.cls}`}
+            className="font-black leading-none"
+            style={{ fontSize: 'clamp(8rem, 30vw, 18rem)' }}
           >
-            <div className="text-6xl font-black leading-none">
-              {banner.icon}
-            </div>
-            <div className="mt-3 text-2xl font-bold">{banner.label}</div>
-            {result?.holderName && (
-              <div className="mt-2 text-lg">{result.holderName}</div>
-            )}
-            {result?.ticketType && (
-              <div className="text-sm text-white/80">{result.ticketType}</div>
-            )}
-            {result?.result === 'already_used' && result.usedAt && (
-              <div className="mt-2 text-sm text-white/90">
-                Prvý sken: {fmtTime(result.usedAt)}
-              </div>
-            )}
-            {result?.ref && (
-              <div className="mt-2 font-mono text-xs text-white/70">
-                {result.ref}
-              </div>
-            )}
+            {banner.icon}
           </div>
-        )}
-      </div>
-
-      {camError && (
-        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-          {camError}
-        </p>
+          <div
+            className="mt-4 font-display font-bold uppercase tracking-tight"
+            style={{ fontSize: 'clamp(2rem, 7vw, 4rem)' }}
+          >
+            {banner.label}
+          </div>
+          {result?.holderName && (
+            <div
+              className="mt-4 font-semibold"
+              style={{ fontSize: 'clamp(1.25rem, 4vw, 2rem)' }}
+            >
+              {result.holderName}
+            </div>
+          )}
+          {result?.ticketType && (
+            <div
+              className="opacity-90"
+              style={{ fontSize: 'clamp(1rem, 3vw, 1.5rem)' }}
+            >
+              {result.ticketType}
+            </div>
+          )}
+          {result?.result === 'already_used' && result.usedAt && (
+            <div className="mt-4 text-lg opacity-90">
+              Prvý sken: {fmtTime(result.usedAt)}
+            </div>
+          )}
+          {result?.ref && (
+            <div className="mt-4 font-mono text-sm opacity-75">{result.ref}</div>
+          )}
+        </div>
       )}
 
-      {/* Manual fallback */}
-      <form onSubmit={submitManual} className="space-y-2">
-        <label className="text-sm font-medium text-gray-700">
-          Ručné zadanie kódu
-        </label>
-        <div className="flex gap-2">
-          <input
-            value={manual}
-            onChange={(e) => setManual(e.target.value)}
-            placeholder="TIK.…"
-            className="w-full rounded-md border px-3 py-2 font-mono text-sm"
-          />
-          <button
-            type="submit"
-            disabled={busy || !manual.trim()}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+      <div className="mx-auto max-w-lg space-y-5">
+        <div>
+          <Link
+            to="/app/events/$eventId"
+            params={{ eventId }}
+            className="text-sm font-medium transition hover:underline"
+            style={{ color: 'var(--color-accent)' }}
           >
-            Overiť
-          </button>
+            ← Späť na podujatie
+          </Link>
+          <h1 className="mt-2 font-display text-2xl font-bold text-ink-100">
+            Check-in
+          </h1>
+          <p className="text-sm text-ink-400">{board.event.title}</p>
         </div>
-        <p className="text-xs text-gray-400">
-          Naskenujte QR kód vstupenky kamerou, alebo zadajte jeho text ručne.
-        </p>
-      </form>
-    </div>
+
+        {/* Big counter — dominates the screen so the operator sees it at a glance */}
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            background: 'var(--gradient-card)',
+            border: '1px solid var(--color-ink-700)',
+            boxShadow: 'var(--shadow-glow)',
+          }}
+        >
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs font-medium uppercase tracking-widest text-ink-400">
+              Odbavených
+            </span>
+            <span className="text-xs text-ink-500">
+              {total > 0 ? Math.round((checkedIn / total) * 100) : 0}%
+            </span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span
+              className="font-display font-black tabular-nums leading-none"
+              style={{
+                fontSize: 'clamp(3rem, 12vw, 5rem)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              {checkedIn}
+            </span>
+            <span className="font-display text-2xl font-bold text-ink-500">
+              / {total}
+            </span>
+          </div>
+          <div
+            className="mt-4 h-2 overflow-hidden rounded-full"
+            style={{ background: 'var(--color-ink-800)' }}
+          >
+            <div
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${total > 0 ? Math.min(100, (checkedIn / total) * 100) : 0}%`,
+                background:
+                  'linear-gradient(90deg, var(--color-accent-dim), var(--color-accent))',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Camera preview */}
+        <div
+          className="relative overflow-hidden rounded-2xl"
+          style={{
+            border: '1px solid var(--color-ink-700)',
+            background: '#000',
+          }}
+        >
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="aspect-square w-full object-cover"
+          />
+          <canvas ref={canvasRef} className="hidden" />
+          {!scanning && !camError && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
+              Spúšťam kameru…
+            </div>
+          )}
+          {scanning && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div
+                className="h-2/3 w-2/3 rounded-2xl"
+                style={{
+                  border: '3px solid var(--color-accent)',
+                  boxShadow:
+                    '0 0 0 9999px rgba(0,0,0,0.35), inset 0 0 30px rgba(74,222,128,0.35)',
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {camError && (
+          <p
+            className="rounded-lg p-3 text-sm"
+            style={{
+              border: '1px solid rgba(234, 179, 8, 0.35)',
+              background: 'rgba(234, 179, 8, 0.1)',
+              color: '#fcd34d',
+            }}
+          >
+            {camError}
+          </p>
+        )}
+
+        {/* Manual fallback */}
+        <form onSubmit={submitManual} className="space-y-2">
+          <label className="text-xs font-medium uppercase tracking-widest text-ink-400">
+            Ručné zadanie kódu
+          </label>
+          <div className="flex gap-2">
+            <input
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              placeholder="TIK.…"
+              className="w-full rounded-lg border border-ink-600 bg-ink-900 px-3 py-2.5 font-mono text-sm text-ink-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+            />
+            <button
+              type="submit"
+              disabled={busy || !manual.trim()}
+              className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Overiť
+            </button>
+          </div>
+          <p className="text-xs text-ink-500">
+            Naskenujte QR kód vstupenky kamerou, alebo zadajte jeho text ručne.
+          </p>
+        </form>
+      </div>
+    </>
   )
 }

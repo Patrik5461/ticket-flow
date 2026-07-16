@@ -22,7 +22,7 @@ export const Route = createFileRoute('/admin')({
 })
 
 const navCls =
-  'rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 [&.active]:bg-gray-900 [&.active]:text-white'
+  'rounded-lg px-3 py-1.5 text-sm font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 [&.active]:bg-ink-800 [&.active]:text-ink-100'
 
 function AdminLayout() {
   const { admin } = Route.useRouteContext()
@@ -34,19 +34,29 @@ function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-6">
-            <Link to="/admin" className="font-semibold">
-              Ticketio <span className="text-red-500">· admin</span>
+    <div className="app-shell">
+      <header
+        className="sticky top-0 z-40 backdrop-blur"
+        style={{
+          background: 'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
+          borderBottom: '1px solid var(--color-ink-700)',
+        }}
+      >
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
+          <div className="flex flex-wrap items-center gap-5">
+            <Link to="/admin" className="flex items-center gap-2 font-display text-lg font-bold">
+              <span>
+                ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
+              </span>
+              <span className="badge-admin">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z" />
+                </svg>
+                Platform admin
+              </span>
             </Link>
             <nav className="flex items-center gap-1">
-              <Link
-                to="/admin"
-                activeOptions={{ exact: true }}
-                className={navCls}
-              >
+              <Link to="/admin" activeOptions={{ exact: true }} className={navCls}>
                 Prehľad
               </Link>
               <Link to="/admin/organizers" className={navCls}>
@@ -61,17 +71,17 @@ function AdminLayout() {
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-gray-600">{admin.email}</span>
+            <span className="text-xs text-ink-400">{admin.email}</span>
             <button
               onClick={logout}
-              className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+              className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
             >
               Odhlásiť
             </button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <Outlet />
       </main>
     </div>
