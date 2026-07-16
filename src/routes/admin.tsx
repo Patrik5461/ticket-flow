@@ -5,6 +5,7 @@ import {
   Link,
   useNavigate,
 } from '@tanstack/react-router'
+import { useState } from 'react'
 import { getAdminSessionFn } from '../server/admin-session'
 import { signOutFn } from '../server/auth'
 
@@ -28,9 +29,17 @@ function AdminLayout() {
   const { admin } = Route.useRouteContext()
   const navigate = useNavigate()
 
+  const [q, setQ] = useState('')
+
   const logout = async () => {
     await signOutFn()
     await navigate({ to: '/login' })
+  }
+
+  const search = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (q.trim().length < 2) return
+    navigate({ to: '/admin/search', search: { q: q.trim() } })
   }
 
   return (
@@ -87,6 +96,14 @@ function AdminLayout() {
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
+            <form onSubmit={search}>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Hľadať e-mail, event, org, obj.#, GoPay…"
+                className="w-64 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
+              />
+            </form>
             <span className="text-xs text-ink-400">{admin.email}</span>
             <button
               onClick={logout}
