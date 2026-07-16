@@ -8,7 +8,10 @@
  * so receivers can verify integrity and reject stale deliveries.
  */
 
-import { createHmac, randomBytes } from 'node:crypto'
+// Namespace-only import so Vite's client-side stub for `node:crypto` doesn't
+// throw at module load; properties are only read on-demand inside functions
+// (which never run in the browser).
+import * as nodeCrypto from 'node:crypto'
 
 export const WEBHOOK_EVENT_TYPES = ['order.paid', 'ticket.checked_in'] as const
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
@@ -18,7 +21,7 @@ export function isWebhookEventType(s: string): s is WebhookEventType {
 }
 
 export function generateWebhookSecret(): string {
-  return 'whsec_' + randomBytes(24).toString('base64url')
+  return 'whsec_' + nodeCrypto.randomBytes(24).toString('base64url')
 }
 
 export function signWebhookBody(
@@ -26,7 +29,7 @@ export function signWebhookBody(
   timestamp: string,
   body: string,
 ): string {
-  return createHmac('sha256', secret)
+  return nodeCrypto.createHmac('sha256', secret)
     .update(`${timestamp}.${body}`)
     .digest('hex')
 }
