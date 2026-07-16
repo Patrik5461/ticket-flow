@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { listMyEventsFn, type MyEventSummary } from '../server/dashboard'
+import { listMyEventsFn } from '../server/dashboard'
+import type { MyEventSummary } from '../server/dashboard'
 import type { EventStatus } from '../lib/db-types'
 
 export const Route = createFileRoute('/app/')({
@@ -7,7 +8,10 @@ export const Route = createFileRoute('/app/')({
   component: Dashboard,
 })
 
-const STATUS: Record<EventStatus, { label: string; dot: string; text: string; bg: string }> = {
+const STATUS: Record<
+  EventStatus,
+  { label: string; dot: string; text: string; bg: string }
+> = {
   draft: {
     label: 'Koncept',
     dot: '#6b6b76',
@@ -74,11 +78,19 @@ function Dashboard() {
           <div
             className="mb-4 flex h-14 w-14 items-center justify-center rounded-full"
             style={{
-              background: 'color-mix(in oklab, var(--color-accent) 15%, transparent)',
+              background:
+                'color-mix(in oklab, var(--color-accent) 15%, transparent)',
               color: 'var(--color-accent)',
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M12 5v14M5 12h14" strokeLinecap="round" />
             </svg>
           </div>
@@ -96,7 +108,10 @@ function Dashboard() {
         <ul className="grid gap-3">
           {events.map((e: MyEventSummary) => {
             const s = STATUS[e.status]
-            const pct = e.capacity > 0 ? Math.min(100, Math.round((e.soldCount / e.capacity) * 100)) : 0
+            const pct =
+              e.capacity > 0
+                ? Math.min(100, Math.round((e.soldCount / e.capacity) * 100))
+                : 0
             return (
               <li key={e.id}>
                 <Link
@@ -132,7 +147,8 @@ function Dashboard() {
                         <span className="text-ink-500">/{e.capacity}</span>
                       </div>
                       <div className="text-xs text-ink-400">
-                        {e.ticketTypeCount} {e.ticketTypeCount === 1 ? 'typ' : 'typy'} vstupeniek
+                        {e.ticketTypeCount}{' '}
+                        {e.ticketTypeCount === 1 ? 'typ' : 'typy'} vstupeniek
                       </div>
                     </div>
                   </div>
