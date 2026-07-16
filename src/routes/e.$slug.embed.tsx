@@ -67,38 +67,61 @@ function EmbedPage() {
   return (
     <div
       ref={rootRef}
-      style={{ fontFamily: 'system-ui, sans-serif' }}
-      className="mx-auto max-w-md p-4 text-gray-900"
+      className="mx-auto max-w-md p-4"
+      style={{
+        fontFamily: 'Inter, system-ui, sans-serif',
+        color: '#f4f4f5',
+      }}
     >
-      <div className="rounded-xl border border-gray-200 p-4">
-        <h1 className="text-lg font-bold">{event.title}</h1>
-        <p className="mt-0.5 text-sm text-gray-500">
+      <div
+        className="rounded-2xl border p-5"
+        style={{
+          background: 'linear-gradient(135deg, #1a1a20 0%, #101014 100%)',
+          borderColor: '#26262e',
+          boxShadow: '0 10px 40px -12px rgba(74, 222, 128, 0.25)',
+        }}
+      >
+        <h1
+          className="text-lg font-bold tracking-tight"
+          style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif' }}
+        >
+          {event.title}
+        </h1>
+        <p className="mt-1 text-xs" style={{ color: '#a1a1aa' }}>
           {when}
           {event.venue_name ? ` · ${event.venue_name}` : ''}
         </p>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-2.5">
           {ticketTypes.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">{t.name}</div>
-                <div className="text-xs text-gray-500">
+            <div
+              key={t.id}
+              className="flex items-center justify-between gap-3 rounded-xl border p-3"
+              style={{ borderColor: '#26262e', background: 'rgba(9,9,11,0.4)' }}
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{t.name}</div>
+                <div
+                  className="mt-0.5 text-xs font-medium"
+                  style={{ color: t.sold_out ? '#a1a1aa' : '#4ade80' }}
+                >
                   {t.sold_out ? 'Vypredané' : formatEur(t.price_cents)}
                 </div>
               </div>
-              <div className="inline-flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={(qty[t.id] ?? 0) <= 0}
                   onClick={() =>
                     setQty((q) => ({ ...q, [t.id]: Math.max(0, (q[t.id] ?? 0) - 1) }))
                   }
-                  className="h-8 w-8 rounded-md border border-gray-300 disabled:opacity-30"
+                  className="h-8 w-8 rounded-md border text-base disabled:opacity-30"
+                  style={{ borderColor: '#3a3a44', background: '#0c0c0f', color: '#f4f4f5' }}
                   aria-label="Menej"
                 >
                   −
                 </button>
-                <span className="w-6 text-center tabular-nums">
+                <span className="w-6 text-center tabular-nums font-semibold">
                   {qty[t.id] ?? 0}
                 </span>
                 <button
@@ -110,7 +133,8 @@ function EmbedPage() {
                       [t.id]: Math.min(t.max_per_order, (q[t.id] ?? 0) + 1),
                     }))
                   }
-                  className="h-8 w-8 rounded-md border border-gray-300 disabled:opacity-30"
+                  className="h-8 w-8 rounded-md border text-base disabled:opacity-30"
+                  style={{ borderColor: '#3a3a44', background: '#0c0c0f', color: '#f4f4f5' }}
                   aria-label="Viac"
                 >
                   +
@@ -123,13 +147,18 @@ function EmbedPage() {
         <button
           onClick={buy}
           disabled={count === 0}
-          className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+          className="mt-5 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40"
+          style={{
+            background: '#4ade80',
+            color: '#09090b',
+            boxShadow: '0 10px 30px -12px rgba(74, 222, 128, 0.5)',
+          }}
         >
           {count === 0
             ? 'Vyberte vstupenky'
             : `Kúpiť (${formatEur(total)})`}
         </button>
-        <p className="mt-2 text-center text-[11px] text-gray-400">
+        <p className="mt-3 text-center text-[11px]" style={{ color: '#6b6b76' }}>
           Zabezpečuje Ticketio
         </p>
       </div>

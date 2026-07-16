@@ -82,6 +82,11 @@ function Footer() {
               </a>
             </li>
             <li>
+              <a href="/login" className="text-accent hover:brightness-110">
+                Pre organizátorov →
+              </a>
+            </li>
+            <li>
               <a href="/kontakt" className="hover:text-ink-100">
                 Kontakt
               </a>
