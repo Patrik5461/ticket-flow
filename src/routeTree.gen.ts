@@ -16,6 +16,7 @@ import { Route as ObchodnePodmienkyRouteImport } from './routes/obchodne-podmien
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as KontaktRouteImport } from './routes/kontakt'
 import { Route as GdprRouteImport } from './routes/gdpr'
+import { Route as DevelopersRouteImport } from './routes/developers'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as CennikRouteImport } from './routes/cennik'
 import { Route as AppRouteImport } from './routes/app'
@@ -38,6 +39,7 @@ import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
 import { Route as ApiV1OrdersRouteImport } from './routes/api.v1.orders'
+import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api.v1.openapi[.]json'
 import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
 import { Route as ApiV1EventsRouteImport } from './routes/api.v1.events'
 import { Route as ApiOgSlugRouteImport } from './routes/api.og.$slug'
@@ -95,6 +97,11 @@ const KontaktRoute = KontaktRouteImport.update({
 const GdprRoute = GdprRouteImport.update({
   id: '/gdpr',
   path: '/gdpr',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevelopersRoute = DevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiesRoute = CookiesRouteImport.update({
@@ -205,6 +212,11 @@ const AppEventsEventIdRoute = AppEventsEventIdRouteImport.update({
 const ApiV1OrdersRoute = ApiV1OrdersRouteImport.update({
   id: '/api/v1/orders',
   path: '/api/v1/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
+  id: '/api/v1/openapi.json',
+  path: '/api/v1/openapi.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
@@ -339,6 +351,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/developers': typeof DevelopersRoute
   '/gdpr': typeof GdprRoute
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
@@ -365,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -391,6 +405,7 @@ export interface FileRoutesByTo {
   '/ako-to-funguje': typeof AkoToFungujeRoute
   '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/developers': typeof DevelopersRoute
   '/gdpr': typeof GdprRoute
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
@@ -417,6 +432,7 @@ export interface FileRoutesByTo {
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -446,6 +462,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/developers': typeof DevelopersRoute
   '/gdpr': typeof GdprRoute
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
@@ -472,6 +489,7 @@ export interface FileRoutesById {
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
@@ -502,6 +520,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/cennik'
     | '/cookies'
+    | '/developers'
     | '/gdpr'
     | '/kontakt'
     | '/login'
@@ -528,6 +547,7 @@ export interface FileRouteTypes {
     | '/api/og/$slug'
     | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/openapi.json'
     | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -554,6 +574,7 @@ export interface FileRouteTypes {
     | '/ako-to-funguje'
     | '/cennik'
     | '/cookies'
+    | '/developers'
     | '/gdpr'
     | '/kontakt'
     | '/login'
@@ -580,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/og/$slug'
     | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/openapi.json'
     | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -608,6 +630,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/cennik'
     | '/cookies'
+    | '/developers'
     | '/gdpr'
     | '/kontakt'
     | '/login'
@@ -634,6 +657,7 @@ export interface FileRouteTypes {
     | '/api/og/$slug'
     | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/openapi.json'
     | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
@@ -663,6 +687,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   CennikRoute: typeof CennikRoute
   CookiesRoute: typeof CookiesRoute
+  DevelopersRoute: typeof DevelopersRoute
   GdprRoute: typeof GdprRoute
   KontaktRoute: typeof KontaktRoute
   LoginRoute: typeof LoginRoute
@@ -681,6 +706,7 @@ export interface RootRouteChildren {
   ApiOgSlugRoute: typeof ApiOgSlugRoute
   ApiV1EventsRoute: typeof ApiV1EventsRouteWithChildren
   ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
   ApiV1OrdersRoute: typeof ApiV1OrdersRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugEmbedRoute: typeof ESlugEmbedRoute
@@ -740,6 +766,13 @@ declare module '@tanstack/react-router' {
       path: '/gdpr'
       fullPath: '/gdpr'
       preLoaderRoute: typeof GdprRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/developers': {
+      id: '/developers'
+      path: '/developers'
+      fullPath: '/developers'
+      preLoaderRoute: typeof DevelopersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookies': {
@@ -894,6 +927,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/orders'
       fullPath: '/api/v1/orders'
       preLoaderRoute: typeof ApiV1OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/openapi.json': {
+      id: '/api/v1/openapi.json'
+      path: '/api/v1/openapi.json'
+      fullPath: '/api/v1/openapi.json'
+      preLoaderRoute: typeof ApiV1OpenapiDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/me': {
@@ -1165,6 +1205,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   CennikRoute: CennikRoute,
   CookiesRoute: CookiesRoute,
+  DevelopersRoute: DevelopersRoute,
   GdprRoute: GdprRoute,
   KontaktRoute: KontaktRoute,
   LoginRoute: LoginRoute,
@@ -1183,6 +1224,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOgSlugRoute: ApiOgSlugRoute,
   ApiV1EventsRoute: ApiV1EventsRouteWithChildren,
   ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
   ApiV1OrdersRoute: ApiV1OrdersRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugEmbedRoute: ESlugEmbedRoute,

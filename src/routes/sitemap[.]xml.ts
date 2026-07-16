@@ -10,6 +10,7 @@ const STATIC_PATHS = [
   '/obchodne-podmienky',
   '/gdpr',
   '/cookies',
+  '/developers',
 ]
 
 function xmlEscape(s: string): string {
