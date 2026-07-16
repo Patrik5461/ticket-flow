@@ -12,9 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ObchodnePodmienkyRouteImport } from './routes/obchodne-podmienky'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as KontaktRouteImport } from './routes/kontakt'
+import { Route as GdprRouteImport } from './routes/gdpr'
 import { Route as CookiesRouteImport } from './routes/cookies'
+import { Route as CennikRouteImport } from './routes/cennik'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as AkoToFungujeRouteImport } from './routes/ako-to-funguje'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
@@ -65,9 +70,24 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ObchodnePodmienkyRoute = ObchodnePodmienkyRouteImport.update({
+  id: '/obchodne-podmienky',
+  path: '/obchodne-podmienky',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KontaktRoute = KontaktRouteImport.update({
+  id: '/kontakt',
+  path: '/kontakt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GdprRoute = GdprRouteImport.update({
+  id: '/gdpr',
+  path: '/gdpr',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiesRoute = CookiesRouteImport.update({
@@ -75,9 +95,19 @@ const CookiesRoute = CookiesRouteImport.update({
   path: '/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CennikRoute = CennikRouteImport.update({
+  id: '/cennik',
+  path: '/cennik',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AkoToFungujeRoute = AkoToFungujeRouteImport.update({
+  id: '/ako-to-funguje',
+  path: '/ako-to-funguje',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -263,9 +293,14 @@ const ApiOrdersOrderIdTicketsTicketIdPassRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/ako-to-funguje': typeof AkoToFungujeRoute
   '/app': typeof AppRouteWithChildren
+  '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/gdpr': typeof GdprRoute
+  '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
+  '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -304,8 +339,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ako-to-funguje': typeof AkoToFungujeRoute
+  '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/gdpr': typeof GdprRoute
+  '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
+  '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -346,9 +386,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/ako-to-funguje': typeof AkoToFungujeRoute
   '/app': typeof AppRouteWithChildren
+  '/cennik': typeof CennikRoute
   '/cookies': typeof CookiesRoute
+  '/gdpr': typeof GdprRoute
+  '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
+  '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -390,9 +435,14 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/ako-to-funguje'
     | '/app'
+    | '/cennik'
     | '/cookies'
+    | '/gdpr'
+    | '/kontakt'
     | '/login'
+    | '/obchodne-podmienky'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -431,8 +481,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ako-to-funguje'
+    | '/cennik'
     | '/cookies'
+    | '/gdpr'
+    | '/kontakt'
     | '/login'
+    | '/obchodne-podmienky'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -472,9 +527,14 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/ako-to-funguje'
     | '/app'
+    | '/cennik'
     | '/cookies'
+    | '/gdpr'
+    | '/kontakt'
     | '/login'
+    | '/obchodne-podmienky'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -515,9 +575,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  AkoToFungujeRoute: typeof AkoToFungujeRoute
   AppRoute: typeof AppRouteWithChildren
+  CennikRoute: typeof CennikRoute
   CookiesRoute: typeof CookiesRoute
+  GdprRoute: typeof GdprRoute
+  KontaktRoute: typeof KontaktRoute
   LoginRoute: typeof LoginRoute
+  ObchodnePodmienkyRoute: typeof ObchodnePodmienkyRoute
   RegisterRoute: typeof RegisterRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -561,11 +626,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/obchodne-podmienky': {
+      id: '/obchodne-podmienky'
+      path: '/obchodne-podmienky'
+      fullPath: '/obchodne-podmienky'
+      preLoaderRoute: typeof ObchodnePodmienkyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kontakt': {
+      id: '/kontakt'
+      path: '/kontakt'
+      fullPath: '/kontakt'
+      preLoaderRoute: typeof KontaktRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gdpr': {
+      id: '/gdpr'
+      path: '/gdpr'
+      fullPath: '/gdpr'
+      preLoaderRoute: typeof GdprRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookies': {
@@ -575,11 +661,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cennik': {
+      id: '/cennik'
+      path: '/cennik'
+      fullPath: '/cennik'
+      preLoaderRoute: typeof CennikRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app': {
       id: '/app'
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ako-to-funguje': {
+      id: '/ako-to-funguje'
+      path: '/ako-to-funguje'
+      fullPath: '/ako-to-funguje'
+      preLoaderRoute: typeof AkoToFungujeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -898,9 +998,14 @@ const ApiOrdersOrderIdTicketsTicketIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  AkoToFungujeRoute: AkoToFungujeRoute,
   AppRoute: AppRouteWithChildren,
+  CennikRoute: CennikRoute,
   CookiesRoute: CookiesRoute,
+  GdprRoute: GdprRoute,
+  KontaktRoute: KontaktRoute,
   LoginRoute: LoginRoute,
+  ObchodnePodmienkyRoute: ObchodnePodmienkyRoute,
   RegisterRoute: RegisterRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

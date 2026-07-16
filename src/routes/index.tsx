@@ -29,9 +29,15 @@ function Nav() {
           ticketio<span className="text-accent">.</span>
         </Link>
         <div className="hidden items-center gap-8 text-sm text-ink-300 md:flex">
-          <a href="#events" className="hover:text-ink-100 transition">Podujatia</a>
-          <a href="#how" className="hover:text-ink-100 transition">Ako to funguje</a>
-          <a href="#pricing" className="hover:text-ink-100 transition">Cenník</a>
+          <a href="#events" className="hover:text-ink-100 transition">
+            Podujatia
+          </a>
+          <a href="#how" className="hover:text-ink-100 transition">
+            Ako to funguje
+          </a>
+          <a href="#pricing" className="hover:text-ink-100 transition">
+            Cenník
+          </a>
         </div>
         <a href="#events" className="btn-primary text-sm">
           Preskúmať
@@ -50,22 +56,48 @@ function Footer() {
             ticketio<span className="text-accent">.</span>
           </div>
           <p className="mt-3 max-w-xs text-sm text-ink-400">
-            Slovenská platforma na predaj vstupeniek pre moderných organizátorov.
+            Slovenská platforma na predaj vstupeniek pre moderných
+            organizátorov.
           </p>
         </div>
         <div className="text-sm">
           <div className="mb-3 font-semibold text-ink-200">Platforma</div>
           <ul className="space-y-2 text-ink-400">
-            <li><a href="#how" className="hover:text-ink-100">Ako to funguje</a></li>
-            <li><a href="#pricing" className="hover:text-ink-100">Cenník</a></li>
-            <li><a href="/vop" className="hover:text-ink-100">Obchodné podmienky</a></li>
+            <li>
+              <a href="/ako-to-funguje" className="hover:text-ink-100">
+                Ako to funguje
+              </a>
+            </li>
+            <li>
+              <a href="/cennik" className="hover:text-ink-100">
+                Cenník
+              </a>
+            </li>
+            <li>
+              <a href="/kontakt" className="hover:text-ink-100">
+                Kontakt
+              </a>
+            </li>
           </ul>
         </div>
         <div className="text-sm">
-          <div className="mb-3 font-semibold text-ink-200">Kontakt</div>
+          <div className="mb-3 font-semibold text-ink-200">Právne</div>
           <ul className="space-y-2 text-ink-400">
-            <li>hello@ticketio.sk</li>
-            <li>Bratislava, Slovensko</li>
+            <li>
+              <a href="/obchodne-podmienky" className="hover:text-ink-100">
+                Obchodné podmienky
+              </a>
+            </li>
+            <li>
+              <a href="/gdpr" className="hover:text-ink-100">
+                Ochrana osobných údajov
+              </a>
+            </li>
+            <li>
+              <a href="/cookies" className="hover:text-ink-100">
+                Cookies
+              </a>
+            </li>
           </ul>
         </div>
       </div>
@@ -102,13 +134,21 @@ function Landing() {
               <span className="text-accent">bez starostí.</span>
             </h1>
             <p className="mt-8 max-w-2xl text-lg text-ink-300 md:text-xl">
-              Transparentný cenník bez skrytých poplatkov. Priebežný payout cez GoPay —
-              peniaze máte na účte hneď, nie až po evente. Moderné odbavenie cez mobil.
+              Transparentný cenník bez skrytých poplatkov. Priebežný payout cez
+              GoPay — peniaze máte na účte hneď, nie až po evente. Moderné
+              odbavenie cez mobil.
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <a href="#events" className="btn-primary">
                 Zobraziť podujatia
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
                   <path d="M5 12h14M13 5l7 7-7 7" />
                 </svg>
               </a>
@@ -120,15 +160,21 @@ function Landing() {
             {/* stats */}
             <div className="mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8">
               <div>
-                <div className="font-display text-3xl font-bold text-ink-100">4 %</div>
+                <div className="font-display text-3xl font-bold text-ink-100">
+                  4 %
+                </div>
                 <div className="mt-1 text-xs text-ink-400">Nízka provízia</div>
               </div>
               <div>
-                <div className="font-display text-3xl font-bold text-ink-100">24 h</div>
+                <div className="font-display text-3xl font-bold text-ink-100">
+                  24 h
+                </div>
                 <div className="mt-1 text-xs text-ink-400">Payout</div>
               </div>
               <div>
-                <div className="font-display text-3xl font-bold text-ink-100">0 €</div>
+                <div className="font-display text-3xl font-bold text-ink-100">
+                  0 €
+                </div>
                 <div className="mt-1 text-xs text-ink-400">Zriadenie</div>
               </div>
             </div>
@@ -151,13 +197,18 @@ function Landing() {
 
         {events.length === 0 ? (
           <div className="card-surface p-16 text-center">
-            <p className="text-ink-400">Zatiaľ nie sú zverejnené žiadne podujatia.</p>
+            <p className="text-ink-400">
+              Zatiaľ nie sú zverejnené žiadne podujatia.
+            </p>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {events.map((e, idx) => {
-              const cover = (e as unknown as { cover_url?: string | null }).cover_url
-              const fromPrice = (e as unknown as { from_price_cents?: number | null }).from_price_cents
+              const cover = (e as unknown as { cover_url?: string | null })
+                .cover_url
+              const fromPrice = (
+                e as unknown as { from_price_cents?: number | null }
+              ).from_price_cents
               return (
                 <Link
                   key={e.id}
@@ -186,7 +237,10 @@ function Landing() {
                     </div>
                     {typeof fromPrice === 'number' && (
                       <div className="absolute right-4 top-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-medium backdrop-blur-md">
-                        od <span className="text-accent">{(fromPrice / 100).toFixed(0)} €</span>
+                        od{' '}
+                        <span className="text-accent">
+                          {(fromPrice / 100).toFixed(0)} €
+                        </span>
                       </div>
                     )}
                   </div>
@@ -196,15 +250,31 @@ function Landing() {
                     </h3>
                     <div className="mt-3 flex items-center gap-4 text-sm text-ink-400">
                       <span className="inline-flex items-center gap-1.5">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 6v6l4 2" />
                         </svg>
                         {formatTime(e.starts_at, e.timezone)}
                       </span>
                       {e.venue_name && (
                         <span className="inline-flex items-center gap-1.5 truncate">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 22s-8-7.5-8-13a8 8 0 1 1 16 0c0 5.5-8 13-8 13z" /><circle cx="12" cy="9" r="3" />
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M12 22s-8-7.5-8-13a8 8 0 1 1 16 0c0 5.5-8 13-8 13z" />
+                            <circle cx="12" cy="9" r="3" />
                           </svg>
                           <span className="truncate">{e.venue_name}</span>
                         </span>
@@ -248,7 +318,9 @@ function Landing() {
               },
             ].map((s) => (
               <div key={s.n} className="card-surface p-8">
-                <div className="font-display text-5xl font-bold text-accent">{s.n}</div>
+                <div className="font-display text-5xl font-bold text-accent">
+                  {s.n}
+                </div>
                 <h3 className="mt-6 font-display text-2xl font-bold">{s.t}</h3>
                 <p className="mt-3 text-ink-400 leading-relaxed">{s.d}</p>
               </div>
@@ -285,7 +357,9 @@ function Landing() {
                 <span className="font-display text-7xl font-bold">4 %</span>
                 <span className="text-ink-400">z ceny vstupenky</span>
               </div>
-              <p className="mt-2 text-ink-400">alebo minimálne 0,40 € za predanú vstupenku</p>
+              <p className="mt-2 text-ink-400">
+                alebo minimálne 0,40 € za predanú vstupenku
+              </p>
 
               <ul className="mt-8 space-y-3 text-sm">
                 {[
@@ -297,7 +371,14 @@ function Landing() {
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-3">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/20 text-accent">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                      >
                         <path d="M5 13l4 4L19 7" />
                       </svg>
                     </span>
@@ -315,12 +396,18 @@ function Landing() {
           <div className="space-y-4">
             <div className="card-surface p-6">
               <div className="text-sm text-ink-400">Konkurencia (Inviton)</div>
-              <div className="mt-1 font-display text-2xl font-bold text-ink-300">5 % / min 0,60 €</div>
-              <div className="mt-1 text-xs text-ink-500">Payout až po evente</div>
+              <div className="mt-1 font-display text-2xl font-bold text-ink-300">
+                5 % / min 0,60 €
+              </div>
+              <div className="mt-1 text-xs text-ink-500">
+                Payout až po evente
+              </div>
             </div>
             <div className="card-surface p-6 border-accent/40">
               <div className="text-sm text-accent">Ticketio</div>
-              <div className="mt-1 font-display text-2xl font-bold">4 % / min 0,40 €</div>
+              <div className="mt-1 font-display text-2xl font-bold">
+                4 % / min 0,40 €
+              </div>
               <div className="mt-1 text-xs text-ink-400">Priebežný payout</div>
             </div>
           </div>
