@@ -18,6 +18,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as AppSettlementsRouteImport } from './routes/app.settlements'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
@@ -87,6 +88,11 @@ const OrderIdRoute = OrderIdRouteImport.update({
 const AppSettlementsRoute = AppSettlementsRouteImport.update({
   id: '/settlements',
   path: '/settlements',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiCheckinRoute = ApiCheckinRouteImport.update({
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
   '/admin': typeof AdminIndexRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
     | '/admin/'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
     | '/admin'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
     | '/admin/'
@@ -524,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/settlements'
       fullPath: '/app/settlements'
       preLoaderRoute: typeof AppSettlementsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/checkin': {
@@ -744,6 +763,7 @@ const AppEventsEventIdRouteWithChildren =
   AppEventsEventIdRoute._addFileChildren(AppEventsEventIdRouteChildren)
 
 interface AppRouteChildren {
+  AppSettingsRoute: typeof AppSettingsRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppEventsEventIdRoute: typeof AppEventsEventIdRouteWithChildren
@@ -751,6 +771,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppSettingsRoute: AppSettingsRoute,
   AppSettlementsRoute: AppSettlementsRoute,
   AppIndexRoute: AppIndexRoute,
   AppEventsEventIdRoute: AppEventsEventIdRouteWithChildren,

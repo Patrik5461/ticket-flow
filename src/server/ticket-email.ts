@@ -12,6 +12,7 @@ import { ticketsEmail, ticketBlockHtml } from '../lib/email/templates'
 import { signTicket } from '../lib/qr'
 import { renderTicketPdf } from '../lib/tickets/pdf'
 import { qrDataUrl } from '../lib/tickets/qr-image'
+import { loadOrganizerBrand } from './branding'
 
 function fmtDateTime(iso: string, tz: string): string {
   return new Intl.DateTimeFormat('sk-SK', {
@@ -42,7 +43,7 @@ export async function sendSingleTicketEmail(
 
   const { data: event } = await db
     .from('events')
-    .select('title, venue_name, starts_at, timezone, qr_secret')
+    .select('title, venue_name, starts_at, timezone, qr_secret, organizer_id')
     .eq('id', ticket.event_id)
     .maybeSingle<{
       title: string
@@ -50,8 +51,10 @@ export async function sendSingleTicketEmail(
       starts_at: string
       timezone: string
       qr_secret: string
+      organizer_id: string
     }>()
   if (!event) return
+  const brand = await loadOrganizerBrand(db, event.organizer_id)
 
   const { data: tt } = await db
     .from('ticket_types')
@@ -71,6 +74,8 @@ export async function sendSingleTicketEmail(
     holderName: ticket.holder_name,
     ticketRef: ref,
     qrToken,
+    brandColor: brand.color,
+    logo: brand.logo,
   })
   const { subject, html } = ticketsEmail({
     eventTitle: event.title,

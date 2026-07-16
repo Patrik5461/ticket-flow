@@ -31,6 +31,8 @@ export interface OrganizerRow {
   gopay_goid: string | null
   status: OrganizerStatus
   admin_notes: string | null
+  brand_logo_url: string | null
+  brand_color: string | null
 }
 
 export interface AuditLogRow {

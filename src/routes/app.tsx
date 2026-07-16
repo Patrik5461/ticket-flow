@@ -35,6 +35,12 @@ function AppLayout() {
             Ticketio <span className="text-gray-400">· portál</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
+            <Link
+              to="/app/settings"
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Nastavenia
+            </Link>
             <span className="text-gray-600">
               {session.organizer?.name ?? session.user.email}
             </span>

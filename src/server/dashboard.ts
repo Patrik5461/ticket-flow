@@ -13,8 +13,10 @@ import { z } from 'zod'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
+import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { zonedLocalToUtcIso } from '../lib/datetime'
-import { buildSalesData, type SalesData } from './sales-data'
+import { buildSalesData } from './sales-data'
+import type { SalesData } from './sales-data'
 import { getCheckinSummary } from './checkin-service'
 import { notifyEventChanged } from './event-emails'
 import type {
@@ -595,3 +597,132 @@ export const getCheckinBoardFn = createServerFn({ method: 'GET' })
       }
     })
   })
+
+// ---------------------------------------------------------------------------
+// Organizer branding (logo + accent color) — used on ticket PDFs.
+// ---------------------------------------------------------------------------
+
+const BRANDING_BUCKET = 'branding'
+const MAX_LOGO_BYTES = 512 * 1024 // 512 KB
+
+export interface OrganizerBranding {
+  name: string
+  brandColor: string | null
+  brandLogoUrl: string | null
+}
+
+export const getOrganizerBrandingFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<OrganizerBranding> => {
+    const actor = await requireOrganizer()
+    const { data } = await serviceClient()
+      .from('organizers')
+      .select('name, brand_color, brand_logo_url')
+      .eq('id', actor.organizerId)
+      .maybeSingle<{
+        name: string
+        brand_color: string | null
+        brand_logo_url: string | null
+      }>()
+    return {
+      name: data?.name ?? '',
+      brandColor: data?.brand_color ?? null,
+      brandLogoUrl: data?.brand_logo_url ?? null,
+    }
+  },
+)
+
+export const updateBrandColorFn = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({ brandColor: z.string().trim().max(7).nullable() }).parse,
+  )
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    let color: string | null = null
+    if (data.brandColor) {
+      color = normalizeHexColor(data.brandColor)
+      if (!color) throw new DashboardError('Neplatná farba (očakávam #rrggbb).')
+    }
+    await serviceClient()
+      .from('organizers')
+      .update({ brand_color: color })
+      .eq('id', actor.organizerId)
+    return { ok: true as const, brandColor: color }
+  })
+
+/** Upload a logo from a base64 data URL. Validates type (PNG/JPEG) + size. */
+export const uploadBrandLogoFn = createServerFn({ method: 'POST' })
+  .validator(z.object({ dataUrl: z.string().max(1_400_000) }).parse)
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+
+    const comma = data.dataUrl.indexOf(',')
+    const b64 = comma >= 0 ? data.dataUrl.slice(comma + 1) : data.dataUrl
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(Buffer.from(b64, 'base64'))
+    } catch {
+      throw new DashboardError('Neplatný súbor.')
+    }
+    if (bytes.length === 0) throw new DashboardError('Prázdny súbor.')
+    if (bytes.length > MAX_LOGO_BYTES) {
+      throw new DashboardError('Logo je príliš veľké (max 512 KB).')
+    }
+    const kind = detectImageKind(bytes)
+    if (!kind) throw new DashboardError('Podporované sú len PNG a JPG.')
+
+    const db = serviceClient()
+    const ext = kind === 'png' ? 'png' : 'jpg'
+    const path = `${actor.organizerId}/logo.${ext}`
+    const { error: upErr } = await db.storage
+      .from(BRANDING_BUCKET)
+      .upload(path, bytes, {
+        contentType: kind === 'png' ? 'image/png' : 'image/jpeg',
+        upsert: true,
+      })
+    if (upErr) throw new DashboardError('Nahrávanie zlyhalo.')
+
+    // Remove the other extension if the organizer switched formats.
+    const otherExt = ext === 'png' ? 'jpg' : 'png'
+    await db.storage
+      .from(BRANDING_BUCKET)
+      .remove([`${actor.organizerId}/logo.${otherExt}`])
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+
+    const {
+      data: { publicUrl },
+    } = db.storage.from(BRANDING_BUCKET).getPublicUrl(path)
+    const url = `${publicUrl}?v=${Date.now()}`
+    await db
+      .from('organizers')
+      .update({ brand_logo_url: url })
+      .eq('id', actor.organizerId)
+    return { ok: true as const, brandLogoUrl: url }
+  })
+
+export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
+  async () => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    const db = serviceClient()
+    await db.storage
+      .from(BRANDING_BUCKET)
+      .remove([
+        `${actor.organizerId}/logo.png`,
+        `${actor.organizerId}/logo.jpg`,
+      ])
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+    await db
+      .from('organizers')
+      .update({ brand_logo_url: null })
+      .eq('id', actor.organizerId)
+    return { ok: true as const }
+  },
+)

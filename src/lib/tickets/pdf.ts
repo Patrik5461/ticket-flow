@@ -6,6 +6,8 @@
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { qrPngBytes } from './qr-image'
+import { parseHexColor  } from './branding'
+import type {ImageKind} from './branding';
 
 export interface TicketPdfData {
   eventTitle: string
@@ -17,11 +19,17 @@ export interface TicketPdfData {
   ticketRef: string
   /** The signed QR token (TIK.{id}.{sig}). */
   qrToken: string
+  /** Organizer accent color as `#rrggbb`; falls back to the default wordmark. */
+  brandColor?: string | null
+  /** Organizer logo drawn in the header instead of the TICKETIO wordmark. */
+  logo?: { bytes: Uint8Array; kind: ImageKind } | null
 }
 
 const A6 = { width: 297.64, height: 419.53 } // A6 portrait in points
 
-export async function renderTicketPdf(data: TicketPdfData): Promise<Uint8Array> {
+export async function renderTicketPdf(
+  data: TicketPdfData,
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
   const page = doc.addPage([A6.width, A6.height])
   const font = await doc.embedFont(StandardFonts.Helvetica)
@@ -30,6 +38,10 @@ export async function renderTicketPdf(data: TicketPdfData): Promise<Uint8Array> 
   const margin = 24
   const dark = rgb(0.09, 0.09, 0.11)
   const muted = rgb(0.45, 0.45, 0.5)
+  const brand = parseHexColor(data.brandColor)
+  const accent = brand
+    ? rgb(brand.r / 255, brand.g / 255, brand.b / 255)
+    : muted
 
   let y = A6.height - margin
 
@@ -44,7 +56,38 @@ export async function renderTicketPdf(data: TicketPdfData): Promise<Uint8Array> 
     y -= size + gap
   }
 
-  line('TICKETIO', 10, bold, muted, 10)
+  // Accent bar across the top when a brand color is set.
+  if (brand) {
+    page.drawRectangle({
+      x: 0,
+      y: A6.height - 6,
+      width: A6.width,
+      height: 6,
+      color: accent,
+    })
+  }
+
+  // Header: organizer logo if provided, otherwise the TICKETIO wordmark.
+  let headerDrawn = false
+  if (data.logo) {
+    try {
+      const img =
+        data.logo.kind === 'png'
+          ? await doc.embedPng(data.logo.bytes)
+          : await doc.embedJpg(data.logo.bytes)
+      const maxW = 130
+      const maxH = 46
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1)
+      const w = img.width * scale
+      const h = img.height * scale
+      page.drawImage(img, { x: margin, y: y - h, width: w, height: h })
+      y -= h + 12
+      headerDrawn = true
+    } catch {
+      // Corrupt/unsupported image — fall back to the wordmark below.
+    }
+  }
+  if (!headerDrawn) line('TICKETIO', 10, bold, accent, 10)
   line(truncate(data.eventTitle, 30), 18, bold, dark, 4)
   if (data.venue) line(truncate(data.venue, 40), 10, font, muted, 2)
   line(data.startsAtLabel, 10, font, muted, 14)

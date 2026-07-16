@@ -18,6 +18,7 @@ import { signOrderToken, verifyOrderToken } from '../lib/order-token'
 import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
 import { renderTicketPdf } from '../lib/tickets/pdf'
+import { loadOrganizerBrand } from './branding'
 import { getEmailProvider } from '../lib/email'
 import {
   ticketsEmail,
@@ -32,12 +33,8 @@ import {
   appleWalletConfigured,
   generateApplePkpass,
 } from '../lib/wallet'
-import {
-  parseCustomFields,
-  validateAnswers
-  
-} from '../lib/custom-fields'
-import type {CustomField} from '../lib/custom-fields';
+import { parseCustomFields, validateAnswers } from '../lib/custom-fields'
+import type { CustomField } from '../lib/custom-fields'
 import type {
   EventRow,
   OrganizerRow,
@@ -810,6 +807,7 @@ async function sendTicketEmail(
   const orderToken = signOrderToken(order.id, event.qr_secret)
   const appleAvailable = appleWalletConfigured()
   const appUrl = getEnv().APP_URL
+  const brand = await loadOrganizerBrand(serviceClient(), event.organizer_id)
 
   const attachments = []
   const qrBlocks: string[] = []
@@ -822,6 +820,8 @@ async function sendTicketEmail(
       startsAtLabel: startsLabel,
       ticketTypeName: typeName,
       holderName: t.holder_name,
+      brandColor: brand.color,
+      logo: brand.logo,
       ticketRef: t.id.slice(0, 8).toUpperCase(),
       qrToken,
     })
@@ -1034,6 +1034,7 @@ export async function getTicketPdf(
   if (!verifyOrderToken(orderId, token, event.qr_secret)) return null
 
   const names = await ticketTypeNames([ticket.ticket_type_id])
+  const brand = await loadOrganizerBrand(db, event.organizer_id)
   const bytes = await renderTicketPdf({
     eventTitle: event.title,
     venue: event.venue_name,
@@ -1042,6 +1043,8 @@ export async function getTicketPdf(
     holderName: ticket.holder_name,
     ticketRef: ticket.id.slice(0, 8).toUpperCase(),
     qrToken: signTicket(ticket.id, event.qr_secret),
+    brandColor: brand.color,
+    logo: brand.logo,
   })
   return { bytes, filename: `vstupenka-${ticket.id.slice(0, 8)}.pdf` }
 }
