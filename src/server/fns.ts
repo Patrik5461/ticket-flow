@@ -17,6 +17,9 @@ import {
 import { lookupCompanyByIco, normalizeIco } from '../lib/rpo'
 import { joinWaitlist } from './waitlist'
 import { serviceClient } from '../lib/supabase/server'
+import { getRequest } from '@tanstack/react-start/server'
+import { clientIpFromHeaders } from '../lib/client-ip'
+import { checkoutLimiter } from './rate-guards'
 
 const cartItemsSchema = z
   .array(
@@ -86,6 +89,10 @@ export const createOrderFn = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data }) => {
+    const ip = clientIpFromHeaders(getRequest().headers)
+    if (!checkoutLimiter.check(ip).ok) {
+      return { error: 'Príliš veľa pokusov. Skúste o chvíľu.' } as const
+    }
     try {
       return await createOrder({
         slug: data.slug,

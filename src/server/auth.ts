@@ -7,10 +7,13 @@
  */
 
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { createAuthClient, getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
+import { clientIpFromHeaders } from '../lib/client-ip'
+import { authLimiter } from './rate-guards'
 
 export interface SessionInfo {
   user: { id: string; email: string }
@@ -75,6 +78,9 @@ export const signUpFn = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data }) => {
+    if (!authLimiter.check(clientIpFromHeaders(getRequest().headers)).ok) {
+      return { error: 'Príliš veľa pokusov. Skúste o chvíľu.' } as const
+    }
     const supabase = createAuthClient()
     const { data: signUp, error } = await supabase.auth.signUp({
       email: data.email,
@@ -92,9 +98,14 @@ export const signUpFn = createServerFn({ method: 'POST' })
 
 export const signInFn = createServerFn({ method: 'POST' })
   .validator((d: unknown) =>
-    z.object({ email: z.string().email(), password: z.string().min(1) }).parse(d),
+    z
+      .object({ email: z.string().email(), password: z.string().min(1) })
+      .parse(d),
   )
   .handler(async ({ data }) => {
+    if (!authLimiter.check(clientIpFromHeaders(getRequest().headers)).ok) {
+      return { error: 'Príliš veľa pokusov. Skúste o chvíľu.' } as const
+    }
     const supabase = createAuthClient()
     const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
@@ -104,10 +115,12 @@ export const signInFn = createServerFn({ method: 'POST' })
     return { ok: true } as const
   })
 
-export const signOutFn = createServerFn({ method: 'POST' }).handler(async () => {
-  await createAuthClient().auth.signOut()
-  return { ok: true } as const
-})
+export const signOutFn = createServerFn({ method: 'POST' }).handler(
+  async () => {
+    await createAuthClient().auth.signOut()
+    return { ok: true } as const
+  },
+)
 
 export const getSessionFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<SessionInfo | null> => {

@@ -5,6 +5,8 @@ import {
   organizerIdForUser,
 } from '../lib/supabase/auth-request'
 import { checkInTicket } from '../server/checkin-service'
+import { clientIpFromHeaders } from '../lib/client-ip'
+import { checkinLimiter } from '../server/rate-guards'
 
 /**
  * POST /api/checkin — process one scanned ticket QR.
@@ -25,6 +27,12 @@ export const Route = createFileRoute('/api/checkin')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (!checkinLimiter.check(clientIpFromHeaders(request.headers)).ok) {
+          return Response.json(
+            { error: 'Príliš veľa pokusov.' },
+            { status: 429 },
+          )
+        }
         const userId = await getUserIdFromRequest(request)
         if (!userId) {
           return Response.json({ error: 'Neprihlásený.' }, { status: 401 })
