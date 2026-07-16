@@ -13,6 +13,7 @@ export interface EmailJobRow {
   recipient: string
   event_id: string | null
   order_id: string | null
+  ticket_id: string | null
   subject: string | null
   html: string | null
   status: string
@@ -42,7 +43,7 @@ export async function processEmailJobs(
   const { data: candidates } = await deps.db
     .from('email_jobs')
     .select(
-      'id, kind, recipient, event_id, order_id, subject, html, status, attempts, max_attempts',
+      'id, kind, recipient, event_id, order_id, ticket_id, subject, html, status, attempts, max_attempts',
     )
     .in('status', ['pending', 'failed'])
     .order('created_at', { ascending: true })

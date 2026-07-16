@@ -92,6 +92,13 @@ function ManageEvent() {
           >
             Check-in →
           </Link>
+          <Link
+            to="/app/events/$eventId/guestlist"
+            params={{ eventId: event.id }}
+            className="font-medium text-indigo-600 hover:underline"
+          >
+            Guestlist →
+          </Link>
           {event.status === 'published' && (
             <a
               href={`/e/${event.slug}`}
