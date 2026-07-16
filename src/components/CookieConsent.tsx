@@ -36,14 +36,19 @@ export function CookieConsent() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] border-t border-gray-200 bg-white/95 p-4 shadow-2xl backdrop-blur">
-      <div className="mx-auto max-w-3xl text-sm text-gray-700">
+    <div
+      className="fixed inset-x-0 bottom-0 z-[100] border-t border-ink-800 p-4 shadow-2xl backdrop-blur-xl"
+      style={{
+        background: 'color-mix(in oklab, var(--color-ink-950) 90%, transparent)',
+      }}
+    >
+      <div className="mx-auto max-w-3xl text-sm text-ink-300">
         {!customizing ? (
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>
               Používame cookies. Nutné sú vždy zapnuté; analytické a
               marketingové použijeme len s vaším súhlasom.{' '}
-              <a href="/cookies" className="text-indigo-600 underline">
+              <a href="/cookies" className="text-accent underline">
                 Viac o cookies
               </a>
               .
@@ -51,19 +56,19 @@ export function CookieConsent() {
             <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 onClick={() => save(false, false)}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ink-200 transition hover:bg-ink-800"
               >
                 Odmietnuť
               </button>
               <button
                 onClick={() => setCustomizing(true)}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ink-200 transition hover:bg-ink-800"
               >
                 Nastaviť
               </button>
               <button
                 onClick={() => save(true, true)}
-                className="rounded-md bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700"
+                className="rounded-md bg-accent px-3 py-1.5 font-semibold text-ink-950 transition hover:brightness-110"
               >
                 Prijať všetko
               </button>
@@ -71,13 +76,13 @@ export function CookieConsent() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="font-semibold text-gray-900">
+            <div className="font-display font-semibold text-ink-100">
               Nastavenia cookies
             </div>
-            <label className="flex items-start gap-2 opacity-70">
-              <input type="checkbox" checked disabled className="mt-0.5" />
+            <label className="flex items-start gap-2 opacity-60">
+              <input type="checkbox" checked disabled className="mt-0.5 accent-accent" />
               <span>
-                <strong>Nutné</strong> — potrebné pre chod stránky (prihlásenie,
+                <strong className="text-ink-100">Nutné</strong> — potrebné pre chod stránky (prihlásenie,
                 košík). Vždy aktívne.
               </span>
             </label>
@@ -86,10 +91,10 @@ export function CookieConsent() {
                 type="checkbox"
                 checked={analytics}
                 onChange={(e) => setAnalytics(e.target.checked)}
-                className="mt-0.5"
+                className="mt-0.5 accent-accent"
               />
               <span>
-                <strong>Analytické</strong> — meranie návštevnosti (Google
+                <strong className="text-ink-100">Analytické</strong> — meranie návštevnosti (Google
                 Analytics).
               </span>
             </label>
@@ -98,23 +103,23 @@ export function CookieConsent() {
                 type="checkbox"
                 checked={marketing}
                 onChange={(e) => setMarketing(e.target.checked)}
-                className="mt-0.5"
+                className="mt-0.5 accent-accent"
               />
               <span>
-                <strong>Marketingové</strong> — remarketing a konverzie (Meta
+                <strong className="text-ink-100">Marketingové</strong> — remarketing a konverzie (Meta
                 Pixel).
               </span>
             </label>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button
                 onClick={() => save(false, false)}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ink-200 transition hover:bg-ink-800"
               >
                 Odmietnuť všetko
               </button>
               <button
                 onClick={() => save(analytics, marketing)}
-                className="rounded-md bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700"
+                className="rounded-md bg-accent px-3 py-1.5 font-semibold text-ink-950 transition hover:brightness-110"
               >
                 Uložiť voľbu
               </button>
