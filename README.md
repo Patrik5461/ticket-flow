@@ -64,6 +64,103 @@ The build output is a self-contained Node server. To deploy, push the `dist/` di
 For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
 
 
+## Deployment (Ticketio)
+
+Production runs on a VM behind HAProxy/OPNsense, managed by PM2, deployed from
+GitHub via webhook. Per `CLAUDE.md`, the PM2 ecosystem config and the real
+secrets file live **on the VM, not in this repo** — sample templates are in
+[`docs/deploy/`](docs/deploy/).
+
+### Build
+
+```bash
+git pull origin main
+npm ci
+npm run generate-routes           # regenerate the route tree
+NODE_OPTIONS="--max-old-space-size=4096" npm run build
+```
+
+- **`NODE_OPTIONS="--max-old-space-size=4096"` is required for the build** — the
+  SSR bundle (pdf-lib, node-forge, jsQR, …) exhausts the default heap otherwise.
+- Delete stale build artifacts before building (`rm -rf .output`).
+- The build output is a self-contained Node server at `.output/server/index.mjs`.
+
+### Run (PM2)
+
+```bash
+pm2 start ~/ecosystem.config.cjs      # sample: docs/deploy/ecosystem.config.cjs
+pm2 save
+```
+
+The server reads secrets from `~/ticketio-secrets.env` (sample:
+[`docs/deploy/ticketio-secrets.env.example`](docs/deploy/ticketio-secrets.env.example)).
+
+### Database migrations
+
+```bash
+npx supabase db push       # apply pending migrations to the linked project
+```
+
+Apply migrations **before** restarting the app when a release adds columns/tables.
+The app degrades gracefully for a short pre-migration window (tolerant writes),
+but new features stay inert until their migration lands.
+
+### Environment checklist
+
+Full annotated list in `.env.example` and
+[`docs/deploy/ticketio-secrets.env.example`](docs/deploy/ticketio-secrets.env.example).
+Minimum for a working production deploy:
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Database / auth. Service role is server-only. |
+| `APP_URL` | Public base URL (return/webhook URLs, email links). No trailing slash. |
+| `VITE_SITE_URL` | Canonical public URL baked into SEO tags, sitemap, OG images. **Build-time** — set before `npm run build`. |
+| `CRON_SECRET` | Guards the internal `/api/cron/*` worker endpoints. Must match `app_settings.cron_secret`. |
+| `GOPAY_GOID`, `GOPAY_CLIENT_ID`, `GOPAY_CLIENT_SECRET`, `GOPAY_ENV` | Payments. `GOPAY_ENV=production` for live. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Transactional email. `EMAIL_FROM` must be on a Resend-verified domain (SPF/DKIM/DMARC). |
+| `FAKTERO_API_KEY`, `FAKTERO_API_URL` | Commission invoicing (optional — logs if unset). |
+| `APPLE_*`, `GOOGLE_WALLET_*` | Wallet passes (optional — buttons hidden if unset). |
+
+Supabase vars also accept a `TICKETIO_`-prefixed alias (Lovable sandbox); plain
+names take precedence.
+
+### Cron workers (`app_settings` + pg_cron)
+
+Every-minute pg_cron ticks ping the app's worker endpoints via `pg_net`, but only
+if the endpoint URL is configured. Seed these rows in the `app_settings` table
+(server-only, service role). Each `*_endpoint` is `${APP_URL}` + the path below;
+all share `cron_secret` (must equal the `CRON_SECRET` env var):
+
+| `app_settings.key` | Endpoint path | Worker |
+| --- | --- | --- |
+| `cron_secret` | — | Shared secret sent as `x-cron-secret`. |
+| `cron_endpoint` | `/api/cron/process-refunds` | Refund queue |
+| `email_cron_endpoint` | `/api/cron/process-email` | Email queue (reminders, bulk, tickets) |
+| `invoice_cron_endpoint` | `/api/cron/issue-invoices` | Commission invoices |
+| `waitlist_cron_endpoint` | `/api/cron/process-waitlist` | Waitlist notifications |
+| `webhook_cron_endpoint` | `/api/cron/process-webhooks` | Outgoing webhook deliveries |
+
+Until an endpoint is set, its tick is a safe no-op. Example:
+
+```sql
+insert into app_settings (key, value) values
+  ('cron_secret', '<same as CRON_SECRET>'),
+  ('cron_endpoint',          'https://ticketio.sk/api/cron/process-refunds'),
+  ('email_cron_endpoint',    'https://ticketio.sk/api/cron/process-email'),
+  ('invoice_cron_endpoint',  'https://ticketio.sk/api/cron/issue-invoices'),
+  ('waitlist_cron_endpoint', 'https://ticketio.sk/api/cron/process-waitlist'),
+  ('webhook_cron_endpoint',  'https://ticketio.sk/api/cron/process-webhooks')
+on conflict (key) do update set value = excluded.value;
+```
+
+### Health & monitoring
+
+- `GET /api/health` → `{ status: "ok", db: true }` for uptime checks (never 500s;
+  reports `db:false` when the DB is unreachable).
+- Security headers (CSP, HSTS, …) are emitted by the app; the `/e/*/embed` route
+  intentionally relaxes `frame-ancestors` so the widget stays iframeable.
+
 
 ## Routing
 
