@@ -15,6 +15,7 @@ import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { generateApiKey } from '../lib/api-keys'
+import { detectCoverMime, coverExt } from '../lib/images'
 import { generateWebhookSecret, WEBHOOK_EVENT_TYPES } from '../lib/webhooks'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
@@ -212,6 +213,7 @@ const eventInput = z.object({
   timezone: z.string().default('Europe/Bratislava'),
   ga4MeasurementId: z.string().trim().max(40).optional().nullable(),
   metaPixelId: z.string().trim().max(40).optional().nullable(),
+  coverUrl: z.string().trim().max(1000).optional().nullable(),
 })
 
 export const createEventFn = createServerFn({ method: 'POST' })
@@ -237,6 +239,7 @@ export const createEventFn = createServerFn({ method: 'POST' })
           timezone: data.timezone,
           ga4_measurement_id: data.ga4MeasurementId ?? null,
           meta_pixel_id: data.metaPixelId ?? null,
+          cover_url: data.coverUrl ?? null,
           status: 'draft',
         })
         .select('id')
@@ -276,6 +279,7 @@ export const updateEventFn = createServerFn({ method: 'POST' })
           timezone: data.timezone,
           ga4_measurement_id: data.ga4MeasurementId ?? null,
           meta_pixel_id: data.metaPixelId ?? null,
+          cover_url: data.coverUrl ?? null,
         })
         .eq('id', event.id)
       if (error) throw new DashboardError('Podujatie sa nepodarilo uložiť.')
@@ -728,6 +732,52 @@ export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
     return { ok: true as const }
   },
 )
+
+// ---------------------------------------------------------------------------
+// Event cover images.
+// ---------------------------------------------------------------------------
+
+const EVENT_COVERS_BUCKET = 'event-covers'
+const MAX_COVER_BYTES = 5 * 1024 * 1024 // 5 MB
+
+/**
+ * Upload an event cover from a base64 data URL. Org-scoped path (independent of a
+ * specific event, so it also works in the create flow). Returns the public URL to
+ * store in events.cover_url. Validates type (PNG/JPEG/WebP) + size (5 MB).
+ */
+export const uploadEventCoverFn = createServerFn({ method: 'POST' })
+  .validator(z.object({ dataUrl: z.string().max(7_500_000) }).parse)
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+
+    const comma = data.dataUrl.indexOf(',')
+    const b64 = comma >= 0 ? data.dataUrl.slice(comma + 1) : data.dataUrl
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(Buffer.from(b64, 'base64'))
+    } catch {
+      throw new DashboardError('Neplatný súbor.')
+    }
+    if (bytes.length === 0) throw new DashboardError('Prázdny súbor.')
+    if (bytes.length > MAX_COVER_BYTES) {
+      throw new DashboardError('Obrázok je príliš veľký (max 5 MB).')
+    }
+    const mime = detectCoverMime(bytes)
+    if (!mime) throw new DashboardError('Podporované sú len JPG, PNG a WebP.')
+
+    const db = serviceClient()
+    const path = `${actor.organizerId}/${Date.now()}.${coverExt(mime)}`
+    const { error: upErr } = await db.storage
+      .from(EVENT_COVERS_BUCKET)
+      .upload(path, bytes, { contentType: mime, upsert: true })
+    if (upErr) throw new DashboardError('Nahrávanie zlyhalo.')
+
+    const {
+      data: { publicUrl },
+    } = db.storage.from(EVENT_COVERS_BUCKET).getPublicUrl(path)
+    return { ok: true as const, url: publicUrl }
+  })
 
 // ---------------------------------------------------------------------------
 // API keys (public REST API access).

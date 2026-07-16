@@ -15,10 +15,10 @@ import {
   deleteTicketTypeFn,
   createCouponFn,
   updateCouponFn,
-  deleteCouponFn
-  
+  deleteCouponFn,
+  uploadEventCoverFn,
 } from '../server/dashboard'
-import type {EventDetail} from '../server/dashboard';
+import type { EventDetail } from '../server/dashboard'
 import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
 import type { BulkMessageLog } from '../server/bulk-messages'
@@ -412,8 +412,43 @@ function EventDetailsForm({
     ga4: event.ga4_measurement_id ?? '',
     pixel: event.meta_pixel_id ?? '',
   })
+  const [coverUrl, setCoverUrl] = useState<string | null>(
+    event.cover_url ?? null,
+  )
+  const [coverBusy, setCoverBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const onCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setMsg('Podporované sú len JPG, PNG a WebP.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg('Obrázok je príliš veľký (max 5 MB).')
+      return
+    }
+    setCoverBusy(true)
+    setMsg(null)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(r.result as string)
+        r.onerror = () => reject(new Error('read failed'))
+        r.readAsDataURL(file)
+      })
+      const res = await uploadEventCoverFn({ data: { dataUrl } })
+      if ('error' in res) setMsg((res as { error: string }).error)
+      else setCoverUrl(res.url)
+    } catch (err) {
+      setMsg((err as Error).message)
+    } finally {
+      setCoverBusy(false)
+    }
+  }
   const set =
     (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -435,6 +470,7 @@ function EventDetailsForm({
         timezone: tz,
         ga4MeasurementId: form.ga4.trim() || null,
         metaPixelId: form.pixel.trim() || null,
+        coverUrl,
       },
     })
     setSaving(false)
@@ -460,6 +496,49 @@ function EventDetailsForm({
           className={inputCls}
           placeholder="Popis"
         />
+        <div>
+          <span className="mb-1 block text-sm text-gray-600">
+            Cover obrázok (16:9)
+          </span>
+          <div className="aspect-[16/9] w-full max-w-sm overflow-hidden rounded-md border bg-gray-50">
+            {coverUrl ? (
+              <img
+                src={coverUrl}
+                alt="Cover"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                Zatiaľ bez obrázka
+              </div>
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <label className="inline-block cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
+              {coverBusy
+                ? 'Nahrávam…'
+                : coverUrl
+                  ? 'Nahradiť'
+                  : 'Nahrať obrázok'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onCover}
+                disabled={coverBusy}
+                className="hidden"
+              />
+            </label>
+            {coverUrl && (
+              <button
+                type="button"
+                onClick={() => setCoverUrl(null)}
+                className="text-sm text-red-600 hover:underline"
+              >
+                Odstrániť
+              </button>
+            )}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <input
             value={form.venueName}

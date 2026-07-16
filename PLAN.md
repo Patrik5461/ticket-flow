@@ -82,6 +82,13 @@ Akceptácia: curl s API kľúčom vráti eventy; webhook príde pri zaplatení t
 - Hardening: rate limiting na /api/checkin, checkout a auth endpointy; security headers (CSP, HSTS); dependency audit; penetračný self-test checkout flow (manipulácia cien, cudzie ID, replay webhookov).
 - Ostrý GoPay: produkčné credentials, testovacia platba 1 € end-to-end, refund test.
 
+## Fáza 13 — Doplnenie funkcií z prehliadky
+
+- **Blok 1 — Cover obrázok eventu:** upload do Supabase Storage (bucket `event-covers`, public read; limit 5 MB, jpg/png/webp, server-side validácia), pole v create/edit event formulári s okamžitým náhľadom, orezový pomer 16:9 náhľadovo. Cover zobraziť všade, kde sa event renderuje (landing karta, event hero, OG image, embed). Plus live náhľad event karty pri vytváraní.
+- **Blok 2 — Nastavenia organizátora:** `/app/nastavenia` rozšíriť o editáciu firemných údajov (name, ico, dic, ic_dph, iban, email, phone, adresa — over/doplň stĺpce migráciou), zmeny cez server fn s validáciou (IBAN formát, IČO 8 číslic), audit zápis. Slug needitovateľný. Sekcie: Firemné údaje / Branding / Tím (read-only zoznam členov).
+- **Blok 3 — Dashboard prehľad organizátora:** `/app` hore metriky karty naprieč všetkými eventmi — predané vstupenky, hrubé tržby, provízia, netto na vyplatenie; obdobie prepínateľné (30 dní / celkovo). Vzor agregácie z admin-overview.
+- **Blok 4 — Žiadosť o vyplatenie zálohy:** tabuľka `payout_requests` (organizer_id, amount_cents, status requested/approved/paid/rejected, note, created_by, resolved_by, resolved_at). Organizátor vidí „dostupné na vyplatenie" (netto z paid objednávok mínus vyplatené/požiadané) + tlačidlo v `/app/vyuctovania`; admin nová stránka žiadostí so schválením/zamietnutím (+ poznámka), stavy s auditom a e-mail notifikáciou. Vyplatenie je manuálny bankový prevod — systém eviduje stav.
+
 ## Pred spustením — checklist mimo kódu
 
 - [ ] VOP + GDPR od právnika (sprostredkovateľský model, refund povinnosti, vzťah organizátor–kupujúci–platforma)

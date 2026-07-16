@@ -81,6 +81,14 @@ function EmbedPage() {
           boxShadow: '0 10px 40px -12px rgba(74, 222, 128, 0.25)',
         }}
       >
+        {event.cover_url && (
+          <img
+            src={event.cover_url}
+            alt={event.title}
+            className="mb-4 w-full rounded-xl object-cover"
+            style={{ aspectRatio: '16 / 9' }}
+          />
+        )}
         <h1
           className="text-lg font-bold tracking-tight"
           style={{ fontFamily: 'Space Grotesk, system-ui, sans-serif' }}
@@ -113,10 +121,17 @@ function EmbedPage() {
                   type="button"
                   disabled={(qty[t.id] ?? 0) <= 0}
                   onClick={() =>
-                    setQty((q) => ({ ...q, [t.id]: Math.max(0, (q[t.id] ?? 0) - 1) }))
+                    setQty((q) => ({
+                      ...q,
+                      [t.id]: Math.max(0, (q[t.id] ?? 0) - 1),
+                    }))
                   }
                   className="h-8 w-8 rounded-md border text-base disabled:opacity-30"
-                  style={{ borderColor: '#3a3a44', background: '#0c0c0f', color: '#f4f4f5' }}
+                  style={{
+                    borderColor: '#3a3a44',
+                    background: '#0c0c0f',
+                    color: '#f4f4f5',
+                  }}
                   aria-label="Menej"
                 >
                   −
@@ -134,7 +149,11 @@ function EmbedPage() {
                     }))
                   }
                   className="h-8 w-8 rounded-md border text-base disabled:opacity-30"
-                  style={{ borderColor: '#3a3a44', background: '#0c0c0f', color: '#f4f4f5' }}
+                  style={{
+                    borderColor: '#3a3a44',
+                    background: '#0c0c0f',
+                    color: '#f4f4f5',
+                  }}
                   aria-label="Viac"
                 >
                   +
@@ -154,11 +173,12 @@ function EmbedPage() {
             boxShadow: '0 10px 30px -12px rgba(74, 222, 128, 0.5)',
           }}
         >
-          {count === 0
-            ? 'Vyberte vstupenky'
-            : `Kúpiť (${formatEur(total)})`}
+          {count === 0 ? 'Vyberte vstupenky' : `Kúpiť (${formatEur(total)})`}
         </button>
-        <p className="mt-3 text-center text-[11px]" style={{ color: '#6b6b76' }}>
+        <p
+          className="mt-3 text-center text-[11px]"
+          style={{ color: '#6b6b76' }}
+        >
           Zabezpečuje Ticketio
         </p>
       </div>
