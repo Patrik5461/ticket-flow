@@ -93,6 +93,9 @@ function AdminLayout() {
               <Link to="/admin/payouts" className={navCls}>
                 Vyplatenia
               </Link>
+              <Link to="/admin/admins" className={navCls}>
+                Admini
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
