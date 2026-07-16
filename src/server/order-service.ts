@@ -467,6 +467,121 @@ export async function createOrder(
   }
 }
 
+export interface ManualOrderInput {
+  eventId: string
+  items: CartItemInput[]
+  buyer: { email: string; name?: string; phone?: string }
+}
+
+/**
+ * Organizer-recorded sale (on-site / bank transfer). Creates an already-paid
+ * order (payment_method 'manual', no GoPay), reserves capacity, issues tickets
+ * and emails them. Pricing (incl. the platform fee) is computed server-side from
+ * the organizer's config, so the order shows up in sales + settlements like any
+ * paid order. The caller must already have authorized the organizer for the event.
+ */
+export async function createManualOrder(
+  input: ManualOrderInput,
+): Promise<{ orderId: string }> {
+  const db = serviceClient()
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', input.eventId)
+    .maybeSingle<EventRow>()
+  if (!event) throw new OrderError('Podujatie sa nenašlo.')
+
+  const { data: organizer } = await db
+    .from('organizers')
+    .select('fee_percent, fee_min_cents')
+    .eq('id', event.organizer_id)
+    .single<Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents'>>()
+
+  // Load the requested types for this event (organizer may sell hidden types or
+  // outside the public sale window — this is a manual, staff-side sale).
+  const ids = input.items.map((i) => i.ticketTypeId)
+  const { data: typeRows } = await db
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', event.id)
+    .in('id', ids)
+    .returns<TicketTypeRow[]>()
+  const types = new Map((typeRows ?? []).map((t) => [t.id, t]))
+
+  const cleanItems = input.items.filter(
+    (i) => i.quantity > 0 && types.has(i.ticketTypeId),
+  )
+  if (cleanItems.length === 0) {
+    throw new OrderError('Vyberte aspoň jednu vstupenku.')
+  }
+
+  const pricing = computePricing({
+    items: cleanItems.map((i) => ({
+      quantity: i.quantity,
+      unitPriceCents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+    coupon: null,
+    feePercent: organizer?.fee_percent ?? 4.0,
+    feeMinCents: organizer?.fee_min_cents ?? 40,
+  })
+
+  const reserved: CartItemInput[] = []
+  for (const item of cleanItems) {
+    const { data: ok, error } = await db.rpc('reserve_ticket_capacity', {
+      p_ticket_type_id: item.ticketTypeId,
+      p_qty: item.quantity,
+    })
+    if (error || !ok) {
+      await releaseAll(reserved)
+      const name = types.get(item.ticketTypeId)!.name
+      throw new OrderError(`"${name}" nemá dostatok voľných miest.`)
+    }
+    reserved.push(item)
+  }
+
+  const { data: order, error: orderErr } = await db
+    .from('orders')
+    .insert({
+      event_id: event.id,
+      buyer_email: input.buyer.email,
+      buyer_name: input.buyer.name ?? null,
+      buyer_phone: input.buyer.phone ?? null,
+      status: 'paid',
+      payment_method: 'manual',
+      subtotal_cents: pricing.subtotalCents,
+      discount_cents: pricing.discountCents,
+      total_cents: pricing.totalCents,
+      fee_cents: pricing.feeCents,
+      paid_at: new Date().toISOString(),
+    })
+    .select('*')
+    .maybeSingle<OrderRow>()
+  if (orderErr || !order) {
+    await releaseAll(reserved)
+    throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
+  }
+
+  const { error: itemsErr } = await db.from('order_items').insert(
+    cleanItems.map((i) => ({
+      order_id: order.id,
+      ticket_type_id: i.ticketTypeId,
+      quantity: i.quantity,
+      unit_price_cents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+  )
+  if (itemsErr) {
+    await releaseAll(reserved)
+    await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
+  }
+
+  const tickets = await ensureTickets(order)
+  await sendTicketEmail(order, event, tickets).catch(() => undefined)
+
+  return { orderId: order.id }
+}
+
 async function releaseAll(items: CartItemInput[]): Promise<void> {
   const db = serviceClient()
   for (const i of items) {

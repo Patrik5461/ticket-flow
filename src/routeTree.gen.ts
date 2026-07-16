@@ -33,6 +33,7 @@ import { Route as ApiCronIssueInvoicesRouteImport } from './routes/api.cron.issu
 import { Route as AdminOrganizersOrganizerIdRouteImport } from './routes/admin.organizers.$organizerId'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
+import { Route as AppEventsEventIdManualOrderRouteImport } from './routes/app.events.$eventId.manual-order'
 import { Route as AppEventsEventIdGuestlistRouteImport } from './routes/app.events.$eventId.guestlist'
 import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
 import { Route as ApiSettlementsSettlementIdPdfRouteImport } from './routes/api.settlements.$settlementId.pdf'
@@ -161,6 +162,12 @@ const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
   path: '/sales',
   getParentRoute: () => AppEventsEventIdRoute,
 } as any)
+const AppEventsEventIdManualOrderRoute =
+  AppEventsEventIdManualOrderRouteImport.update({
+    id: '/manual-order',
+    path: '/manual-order',
+    getParentRoute: () => AppEventsEventIdRoute,
+  } as any)
 const AppEventsEventIdGuestlistRoute =
   AppEventsEventIdGuestlistRouteImport.update({
     id: '/guestlist',
@@ -225,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
+  '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -255,6 +263,7 @@ export interface FileRoutesByTo {
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
+  '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -288,6 +297,7 @@ export interface FileRoutesById {
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
+  '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/api/settlements/$settlementId/pdf'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
+    | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
@@ -352,6 +363,7 @@ export interface FileRouteTypes {
     | '/api/settlements/$settlementId/pdf'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
+    | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
@@ -384,6 +396,7 @@ export interface FileRouteTypes {
     | '/api/settlements/$settlementId/pdf'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
+    | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
@@ -578,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventsEventIdSalesRouteImport
       parentRoute: typeof AppEventsEventIdRoute
     }
+    '/app/events/$eventId/manual-order': {
+      id: '/app/events/$eventId/manual-order'
+      path: '/manual-order'
+      fullPath: '/app/events/$eventId/manual-order'
+      preLoaderRoute: typeof AppEventsEventIdManualOrderRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
     '/app/events/$eventId/guestlist': {
       id: '/app/events/$eventId/guestlist'
       path: '/guestlist'
@@ -646,6 +666,7 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 interface AppEventsEventIdRouteChildren {
   AppEventsEventIdCheckinRoute: typeof AppEventsEventIdCheckinRoute
   AppEventsEventIdGuestlistRoute: typeof AppEventsEventIdGuestlistRoute
+  AppEventsEventIdManualOrderRoute: typeof AppEventsEventIdManualOrderRoute
   AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
   AppEventsEventIdOrdersOrderIdRoute: typeof AppEventsEventIdOrdersOrderIdRoute
 }
@@ -653,6 +674,7 @@ interface AppEventsEventIdRouteChildren {
 const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
   AppEventsEventIdCheckinRoute: AppEventsEventIdCheckinRoute,
   AppEventsEventIdGuestlistRoute: AppEventsEventIdGuestlistRoute,
+  AppEventsEventIdManualOrderRoute: AppEventsEventIdManualOrderRoute,
   AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
   AppEventsEventIdOrdersOrderIdRoute: AppEventsEventIdOrdersOrderIdRoute,
 }

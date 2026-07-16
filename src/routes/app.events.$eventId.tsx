@@ -99,6 +99,13 @@ function ManageEvent() {
           >
             Guestlist →
           </Link>
+          <Link
+            to="/app/events/$eventId/manual-order"
+            params={{ eventId: event.id }}
+            className="font-medium text-indigo-600 hover:underline"
+          >
+            Ručná objednávka →
+          </Link>
           {event.status === 'published' && (
             <a
               href={`/e/${event.slug}`}
