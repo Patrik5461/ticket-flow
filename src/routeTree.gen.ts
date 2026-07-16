@@ -37,7 +37,9 @@ import { Route as ESlugEmbedRouteImport } from './routes/e.$slug.embed'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
+import { Route as ApiV1OrdersRouteImport } from './routes/api.v1.orders'
 import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
+import { Route as ApiV1EventsRouteImport } from './routes/api.v1.events'
 import { Route as ApiOgSlugRouteImport } from './routes/api.og.$slug'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as ApiCronProcessWaitlistRouteImport } from './routes/api.cron.process-waitlist'
@@ -50,10 +52,12 @@ import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$
 import { Route as AppEventsEventIdManualOrderRouteImport } from './routes/app.events.$eventId.manual-order'
 import { Route as AppEventsEventIdGuestlistRouteImport } from './routes/app.events.$eventId.guestlist'
 import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
+import { Route as ApiV1EventsIdRouteImport } from './routes/api.v1.events.$id'
 import { Route as ApiSettlementsSettlementIdPdfRouteImport } from './routes/api.settlements.$settlementId.pdf'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as ApiEventsEventIdAttendeesCsvRouteImport } from './routes/api.events.$eventId.attendees-csv'
 import { Route as AppEventsEventIdOrdersOrderIdRouteImport } from './routes/app.events.$eventId.orders.$orderId'
+import { Route as ApiV1EventsIdTicketsRouteImport } from './routes/api.v1.events.$id.tickets'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 import { Route as ApiOrdersOrderIdTicketsTicketIdPassRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId.pass'
 
@@ -197,9 +201,19 @@ const AppEventsEventIdRoute = AppEventsEventIdRouteImport.update({
   path: '/events/$eventId',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiV1OrdersRoute = ApiV1OrdersRouteImport.update({
+  id: '/api/v1/orders',
+  path: '/api/v1/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
   id: '/api/v1/me',
   path: '/api/v1/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1EventsRoute = ApiV1EventsRouteImport.update({
+  id: '/api/v1/events',
+  path: '/api/v1/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOgSlugRoute = ApiOgSlugRouteImport.update({
@@ -265,6 +279,11 @@ const AppEventsEventIdCheckinRoute = AppEventsEventIdCheckinRouteImport.update({
   path: '/checkin',
   getParentRoute: () => AppEventsEventIdRoute,
 } as any)
+const ApiV1EventsIdRoute = ApiV1EventsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1EventsRoute,
+} as any)
 const ApiSettlementsSettlementIdPdfRoute =
   ApiSettlementsSettlementIdPdfRouteImport.update({
     id: '/api/settlements/$settlementId/pdf',
@@ -289,6 +308,11 @@ const AppEventsEventIdOrdersOrderIdRoute =
     path: '/orders/$orderId',
     getParentRoute: () => AppEventsEventIdRoute,
   } as any)
+const ApiV1EventsIdTicketsRoute = ApiV1EventsIdTicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
+  getParentRoute: () => ApiV1EventsIdRoute,
+} as any)
 const ApiOrdersOrderIdTicketsTicketIdRoute =
   ApiOrdersOrderIdTicketsTicketIdRouteImport.update({
     id: '/api/orders/$orderId/tickets/$ticketId',
@@ -332,7 +356,9 @@ export interface FileRoutesByFullPath {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -343,11 +369,13 @@ export interface FileRoutesByFullPath {
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
+  '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
+  '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
   '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
@@ -379,7 +407,9 @@ export interface FileRoutesByTo {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -390,11 +420,13 @@ export interface FileRoutesByTo {
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
+  '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
+  '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
   '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
@@ -429,7 +461,9 @@ export interface FileRoutesById {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/events': typeof ApiV1EventsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/orders': typeof ApiV1OrdersRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -440,11 +474,13 @@ export interface FileRoutesById {
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
+  '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
+  '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
   '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
@@ -480,7 +516,9 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -491,11 +529,13 @@ export interface FileRouteTypes {
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
+    | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
     | '/api/orders/$orderId/tickets/$ticketId/pass'
   fileRoutesByTo: FileRoutesByTo
@@ -527,7 +567,9 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -538,11 +580,13 @@ export interface FileRouteTypes {
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
+    | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
     | '/api/orders/$orderId/tickets/$ticketId/pass'
   id:
@@ -576,7 +620,9 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/events'
     | '/api/v1/me'
+    | '/api/v1/orders'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -587,11 +633,13 @@ export interface FileRouteTypes {
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
     | '/api/settlements/$settlementId/pdf'
+    | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
+    | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
     | '/api/orders/$orderId/tickets/$ticketId/pass'
   fileRoutesById: FileRoutesById
@@ -618,7 +666,9 @@ export interface RootRouteChildren {
   ApiCronProcessWaitlistRoute: typeof ApiCronProcessWaitlistRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ApiOgSlugRoute: typeof ApiOgSlugRoute
+  ApiV1EventsRoute: typeof ApiV1EventsRouteWithChildren
   ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1OrdersRoute: typeof ApiV1OrdersRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugEmbedRoute: typeof ESlugEmbedRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
@@ -826,11 +876,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventsEventIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/v1/orders': {
+      id: '/api/v1/orders'
+      path: '/api/v1/orders'
+      fullPath: '/api/v1/orders'
+      preLoaderRoute: typeof ApiV1OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/me': {
       id: '/api/v1/me'
       path: '/api/v1/me'
       fullPath: '/api/v1/me'
       preLoaderRoute: typeof ApiV1MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/events': {
+      id: '/api/v1/events'
+      path: '/api/v1/events'
+      fullPath: '/api/v1/events'
+      preLoaderRoute: typeof ApiV1EventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/og/$slug': {
@@ -917,6 +981,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventsEventIdCheckinRouteImport
       parentRoute: typeof AppEventsEventIdRoute
     }
+    '/api/v1/events/$id': {
+      id: '/api/v1/events/$id'
+      path: '/$id'
+      fullPath: '/api/v1/events/$id'
+      preLoaderRoute: typeof ApiV1EventsIdRouteImport
+      parentRoute: typeof ApiV1EventsRoute
+    }
     '/api/settlements/$settlementId/pdf': {
       id: '/api/settlements/$settlementId/pdf'
       path: '/api/settlements/$settlementId/pdf'
@@ -944,6 +1015,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/events/$eventId/orders/$orderId'
       preLoaderRoute: typeof AppEventsEventIdOrdersOrderIdRouteImport
       parentRoute: typeof AppEventsEventIdRoute
+    }
+    '/api/v1/events/$id/tickets': {
+      id: '/api/v1/events/$id/tickets'
+      path: '/tickets'
+      fullPath: '/api/v1/events/$id/tickets'
+      preLoaderRoute: typeof ApiV1EventsIdTicketsRouteImport
+      parentRoute: typeof ApiV1EventsIdRoute
     }
     '/api/orders/$orderId/tickets/$ticketId': {
       id: '/api/orders/$orderId/tickets/$ticketId'
@@ -1021,6 +1099,30 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiV1EventsIdRouteChildren {
+  ApiV1EventsIdTicketsRoute: typeof ApiV1EventsIdTicketsRoute
+}
+
+const ApiV1EventsIdRouteChildren: ApiV1EventsIdRouteChildren = {
+  ApiV1EventsIdTicketsRoute: ApiV1EventsIdTicketsRoute,
+}
+
+const ApiV1EventsIdRouteWithChildren = ApiV1EventsIdRoute._addFileChildren(
+  ApiV1EventsIdRouteChildren,
+)
+
+interface ApiV1EventsRouteChildren {
+  ApiV1EventsIdRoute: typeof ApiV1EventsIdRouteWithChildren
+}
+
+const ApiV1EventsRouteChildren: ApiV1EventsRouteChildren = {
+  ApiV1EventsIdRoute: ApiV1EventsIdRouteWithChildren,
+}
+
+const ApiV1EventsRouteWithChildren = ApiV1EventsRoute._addFileChildren(
+  ApiV1EventsRouteChildren,
+)
+
 interface ApiOrdersOrderIdTicketsTicketIdRouteChildren {
   ApiOrdersOrderIdTicketsTicketIdPassRoute: typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
@@ -1058,7 +1160,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessWaitlistRoute: ApiCronProcessWaitlistRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ApiOgSlugRoute: ApiOgSlugRoute,
+  ApiV1EventsRoute: ApiV1EventsRouteWithChildren,
   ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1OrdersRoute: ApiV1OrdersRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugEmbedRoute: ESlugEmbedRoute,
   ESlugIndexRoute: ESlugIndexRoute,
