@@ -4,7 +4,7 @@ import {
   useRouter,
   notFound,
 } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   getMyEventFn,
   updateEventFn,
@@ -19,6 +19,8 @@ import {
   type EventDetail,
 } from '../server/dashboard'
 import { cancelEventFn } from '../server/cancel-event'
+import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
+import type { BulkMessageLog } from '../server/bulk-messages'
 import { utcIsoToZonedLocal } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
@@ -115,8 +117,117 @@ function ManageEvent() {
         tz={tz}
         onChanged={reload}
       />
+      <BulkMessageSection eventId={event.id} />
       <CancelEventSection event={event} onChanged={reload} />
     </div>
+  )
+}
+
+// --- Message participants -----------------------------------------------------
+
+function BulkMessageSection({ eventId }: { eventId: string }) {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [log, setLog] = useState<BulkMessageLog[]>([])
+
+  const loadLog = async () => {
+    const res = await listBulkMessagesFn({ data: { eventId } })
+    if (!('error' in res)) setLog(res)
+  }
+  useEffect(() => {
+    void loadLog()
+  }, [eventId])
+
+  const send = async () => {
+    if (!subject.trim() || !body.trim()) return
+    if (
+      !confirm('Odoslať správu všetkým účastníkom so zaplatenou objednávkou?')
+    )
+      return
+    setBusy(true)
+    setMsg(null)
+    const res = await sendBulkMessageFn({
+      data: { eventId, subject: subject.trim(), body: body.trim() },
+    })
+    setBusy(false)
+    if ('error' in res) {
+      setMsg(res.error)
+      return
+    }
+    setMsg(`Zaradené do odosielania: ${res.recipientCount} príjemcov.`)
+    setSubject('')
+    setBody('')
+    void loadLog()
+  }
+
+  const fmt = (iso: string) =>
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+      timeZone: 'Europe/Bratislava',
+    }).format(new Date(iso))
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <h2 className="mb-1 text-lg font-semibold">Napísať účastníkom</h2>
+      <p className="mb-4 text-sm text-gray-500">
+        Správa sa odošle všetkým kupujúcim so zaplatenou objednávkou.
+        Odosielanie beží na pozadí (fronta).
+      </p>
+      <div className="space-y-3">
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Predmet"
+          className={inputCls}
+        />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={5}
+          placeholder="Text správy…"
+          className={inputCls}
+        />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={send}
+            disabled={busy || !subject.trim() || !body.trim()}
+            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {busy ? 'Odosielam…' : 'Odoslať účastníkom'}
+          </button>
+          {msg && <span className="text-sm text-gray-600">{msg}</span>}
+        </div>
+      </div>
+
+      {log.length > 0 && (
+        <div className="mt-6 border-t pt-4">
+          <h3 className="mb-2 text-sm font-semibold">Odoslané správy</h3>
+          <ul className="space-y-2 text-sm">
+            {log.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-wrap justify-between gap-2 border-t pt-2 first:border-t-0 first:pt-0"
+              >
+                <span>
+                  <strong>{m.subject}</strong>
+                  <span className="ml-2 text-xs text-gray-400">
+                    {m.recipientCount} príjemcov · doručené {m.sent}
+                    {m.failed > 0 ? ` · zlyhalo ${m.failed}` : ''}
+                    {m.pending > 0 ? ` · čaká ${m.pending}` : ''}
+                  </span>
+                </span>
+                <span className="text-xs text-gray-400">
+                  {fmt(m.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   )
 }
 
