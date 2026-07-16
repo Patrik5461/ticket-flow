@@ -27,6 +27,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as AppSettlementsRouteImport } from './routes/app.settlements'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppDevelopersRouteImport } from './routes/app.developers'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
@@ -36,6 +37,7 @@ import { Route as ESlugEmbedRouteImport } from './routes/e.$slug.embed'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
+import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
 import { Route as ApiOgSlugRouteImport } from './routes/api.og.$slug'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as ApiCronProcessWaitlistRouteImport } from './routes/api.cron.process-waitlist'
@@ -145,6 +147,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDevelopersRoute = AppDevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiCheckinRoute = ApiCheckinRouteImport.update({
   id: '/api/checkin',
   path: '/api/checkin',
@@ -189,6 +196,11 @@ const AppEventsEventIdRoute = AppEventsEventIdRouteImport.update({
   id: '/events/$eventId',
   path: '/events/$eventId',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiV1MeRoute = ApiV1MeRouteImport.update({
+  id: '/api/v1/me',
+  path: '/api/v1/me',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOgSlugRoute = ApiOgSlugRouteImport.update({
   id: '/api/og/$slug',
@@ -306,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
@@ -319,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/me': typeof ApiV1MeRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -351,6 +365,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
@@ -364,6 +379,7 @@ export interface FileRoutesByTo {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/me': typeof ApiV1MeRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -399,6 +415,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
   '/order/$id': typeof OrderIdRoute
@@ -412,6 +429,7 @@ export interface FileRoutesById {
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
+  '/api/v1/me': typeof ApiV1MeRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -448,6 +466,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
@@ -461,6 +480,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/me'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -493,6 +513,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
@@ -506,6 +527,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/me'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -540,6 +562,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
     | '/order/$id'
@@ -553,6 +576,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
     | '/api/og/$slug'
+    | '/api/v1/me'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -594,6 +618,7 @@ export interface RootRouteChildren {
   ApiCronProcessWaitlistRoute: typeof ApiCronProcessWaitlistRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ApiOgSlugRoute: typeof ApiOgSlugRoute
+  ApiV1MeRoute: typeof ApiV1MeRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugEmbedRoute: typeof ESlugEmbedRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
@@ -731,6 +756,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/developers': {
+      id: '/app/developers'
+      path: '/developers'
+      fullPath: '/app/developers'
+      preLoaderRoute: typeof AppDevelopersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/checkin': {
       id: '/api/checkin'
       path: '/api/checkin'
@@ -793,6 +825,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/events/$eventId'
       preLoaderRoute: typeof AppEventsEventIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/v1/me': {
+      id: '/api/v1/me'
+      path: '/api/v1/me'
+      fullPath: '/api/v1/me'
+      preLoaderRoute: typeof ApiV1MeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/og/$slug': {
       id: '/api/og/$slug'
@@ -963,6 +1002,7 @@ const AppEventsEventIdRouteWithChildren =
   AppEventsEventIdRoute._addFileChildren(AppEventsEventIdRouteChildren)
 
 interface AppRouteChildren {
+  AppDevelopersRoute: typeof AppDevelopersRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -971,6 +1011,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppDevelopersRoute: AppDevelopersRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSettlementsRoute: AppSettlementsRoute,
   AppIndexRoute: AppIndexRoute,
@@ -1017,6 +1058,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessWaitlistRoute: ApiCronProcessWaitlistRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ApiOgSlugRoute: ApiOgSlugRoute,
+  ApiV1MeRoute: ApiV1MeRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugEmbedRoute: ESlugEmbedRoute,
   ESlugIndexRoute: ESlugIndexRoute,

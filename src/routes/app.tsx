@@ -36,6 +36,12 @@ function AppLayout() {
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <Link
+              to="/app/developers"
+              className="text-gray-600 hover:text-gray-900"
+            >
+              API
+            </Link>
+            <Link
               to="/app/settings"
               className="text-gray-600 hover:text-gray-900"
             >

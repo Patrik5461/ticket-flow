@@ -14,6 +14,7 @@ import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
+import { generateApiKey } from '../lib/api-keys'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
 import type { SalesData } from './sales-data'
@@ -726,3 +727,79 @@ export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
     return { ok: true as const }
   },
 )
+
+// ---------------------------------------------------------------------------
+// API keys (public REST API access).
+// ---------------------------------------------------------------------------
+
+export interface ApiKeySummary {
+  id: string
+  name: string
+  keyPrefix: string
+  lastUsedAt: string | null
+  createdAt: string
+  revokedAt: string | null
+}
+
+export const listApiKeysFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ApiKeySummary[]> => {
+    const actor = await requireOrganizer()
+    const { data } = await serviceClient()
+      .from('api_keys')
+      .select('id, name, key_prefix, last_used_at, created_at, revoked_at')
+      .eq('organizer_id', actor.organizerId)
+      .order('created_at', { ascending: false })
+      .returns<
+        {
+          id: string
+          name: string
+          key_prefix: string
+          last_used_at: string | null
+          created_at: string
+          revoked_at: string | null
+        }[]
+      >()
+    return (data ?? []).map((k) => ({
+      id: k.id,
+      name: k.name,
+      keyPrefix: k.key_prefix,
+      lastUsedAt: k.last_used_at,
+      createdAt: k.created_at,
+      revokedAt: k.revoked_at,
+    }))
+  },
+)
+
+/** Create a key. Returns the plaintext key ONCE — it is never stored or shown again. */
+export const createApiKeyFn = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({ name: z.string().trim().max(80).default('API kľúč') }).parse,
+  )
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    const gen = generateApiKey()
+    const { error } = await serviceClient()
+      .from('api_keys')
+      .insert({
+        organizer_id: actor.organizerId,
+        name: data.name || 'API kľúč',
+        key_prefix: gen.prefix,
+        key_hash: gen.hash,
+      })
+    if (error) throw new DashboardError('Kľúč sa nepodarilo vytvoriť.')
+    return { key: gen.key, prefix: gen.prefix }
+  })
+
+export const revokeApiKeyFn = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().uuid() }).parse)
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    await serviceClient()
+      .from('api_keys')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .eq('organizer_id', actor.organizerId)
+    return { ok: true as const }
+  })
