@@ -89,6 +89,20 @@ Akceptácia: curl s API kľúčom vráti eventy; webhook príde pri zaplatení t
 - **Blok 3 — Dashboard prehľad organizátora:** `/app` hore metriky karty naprieč všetkými eventmi — predané vstupenky, hrubé tržby, provízia, netto na vyplatenie; obdobie prepínateľné (30 dní / celkovo). Vzor agregácie z admin-overview.
 - **Blok 4 — Žiadosť o vyplatenie zálohy:** tabuľka `payout_requests` (organizer_id, amount_cents, status requested/approved/paid/rejected, note, created_by, resolved_by, resolved_at). Organizátor vidí „dostupné na vyplatenie" (netto z paid objednávok mínus vyplatené/požiadané) + tlačidlo v `/app/vyuctovania`; admin nová stránka žiadostí so schválením/zamietnutím (+ poznámka), stavy s auditom a e-mail notifikáciou. Vyplatenie je manuálny bankový prevod — systém eviduje stav.
 
+## Fáza 14 — Rozšírenie admin rozhrania
+
+Pravidlo proti duplicite: pred každým blokom preskúmať repo (server fns, routes, migrácie, komponenty), či funkcia už neexistuje — ak áno, rozšíriť/použiť existujúce.
+
+- **Oprava regresie (pred blokmi):** na `/admin/organizers/{id}` opraviť editor provízie (`fee_percent`/`fee_min_cents` cez `updateOrganizerFeeFn`), overiť suspend/aktiváciu (`setOrganizerStatusFn`) a poznámky (`updateOrganizerNotesFn`) — Lovable pravdepodobne odpojil onSubmit. Otestovať: zmena provízie sa prejaví v novej objednávke; suspend zablokuje predaj.
+- **Blok 1 — Detail organizátora so štatistikami:** graf predajov v čase (30/90/celkovo), tabuľka eventov s predajmi (predané/kapacita, tržby, provízia, stav) oddelene aktuálne/minulé, súčty (tržby, provízia, počet objednávok, priemerná hodnota). Vedľa funkčný editor provízie/suspend/poznámky.
+- **Blok 2 — Platforma štatistiky rozšírené:** `/admin` top organizátori podľa tržby, top eventy, vývoj provízie v čase, medzimesačné porovnanie, rozklad tržieb dnes/mesiac/celkovo.
+- **Blok 3 — Admin akcie nad eventom a objednávkou:** detail eventu s refund/zrušiť (fns z Fázy 6), refund objednávky ako platform admin; audit.
+- **Blok 4 — Admin dashboard operatíva:** čakajúce payout žiadosti (link + počet), posledné registrácie, posledné veľké objednávky, eventy v najbližších 7 dňoch, health panel (aktívni/suspendovaní, eventy podľa stavu).
+- **Blok 5 — Impersonácia (read-only):** platform admin otvorí dashboard organizátora v READ-ONLY (server vynúti, nie len UI), banner, audit vstupu, výstup jedným klikom.
+- **Blok 6 — Globálne vyhľadávanie:** admin nav pole naprieč e-mail kupujúceho, názov eventu, meno organizátora, číslo/ref objednávky, GoPay ID; výsledky zoskupené.
+- **Blok 7 — Export dát platformy:** CSV všetkých objednávok a organizátorov za obdobie (BOM pre Excel), platform admin guard + audit.
+- **Blok 8 — Správa platform adminov:** UI na pridanie/odobratie admina podľa e-mailu, zoznam, audit, poistka že posledný admin sa nedá odobrať.
+
 ## Pred spustením — checklist mimo kódu
 
 - [ ] VOP + GDPR od právnika (sprostredkovateľský model, refund povinnosti, vzťah organizátor–kupujúci–platforma)
