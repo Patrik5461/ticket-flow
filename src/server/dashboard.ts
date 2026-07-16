@@ -736,6 +736,130 @@ export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
 )
 
 // ---------------------------------------------------------------------------
+// Payout requests (organizer side).
+// ---------------------------------------------------------------------------
+
+export type PayoutStatus = 'requested' | 'approved' | 'paid' | 'rejected'
+
+export interface PayoutRequestView {
+  id: string
+  amountCents: number
+  status: PayoutStatus
+  note: string | null
+  createdAt: string
+  resolvedAt: string | null
+}
+
+export interface PayoutInfo {
+  availableCents: number
+  requests: PayoutRequestView[]
+}
+
+/** Net available to pay out = net of paid orders − non-rejected requests. */
+async function computeAvailablePayout(organizerId: string): Promise<number> {
+  const db = serviceClient()
+  const { data: events } = await db
+    .from('events')
+    .select('id')
+    .eq('organizer_id', organizerId)
+    .returns<{ id: string }[]>()
+  const eventIds = (events ?? []).map((e) => e.id)
+
+  let netPaid = 0
+  if (eventIds.length > 0) {
+    const { data: orders } = await db
+      .from('orders')
+      .select('total_cents, fee_cents')
+      .in('event_id', eventIds)
+      .eq('status', 'paid')
+      .returns<{ total_cents: number; fee_cents: number }[]>()
+    for (const o of orders ?? []) netPaid += o.total_cents - o.fee_cents
+  }
+
+  const { data: reqs } = await db
+    .from('payout_requests')
+    .select('amount_cents, status')
+    .eq('organizer_id', organizerId)
+    .neq('status', 'rejected')
+    .returns<{ amount_cents: number; status: string }[]>()
+  const reserved = (reqs ?? []).reduce((s, r) => s + r.amount_cents, 0)
+
+  return netPaid - reserved
+}
+
+export const getPayoutInfoFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<PayoutInfo> => {
+    const actor = await requireOrganizer()
+    const availableCents = await computeAvailablePayout(actor.organizerId)
+    const { data } = await serviceClient()
+      .from('payout_requests')
+      .select('id, amount_cents, status, note, created_at, resolved_at')
+      .eq('organizer_id', actor.organizerId)
+      .order('created_at', { ascending: false })
+      .returns<
+        {
+          id: string
+          amount_cents: number
+          status: PayoutStatus
+          note: string | null
+          created_at: string
+          resolved_at: string | null
+        }[]
+      >()
+    return {
+      availableCents,
+      requests: (data ?? []).map((r) => ({
+        id: r.id,
+        amountCents: r.amount_cents,
+        status: r.status,
+        note: r.note,
+        createdAt: r.created_at,
+        resolvedAt: r.resolved_at,
+      })),
+    }
+  },
+)
+
+export const requestPayoutFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        amountCents: z.number().int().positive(),
+        note: z.string().trim().max(500).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      assertCanEdit(actor)
+      const available = await computeAvailablePayout(actor.organizerId)
+      if (data.amountCents > available) {
+        throw new DashboardError('Suma presahuje dostupný zostatok.')
+      }
+      const { error } = await serviceClient()
+        .from('payout_requests')
+        .insert({
+          organizer_id: actor.organizerId,
+          amount_cents: data.amountCents,
+          status: 'requested',
+          note: data.note || null,
+          created_by: actor.userId,
+        })
+      if (error) throw new DashboardError('Žiadosť sa nepodarilo vytvoriť.')
+
+      await writeAuditLog({
+        actorId: actor.userId,
+        action: 'payout.requested',
+        entityType: 'organizer',
+        entityId: actor.organizerId,
+        newValue: { amount_cents: data.amountCents },
+      })
+      return { ok: true as const }
+    })
+  })
+
+// ---------------------------------------------------------------------------
 // Organizer dashboard overview (metrics across all events).
 // ---------------------------------------------------------------------------
 

@@ -259,6 +259,36 @@ export function waitlistEmail(d: {
   }
 }
 
+export function payoutStatusEmail(d: {
+  status: 'approved' | 'paid' | 'rejected'
+  amountLabel: string
+  note?: string | null
+}): RenderedEmail {
+  const map = {
+    approved: {
+      heading: 'Žiadosť o vyplatenie schválená ✅',
+      line: `Vaša žiadosť o vyplatenie ${d.amountLabel} bola schválená. Peniaze vám čoskoro pošleme na účet.`,
+    },
+    paid: {
+      heading: 'Vyplatenie odoslané 💸',
+      line: `Vyplatenie ${d.amountLabel} bolo odoslané na váš účet.`,
+    },
+    rejected: {
+      heading: 'Žiadosť o vyplatenie zamietnutá',
+      line: `Vašu žiadosť o vyplatenie ${d.amountLabel} sme zamietli.`,
+    },
+  }[d.status]
+  return {
+    subject: `Vyplatenie — ${d.amountLabel}`,
+    html: emailLayout({
+      heading: map.heading,
+      preheader: map.line,
+      contentHtml:
+        p(map.line) + (d.note ? muted(`Poznámka: ${escapeHtml(d.note)}`) : ''),
+    }),
+  }
+}
+
 export function bulkMessageEmail(d: {
   eventTitle: string
   subject: string

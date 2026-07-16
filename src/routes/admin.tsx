@@ -38,25 +38,38 @@ function AdminLayout() {
       <header
         className="sticky top-0 z-40 backdrop-blur"
         style={{
-          background: 'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
+          background:
+            'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
           borderBottom: '1px solid var(--color-ink-700)',
         }}
       >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex flex-wrap items-center gap-5">
-            <Link to="/admin" className="flex items-center gap-2 font-display text-lg font-bold">
+            <Link
+              to="/admin"
+              className="flex items-center gap-2 font-display text-lg font-bold"
+            >
               <span>
                 ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
               </span>
               <span className="badge-admin">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
                   <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z" />
                 </svg>
                 Platform admin
               </span>
             </Link>
             <nav className="flex items-center gap-1">
-              <Link to="/admin" activeOptions={{ exact: true }} className={navCls}>
+              <Link
+                to="/admin"
+                activeOptions={{ exact: true }}
+                className={navCls}
+              >
                 Prehľad
               </Link>
               <Link to="/admin/organizers" className={navCls}>
@@ -67,6 +80,9 @@ function AdminLayout() {
               </Link>
               <Link to="/admin/orders" className={navCls}>
                 Objednávky
+              </Link>
+              <Link to="/admin/payouts" className={navCls}>
+                Vyplatenia
               </Link>
             </nav>
           </div>
