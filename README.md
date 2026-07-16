@@ -216,3 +216,26 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
 For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+
+# E-mail (Resend) — doména a doručiteľnosť
+
+Transakčné e-maily posiela Resend (`RESEND_API_KEY`, `EMAIL_FROM`). Bez API kľúča
+sa e-maily iba logujú do konzoly (dev). `EMAIL_FROM` musí byť adresa na doméne
+overenej v Resende.
+
+Odporúčaná odosielacia subdoména: `mail.ticketio.sk` (napr.
+`EMAIL_FROM="Ticketio <noreply@mail.ticketio.sk>"`).
+
+DNS pre doručiteľnosť (hodnoty vygeneruje Resend pri „Add Domain"):
+
+- **SPF** (TXT na `mail.ticketio.sk`): `v=spf1 include:amazonses.com ~all`
+  (Resend používa Amazon SES; presný include potvrdí Resend).
+- **DKIM** (3× CNAME `resend._domainkey…` → hodnoty z Resendu). Podpisuje e-maily.
+- **DMARC** (TXT na `_dmarc.ticketio.sk`): začni s
+  `v=DMARC1; p=none; rua=mailto:dmarc@ticketio.sk`, po odladení sprísni na
+  `p=quarantine`/`p=reject`.
+- **Return-Path / MAIL FROM** (voliteľne CNAME `send.mail.ticketio.sk`) pre
+  zarovnanie SPF.
+
+Po pridaní DNS počkaj na overenie domény v Resende, potom otestuj doručiteľnosť
+(napr. mail-tester.com) — cieľ je SPF+DKIM+DMARC „pass".

@@ -49,6 +49,10 @@ const schema = z.object({
   // provider (no external call).
   FAKTERO_API_KEY: z.string().default(''),
   FAKTERO_API_URL: z.string().default(''),
+  // Resend (transactional email). Without a key, email falls back to the console
+  // provider (dev). EMAIL_FROM must be an address on a Resend-verified domain.
+  RESEND_API_KEY: z.string().default(''),
+  EMAIL_FROM: z.string().default('Ticketio <noreply@ticketio.sk>'),
 })
 
 export type Env = z.infer<typeof schema>
@@ -72,6 +76,8 @@ export function getEnv(): Env {
       CRON_SECRET: process.env.CRON_SECRET,
       FAKTERO_API_KEY: process.env.FAKTERO_API_KEY,
       FAKTERO_API_URL: process.env.FAKTERO_API_URL,
+      RESEND_API_KEY: process.env.RESEND_API_KEY,
+      EMAIL_FROM: process.env.EMAIL_FROM,
     })
   }
   return cached

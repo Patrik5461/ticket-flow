@@ -10,19 +10,12 @@
 
 import { serviceClient } from '../lib/supabase/server'
 import { getEmailProvider } from '../lib/email'
+import { eventCancelledEmail } from '../lib/email/templates'
 import { refundPayment } from '../lib/gopay'
 import { formatEur } from '../lib/money'
 import { refundWholeOrder } from './refund-service'
 import type { RefundDeps } from './refund-service'
 import type { RefundJobsDeps } from './refund-jobs'
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
 
 /** Refund deps whose buyer email is worded for an event cancellation. */
 function cancellationRefundDeps(): RefundDeps {
@@ -35,16 +28,12 @@ function cancellationRefundDeps(): RefundDeps {
       },
     },
     sendRefundEmail: async (m) => {
-      const html = `
-        <h2>Podujatie bolo zrušené</h2>
-        <p>Podujatie <strong>${escapeHtml(m.eventTitle)}</strong> bolo zrušené a vašu platbu vám vraciame v plnej výške.</p>
-        <p>Objednávka ${m.orderRef}<br/>Refundovaná suma: <strong>${formatEur(m.amountCents)}</strong></p>
-        <p style="color:#666;font-size:12px">Peniaze sa vrátia na pôvodný platobný prostriedok, spracovanie môže trvať niekoľko dní.</p>`
-      await getEmailProvider().send({
-        to: m.to,
-        subject: `Podujatie zrušené — ${m.eventTitle}`,
-        html,
+      const { subject, html } = eventCancelledEmail({
+        eventTitle: m.eventTitle,
+        orderRef: m.orderRef,
+        amountLabel: formatEur(m.amountCents),
       })
+      await getEmailProvider().send({ to: m.to, subject, html })
     },
     writeAudit: async (a) => {
       await serviceClient()

@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { getEmailProvider } from '../lib/email'
+import { refundEmail } from '../lib/email/templates'
 import { refundPayment } from '../lib/gopay'
 import { writeAuditLog } from './admin'
 import {
@@ -97,18 +98,13 @@ function realDeps(): RefundDeps {
       },
     },
     sendRefundEmail: async (m) => {
-      const amount = formatEur(m.amountCents)
-      const html = `
-        <h2>Refundácia objednávky</h2>
-        <p>${m.full ? 'Vaša objednávka bola plne refundovaná.' : 'Časť vašej objednávky bola refundovaná.'}</p>
-        <p><strong>${escapeHtml(m.eventTitle)}</strong><br/>Objednávka ${m.orderRef}</p>
-        <p>Refundovaná suma: <strong>${amount}</strong></p>
-        <p style="color:#666;font-size:12px">Peniaze sa vrátia na pôvodný platobný prostriedok, spracovanie môže trvať niekoľko dní.</p>`
-      await getEmailProvider().send({
-        to: m.to,
-        subject: `Refundácia — ${m.eventTitle}`,
-        html,
+      const { subject, html } = refundEmail({
+        eventTitle: m.eventTitle,
+        orderRef: m.orderRef,
+        amountLabel: formatEur(m.amountCents),
+        full: m.full,
       })
+      await getEmailProvider().send({ to: m.to, subject, html })
     },
     writeAudit: async (a) => {
       await writeAuditLog({
@@ -122,14 +118,6 @@ function realDeps(): RefundDeps {
     },
     now: () => new Date().toISOString(),
   }
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 // --- order detail for the refund UI ------------------------------------------

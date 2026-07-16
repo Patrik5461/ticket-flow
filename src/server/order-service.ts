@@ -19,6 +19,7 @@ import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
 import { renderTicketPdf } from '../lib/tickets/pdf'
 import { getEmailProvider } from '../lib/email'
+import { ticketsEmail, ticketBlockHtml } from '../lib/email/templates'
 import { createPayment, getPaymentStatus } from '../lib/gopay'
 import { gopayStateToAction } from '../lib/gopay-state'
 import type {
@@ -563,22 +564,24 @@ async function sendTicketEmail(
       contentType: 'application/pdf',
     })
     qrBlocks.push(
-      `<div style="margin:16px 0"><div style="font-weight:600">${escapeHtml(
+      ticketBlockHtml(
         typeNames.get(t.ticket_type_id) ?? 'Vstupenka',
-      )}</div><img src="${await qrDataUrl(qrToken)}" width="180" height="180" alt="QR"/></div>`,
+        await qrDataUrl(qrToken),
+      ),
     )
   }
 
-  const html = `
-    <h2>Ďakujeme za nákup na Ticketio</h2>
-    <p><strong>${escapeHtml(event.title)}</strong><br/>${escapeHtml(startsLabel)}</p>
-    <p>Vaše vstupenky nájdete v prílohe (PDF) a aj tu:</p>
-    ${qrBlocks.join('')}
-    <p style="color:#666;font-size:12px">Objednávka ${order.id}</p>`
+  const { subject, html } = ticketsEmail({
+    eventTitle: event.title,
+    whenLabel: startsLabel,
+    venue: event.venue_name,
+    orderRef: order.id.slice(0, 8).toUpperCase(),
+    ticketsHtml: qrBlocks.join(''),
+  })
 
   await getEmailProvider().send({
     to: order.buyer_email,
-    subject: `Vstupenky — ${event.title}`,
+    subject,
     html,
     attachments,
   })
@@ -926,12 +929,4 @@ function formatEventDate(iso: string, timeZone: string): string {
     timeStyle: 'short',
     timeZone,
   }).format(new Date(iso))
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
