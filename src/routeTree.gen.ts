@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/app'
@@ -28,6 +30,7 @@ import { Route as ESlugEmbedRouteImport } from './routes/e.$slug.embed'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
+import { Route as ApiOgSlugRouteImport } from './routes/api.og.$slug'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
 import { Route as ApiCronProcessWaitlistRouteImport } from './routes/api.cron.process-waitlist'
 import { Route as ApiCronProcessRefundsRouteImport } from './routes/api.cron.process-refunds'
@@ -46,6 +49,16 @@ import { Route as AppEventsEventIdOrdersOrderIdRouteImport } from './routes/app.
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
 import { Route as ApiOrdersOrderIdTicketsTicketIdPassRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId.pass'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -140,6 +153,11 @@ const AppEventsEventIdRoute = AppEventsEventIdRouteImport.update({
   id: '/events/$eventId',
   path: '/events/$eventId',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiOgSlugRoute = ApiOgSlugRouteImport.update({
+  id: '/api/og/$slug',
+  path: '/api/og/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
   id: '/api/gopay/notify',
@@ -242,6 +260,8 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/app/settings': typeof AppSettingsRoute
@@ -256,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/api/og/$slug': typeof ApiOgSlugRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -278,6 +299,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/app/settings': typeof AppSettingsRoute
@@ -292,6 +315,7 @@ export interface FileRoutesByTo {
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/api/og/$slug': typeof ApiOgSlugRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -317,6 +341,8 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/app/settings': typeof AppSettingsRoute
@@ -331,6 +357,7 @@ export interface FileRoutesById {
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
+  '/api/og/$slug': typeof ApiOgSlugRoute
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
@@ -357,6 +384,8 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/register'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
     | '/app/settings'
@@ -371,6 +400,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
+    | '/api/og/$slug'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -393,6 +423,8 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
     | '/app/settings'
@@ -407,6 +439,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
+    | '/api/og/$slug'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -431,6 +464,8 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/register'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
     | '/app/settings'
@@ -445,6 +480,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
     | '/api/gopay/notify'
+    | '/api/og/$slug'
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
@@ -470,6 +506,8 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiCheckinRoute: typeof ApiCheckinRoute
   OrderIdRoute: typeof OrderIdRoute
   ApiCronIssueInvoicesRoute: typeof ApiCronIssueInvoicesRoute
@@ -477,6 +515,7 @@ export interface RootRouteChildren {
   ApiCronProcessRefundsRoute: typeof ApiCronProcessRefundsRoute
   ApiCronProcessWaitlistRoute: typeof ApiCronProcessWaitlistRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
+  ApiOgSlugRoute: typeof ApiOgSlugRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
   ESlugEmbedRoute: typeof ESlugEmbedRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
@@ -488,6 +527,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -620,6 +673,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/events/$eventId'
       preLoaderRoute: typeof AppEventsEventIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/og/$slug': {
+      id: '/api/og/$slug'
+      path: '/api/og/$slug'
+      fullPath: '/api/og/$slug'
+      preLoaderRoute: typeof ApiOgSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/gopay/notify': {
       id: '/api/gopay/notify'
@@ -821,6 +881,8 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiCheckinRoute: ApiCheckinRoute,
   OrderIdRoute: OrderIdRoute,
   ApiCronIssueInvoicesRoute: ApiCronIssueInvoicesRoute,
@@ -828,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessRefundsRoute: ApiCronProcessRefundsRoute,
   ApiCronProcessWaitlistRoute: ApiCronProcessWaitlistRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
+  ApiOgSlugRoute: ApiOgSlugRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
   ESlugEmbedRoute: ESlugEmbedRoute,
   ESlugIndexRoute: ESlugIndexRoute,

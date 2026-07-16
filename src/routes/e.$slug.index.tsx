@@ -8,12 +8,41 @@ import { useState } from 'react'
 import { getEventFn, joinWaitlistFn } from '../server/fns'
 import { formatEur } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
+import { absoluteUrl } from '../lib/site'
+import { eventJsonLd, metaDescription } from '../lib/seo'
 
 export const Route = createFileRoute('/e/$slug/')({
   loader: async ({ params }) => {
     const data = await getEventFn({ data: { slug: params.slug } })
     if (!data) throw notFound()
     return data
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    const { event } = loaderData
+    const url = absoluteUrl(`/e/${event.slug}`)
+    const image = event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`)
+    const whenLabel = new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+      timeZone: event.timezone,
+    }).format(new Date(event.starts_at))
+    const title = `${event.title} — Ticketio`
+    const description = metaDescription(event, whenLabel)
+    return {
+      meta: [
+        { title },
+        { name: 'description', content: description },
+        { property: 'og:title', content: event.title },
+        { property: 'og:description', content: description },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: url },
+        { property: 'og:image', content: image },
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:image', content: image },
+      ],
+      links: [{ rel: 'canonical', href: url }],
+    }
   },
   component: EventPage,
 })
@@ -164,8 +193,20 @@ function EventPage() {
 
   const cover = (event as unknown as { cover_url?: string | null }).cover_url
 
+  const jsonLd = eventJsonLd({
+    event,
+    ticketTypes,
+    pageUrl: absoluteUrl(`/e/${event.slug}`),
+    imageUrl: event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`),
+  })
+
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        // schema.org/Event for Google rich results; safe JSON (no user scripts).
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <EventAnalytics
         ga4Id={event.ga4_measurement_id}
         pixelId={event.meta_pixel_id}
