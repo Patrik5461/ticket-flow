@@ -16,6 +16,8 @@ import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { generateApiKey } from '../lib/api-keys'
 import { detectCoverMime, coverExt } from '../lib/images'
+import { isValidIco, isValidIban, normalizeIban } from '../lib/validation'
+import { writeAuditLog } from './admin'
 import { generateWebhookSecret, WEBHOOK_EVENT_TYPES } from '../lib/webhooks'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
@@ -730,6 +732,137 @@ export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
       .update({ brand_logo_url: null })
       .eq('id', actor.organizerId)
     return { ok: true as const }
+  },
+)
+
+// ---------------------------------------------------------------------------
+// Organizer company details + team.
+// ---------------------------------------------------------------------------
+
+export interface OrganizerCompany {
+  name: string
+  slug: string
+  ico: string | null
+  dic: string | null
+  icDph: string | null
+  iban: string | null
+  contactEmail: string | null
+  phone: string | null
+  address: string | null
+}
+
+export const getOrganizerCompanyFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<OrganizerCompany> => {
+    const actor = await requireOrganizer()
+    const { data } = await serviceClient()
+      .from('organizers')
+      .select(
+        'name, slug, ico, dic, ic_dph, iban, contact_email, phone, address',
+      )
+      .eq('id', actor.organizerId)
+      .maybeSingle<{
+        name: string
+        slug: string
+        ico: string | null
+        dic: string | null
+        ic_dph: string | null
+        iban: string | null
+        contact_email: string | null
+        phone: string | null
+        address: string | null
+      }>()
+    return {
+      name: data?.name ?? '',
+      slug: data?.slug ?? '',
+      ico: data?.ico ?? null,
+      dic: data?.dic ?? null,
+      icDph: data?.ic_dph ?? null,
+      iban: data?.iban ?? null,
+      contactEmail: data?.contact_email ?? null,
+      phone: data?.phone ?? null,
+      address: data?.address ?? null,
+    }
+  },
+)
+
+const companyInput = z.object({
+  name: z.string().trim().min(2).max(200),
+  ico: z.string().trim().max(20).optional().nullable(),
+  dic: z.string().trim().max(20).optional().nullable(),
+  icDph: z.string().trim().max(20).optional().nullable(),
+  iban: z.string().trim().max(42).optional().nullable(),
+  contactEmail: z.string().trim().email().max(200).optional().nullable(),
+  phone: z.string().trim().max(40).optional().nullable(),
+  address: z.string().trim().max(300).optional().nullable(),
+})
+
+export const updateOrganizerCompanyFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) => companyInput.parse(d))
+  .handler(async ({ data }) => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      assertCanEdit(actor)
+
+      if (data.ico && !isValidIco(data.ico)) {
+        throw new DashboardError('IČO musí mať presne 8 číslic.')
+      }
+      const iban = data.iban ? normalizeIban(data.iban) : null
+      if (iban && !isValidIban(iban)) {
+        throw new DashboardError('Neplatný IBAN.')
+      }
+
+      const { error } = await serviceClient()
+        .from('organizers')
+        .update({
+          name: data.name,
+          ico: data.ico || null,
+          dic: data.dic || null,
+          ic_dph: data.icDph || null,
+          iban,
+          contact_email: data.contactEmail || null,
+          phone: data.phone || null,
+          address: data.address || null,
+        })
+        .eq('id', actor.organizerId)
+      if (error) throw new DashboardError('Údaje sa nepodarilo uložiť.')
+
+      await writeAuditLog({
+        actorId: actor.userId,
+        action: 'organizer.company_updated',
+        entityType: 'organizer',
+        entityId: actor.organizerId,
+        newValue: {
+          name: data.name,
+          ico: data.ico || null,
+          iban,
+          contact_email: data.contactEmail || null,
+        },
+      })
+      return { ok: true as const }
+    })
+  })
+
+export interface TeamMember {
+  email: string
+  role: 'owner' | 'admin' | 'checkin'
+}
+
+export const listTeamMembersFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<TeamMember[]> => {
+    const actor = await requireOrganizer()
+    const db = serviceClient()
+    const { data: members } = await db
+      .from('organizer_members')
+      .select('user_id, role')
+      .eq('organizer_id', actor.organizerId)
+      .returns<{ user_id: string; role: TeamMember['role'] }[]>()
+
+    const out: TeamMember[] = []
+    for (const m of members ?? []) {
+      const { data } = await db.auth.admin.getUserById(m.user_id)
+      out.push({ email: data.user?.email ?? '—', role: m.role })
+    }
+    return out
   },
 )
 

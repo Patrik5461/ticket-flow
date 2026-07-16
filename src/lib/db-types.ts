@@ -33,6 +33,13 @@ export interface OrganizerRow {
   admin_notes: string | null
   brand_logo_url: string | null
   brand_color: string | null
+  ico: string | null
+  dic: string | null
+  ic_dph: string | null
+  iban: string | null
+  contact_email: string | null
+  phone: string | null
+  address: string | null
 }
 
 export interface AuditLogRow {
