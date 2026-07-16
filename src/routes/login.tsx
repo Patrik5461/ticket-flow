@@ -11,8 +11,7 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const doSignIn = async (target: '/app' | '/admin') => {
     setError(null)
     setSubmitting(true)
     const res = await signInFn({ data: { email: email.trim(), password } })
@@ -21,7 +20,12 @@ function LoginPage() {
       setSubmitting(false)
       return
     }
-    await navigate({ to: '/app' })
+    await navigate({ to: target })
+  }
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void doSignIn('/app')
   }
 
   return (
@@ -61,6 +65,15 @@ function LoginPage() {
           className="w-full rounded-md bg-indigo-600 px-5 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {submitting ? 'Prihlasujem…' : 'Prihlásiť sa'}
+        </button>
+
+        <button
+          type="button"
+          disabled={submitting || !email || !password}
+          onClick={() => void doSignIn('/admin')}
+          className="w-full rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+        >
+          Prihlásiť sa do admin panelu
         </button>
       </form>
 
