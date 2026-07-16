@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { refundOrderFn, refundTicketFn } from '../server/refunds'
 import type { RefundOrderDetail } from '../server/refunds'
+import {
+  resendTicketFn,
+  updateTicketHolderFn,
+  cancelTicketFn,
+  transferTicketFn,
+} from '../server/ticket-admin'
 import { formatEur } from '../lib/money'
 import type { TicketStatus } from '../lib/db-types'
 
@@ -64,6 +70,45 @@ export function OrderRefundPanel({
     else onChanged()
   }
 
+  const act = async (
+    ticketId: string,
+    fn: () => Promise<{ ok: true } | { error: string }>,
+    reload = true,
+  ) => {
+    setBusy(ticketId)
+    setErr(null)
+    const res = await fn()
+    setBusy(null)
+    if ('error' in res) setErr(res.error)
+    else if (reload) onChanged()
+  }
+
+  const resend = (ticketId: string) =>
+    act(ticketId, () => resendTicketFn({ data: { ticketId } }), false)
+
+  const rename = (ticketId: string, current: string | null) => {
+    const name = prompt('Meno držiteľa:', current ?? '')
+    if (name === null) return
+    void act(ticketId, () =>
+      updateTicketHolderFn({
+        data: { ticketId, holderName: name.trim() || null },
+      }),
+    )
+  }
+
+  const transfer = (ticketId: string) => {
+    const email = prompt('Presunúť vstupenku na e-mail:')
+    if (!email) return
+    void act(ticketId, () =>
+      transferTicketFn({ data: { ticketId, email: email.trim() } }),
+    )
+  }
+
+  const cancelTicket = (ticketId: string) => {
+    if (!confirm('Zrušiť vstupenku bez refundu (len zneplatniť)?')) return
+    void act(ticketId, () => cancelTicketFn({ data: { ticketId } }))
+  }
+
   return (
     <section className="space-y-4 rounded-lg border bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -116,14 +161,46 @@ export function OrderRefundPanel({
                   </span>
                 </td>
                 <td className="py-2 text-right">
-                  {t.status !== 'cancelled' && canRefund && (
-                    <button
-                      onClick={() => refundTicket(t.id)}
-                      disabled={busy !== null}
-                      className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {busy === t.id ? '…' : 'Refundovať'}
-                    </button>
+                  {t.status !== 'cancelled' && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <button
+                        onClick={() => resend(t.id)}
+                        disabled={busy !== null}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Re-poslať
+                      </button>
+                      <button
+                        onClick={() => rename(t.id, t.holderName)}
+                        disabled={busy !== null}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Premenovať
+                      </button>
+                      <button
+                        onClick={() => transfer(t.id)}
+                        disabled={busy !== null}
+                        className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Presunúť
+                      </button>
+                      <button
+                        onClick={() => cancelTicket(t.id)}
+                        disabled={busy !== null}
+                        className="rounded-md border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Zrušiť
+                      </button>
+                      {canRefund && (
+                        <button
+                          onClick={() => refundTicket(t.id)}
+                          disabled={busy !== null}
+                          className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Refundovať
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>

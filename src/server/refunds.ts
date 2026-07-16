@@ -128,6 +128,7 @@ export interface RefundTicket {
   typeName: string
   status: TicketStatus
   unitPriceCents: number
+  holderName: string | null
 }
 
 export interface RefundRecord {
@@ -227,11 +228,16 @@ export const getOrderRefundDetailFn = createServerFn({ method: 'GET' })
           >(),
         db
           .from('tickets')
-          .select('id, ticket_type_id, status')
+          .select('id, ticket_type_id, status, holder_name')
           .eq('order_id', order.id)
           .order('created_at', { ascending: true })
           .returns<
-            { id: string; ticket_type_id: string; status: TicketStatus }[]
+            {
+              id: string
+              ticket_type_id: string
+              status: TicketStatus
+              holder_name: string | null
+            }[]
           >(),
         db
           .from('refunds')
@@ -263,6 +269,7 @@ export const getOrderRefundDetailFn = createServerFn({ method: 'GET' })
       const tickets: RefundTicket[] = (ticketRows ?? []).map((t) => ({
         id: t.id,
         ref: t.id.slice(0, 8).toUpperCase(),
+        holderName: t.holder_name,
         typeName: nameByType.get(t.ticket_type_id) ?? '—',
         status: t.status,
         unitPriceCents: priceByType.get(t.ticket_type_id) ?? 0,
