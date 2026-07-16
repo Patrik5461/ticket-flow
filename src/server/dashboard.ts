@@ -16,6 +16,7 @@ import { slugify } from '../lib/slug'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData, type SalesData } from './sales-data'
 import { getCheckinSummary } from './checkin-service'
+import { notifyEventChanged } from './event-emails'
 import type {
   EventRow,
   TicketTypeRow,
@@ -247,21 +248,36 @@ export const updateEventFn = createServerFn({ method: 'POST' })
       const actor = await requireOrganizer()
       assertCanEdit(actor)
       const event = await assertEventOwned(actor.organizerId, data.eventId)
+
+      const newStartsAt = zonedLocalToUtcIso(data.startsAtLocal, data.timezone)
+      const newEndsAt = data.endsAtLocal
+        ? zonedLocalToUtcIso(data.endsAtLocal, data.timezone)
+        : null
+      const newVenueName = data.venueName ?? null
+      const newVenueAddress = data.venueAddress ?? null
+
       const { error } = await serviceClient()
         .from('events')
         .update({
           title: data.title,
           description: data.description ?? null,
-          venue_name: data.venueName ?? null,
-          venue_address: data.venueAddress ?? null,
-          starts_at: zonedLocalToUtcIso(data.startsAtLocal, data.timezone),
-          ends_at: data.endsAtLocal
-            ? zonedLocalToUtcIso(data.endsAtLocal, data.timezone)
-            : null,
+          venue_name: newVenueName,
+          venue_address: newVenueAddress,
+          starts_at: newStartsAt,
+          ends_at: newEndsAt,
           timezone: data.timezone,
         })
         .eq('id', event.id)
       if (error) throw new DashboardError('Podujatie sa nepodarilo uložiť.')
+
+      // Notify paid buyers if the date/venue changed (best-effort).
+      await notifyEventChanged(event, {
+        newStartsAt,
+        newEndsAt,
+        newVenueName,
+        newVenueAddress,
+      }).catch(() => undefined)
+
       return { ok: true }
     })
   })

@@ -19,7 +19,12 @@ import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
 import { renderTicketPdf } from '../lib/tickets/pdf'
 import { getEmailProvider } from '../lib/email'
-import { ticketsEmail, ticketBlockHtml } from '../lib/email/templates'
+import {
+  ticketsEmail,
+  ticketBlockHtml,
+  orderPendingEmail,
+} from '../lib/email/templates'
+import { formatEur } from '../lib/money'
 import { createPayment, getPaymentStatus } from '../lib/gopay'
 import { gopayStateToAction } from '../lib/gopay-state'
 import type {
@@ -443,6 +448,11 @@ export async function createOrder(
       .update({ gopay_payment_id: String(payment.id) })
       .eq('id', order.id)
 
+    // Best-effort "awaiting payment" email — must not block the redirect.
+    await sendPendingEmail(order, event, pricing.totalCents, token).catch(
+      () => undefined,
+    )
+
     return {
       orderId: order.id,
       token,
@@ -535,6 +545,22 @@ async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {
     .select('*')
     .returns<TicketRow[]>()
   return created ?? []
+}
+
+async function sendPendingEmail(
+  order: OrderRow,
+  event: EventRow,
+  totalCents: number,
+  token: string,
+): Promise<void> {
+  const { subject, html } = orderPendingEmail({
+    eventTitle: event.title,
+    whenLabel: formatEventDate(event.starts_at, event.timezone),
+    orderRef: order.id.slice(0, 8).toUpperCase(),
+    totalLabel: formatEur(totalCents),
+    orderUrl: buildOrderUrl(order.id, token),
+  })
+  await getEmailProvider().send({ to: order.buyer_email, subject, html })
 }
 
 async function sendTicketEmail(
