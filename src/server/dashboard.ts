@@ -15,6 +15,7 @@ import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { generateApiKey } from '../lib/api-keys'
+import { generateWebhookSecret, WEBHOOK_EVENT_TYPES } from '../lib/webhooks'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
 import type { SalesData } from './sales-data'
@@ -799,6 +800,85 @@ export const revokeApiKeyFn = createServerFn({ method: 'POST' })
     await serviceClient()
       .from('api_keys')
       .update({ revoked_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .eq('organizer_id', actor.organizerId)
+    return { ok: true as const }
+  })
+
+// ---------------------------------------------------------------------------
+// Webhook endpoints.
+// ---------------------------------------------------------------------------
+
+export interface WebhookSummary {
+  id: string
+  url: string
+  events: string[]
+  active: boolean
+  createdAt: string
+}
+
+export const WEBHOOK_EVENTS = WEBHOOK_EVENT_TYPES
+
+export const listWebhooksFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<WebhookSummary[]> => {
+    const actor = await requireOrganizer()
+    const { data } = await serviceClient()
+      .from('webhook_endpoints')
+      .select('id, url, events, active, created_at')
+      .eq('organizer_id', actor.organizerId)
+      .order('created_at', { ascending: false })
+      .returns<
+        {
+          id: string
+          url: string
+          events: string[] | null
+          active: boolean
+          created_at: string
+        }[]
+      >()
+    return (data ?? []).map((w) => ({
+      id: w.id,
+      url: w.url,
+      events: w.events ?? [],
+      active: w.active,
+      createdAt: w.created_at,
+    }))
+  },
+)
+
+/** Create an endpoint. Returns the signing secret ONCE. */
+export const createWebhookFn = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      url: z.string().trim().url().max(500),
+      events: z
+        .array(z.enum([...WEBHOOK_EVENT_TYPES] as [string, ...string[]]))
+        .min(1),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    const secret = generateWebhookSecret()
+    const { error } = await serviceClient().from('webhook_endpoints').insert({
+      organizer_id: actor.organizerId,
+      url: data.url,
+      secret,
+      events: data.events,
+      active: true,
+    })
+    if (error) throw new DashboardError('Endpoint sa nepodarilo vytvoriť.')
+    return { secret }
+  })
+
+export const deleteWebhookFn = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().uuid() }).parse)
+  .handler(async ({ data }) => {
+    const actor = await requireOrganizer()
+    assertCanEdit(actor)
+    await serviceClient()
+      .from('webhook_endpoints')
+      .delete()
       .eq('id', data.id)
       .eq('organizer_id', actor.organizerId)
     return { ok: true as const }

@@ -42,6 +42,7 @@ import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
 import { Route as ApiV1EventsRouteImport } from './routes/api.v1.events'
 import { Route as ApiOgSlugRouteImport } from './routes/api.og.$slug'
 import { Route as ApiGopayNotifyRouteImport } from './routes/api.gopay.notify'
+import { Route as ApiCronProcessWebhooksRouteImport } from './routes/api.cron.process-webhooks'
 import { Route as ApiCronProcessWaitlistRouteImport } from './routes/api.cron.process-waitlist'
 import { Route as ApiCronProcessRefundsRouteImport } from './routes/api.cron.process-refunds'
 import { Route as ApiCronProcessEmailRouteImport } from './routes/api.cron.process-email'
@@ -226,6 +227,11 @@ const ApiGopayNotifyRoute = ApiGopayNotifyRouteImport.update({
   path: '/api/gopay/notify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronProcessWebhooksRoute = ApiCronProcessWebhooksRouteImport.update({
+  id: '/api/cron/process-webhooks',
+  path: '/api/cron/process-webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronProcessWaitlistRoute = ApiCronProcessWaitlistRouteImport.update({
   id: '/api/cron/process-waitlist',
   path: '/api/cron/process-waitlist',
@@ -354,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/process-email': typeof ApiCronProcessEmailRoute
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
+  '/api/cron/process-webhooks': typeof ApiCronProcessWebhooksRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/api/cron/process-email': typeof ApiCronProcessEmailRoute
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
+  '/api/cron/process-webhooks': typeof ApiCronProcessWebhooksRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/api/cron/process-email': typeof ApiCronProcessEmailRoute
   '/api/cron/process-refunds': typeof ApiCronProcessRefundsRoute
   '/api/cron/process-waitlist': typeof ApiCronProcessWaitlistRoute
+  '/api/cron/process-webhooks': typeof ApiCronProcessWebhooksRoute
   '/api/gopay/notify': typeof ApiGopayNotifyRoute
   '/api/og/$slug': typeof ApiOgSlugRoute
   '/api/v1/events': typeof ApiV1EventsRouteWithChildren
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-email'
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
+    | '/api/cron/process-webhooks'
     | '/api/gopay/notify'
     | '/api/og/$slug'
     | '/api/v1/events'
@@ -565,6 +575,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-email'
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
+    | '/api/cron/process-webhooks'
     | '/api/gopay/notify'
     | '/api/og/$slug'
     | '/api/v1/events'
@@ -618,6 +629,7 @@ export interface FileRouteTypes {
     | '/api/cron/process-email'
     | '/api/cron/process-refunds'
     | '/api/cron/process-waitlist'
+    | '/api/cron/process-webhooks'
     | '/api/gopay/notify'
     | '/api/og/$slug'
     | '/api/v1/events'
@@ -664,6 +676,7 @@ export interface RootRouteChildren {
   ApiCronProcessEmailRoute: typeof ApiCronProcessEmailRoute
   ApiCronProcessRefundsRoute: typeof ApiCronProcessRefundsRoute
   ApiCronProcessWaitlistRoute: typeof ApiCronProcessWaitlistRoute
+  ApiCronProcessWebhooksRoute: typeof ApiCronProcessWebhooksRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ApiOgSlugRoute: typeof ApiOgSlugRoute
   ApiV1EventsRoute: typeof ApiV1EventsRouteWithChildren
@@ -909,6 +922,13 @@ declare module '@tanstack/react-router' {
       path: '/api/gopay/notify'
       fullPath: '/api/gopay/notify'
       preLoaderRoute: typeof ApiGopayNotifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/process-webhooks': {
+      id: '/api/cron/process-webhooks'
+      path: '/api/cron/process-webhooks'
+      fullPath: '/api/cron/process-webhooks'
+      preLoaderRoute: typeof ApiCronProcessWebhooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/process-waitlist': {
@@ -1158,6 +1178,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessEmailRoute: ApiCronProcessEmailRoute,
   ApiCronProcessRefundsRoute: ApiCronProcessRefundsRoute,
   ApiCronProcessWaitlistRoute: ApiCronProcessWaitlistRoute,
+  ApiCronProcessWebhooksRoute: ApiCronProcessWebhooksRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ApiOgSlugRoute: ApiOgSlugRoute,
   ApiV1EventsRoute: ApiV1EventsRouteWithChildren,

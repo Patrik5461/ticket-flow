@@ -19,6 +19,8 @@ import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
 import { renderTicketPdf } from '../lib/tickets/pdf'
 import { loadOrganizerBrand } from './branding'
+import { enqueueWebhookEvent } from './webhooks'
+import { serializeOrder } from './api-v1'
 import { getEmailProvider } from '../lib/email'
 import {
   ticketsEmail,
@@ -698,6 +700,21 @@ async function markPaidAndFulfill(
 
   const tickets = await ensureTickets(order)
   await sendTicketEmail(order, event, tickets)
+
+  // Fire the order.paid webhook (best-effort — never blocks fulfilment).
+  await enqueueWebhookEvent(
+    db,
+    event.organizer_id,
+    'order.paid',
+    serializeOrder({
+      ...order,
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+    }),
+  ).then(
+    () => undefined,
+    () => undefined,
+  )
 }
 
 async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {

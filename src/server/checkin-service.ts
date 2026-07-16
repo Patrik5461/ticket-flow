@@ -15,6 +15,7 @@
 
 import { serviceClient } from '../lib/supabase/server'
 import { verifyTicket } from '../lib/qr'
+import { enqueueWebhookEvent } from './webhooks'
 
 /** Mirrors the checkin_log.result enum. */
 export type CheckinOutcome = 'ok' | 'already_used' | 'cancelled' | 'invalid'
@@ -156,6 +157,18 @@ export async function checkInTicket(args: {
 
   if (claimed) {
     await log(ticket.id, 'ok')
+    // Fire the ticket.checked_in webhook (best-effort — never blocks check-in).
+    await enqueueWebhookEvent(db, args.organizerId, 'ticket.checked_in', {
+      ticket_id: ticket.id,
+      ref,
+      event_id: args.eventId,
+      ticket_type: ticketType,
+      holder_name: holderName,
+      checked_in_at: claimed.used_at,
+    }).then(
+      () => undefined,
+      () => undefined,
+    )
     return {
       result: 'ok',
       holderName,
