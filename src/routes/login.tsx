@@ -29,60 +29,92 @@ function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm px-6 py-16">
-      <h1 className="text-2xl font-bold">Prihlásenie</h1>
-      <p className="mt-1 text-sm text-gray-600">Organizátorský portál Ticketio</p>
-
-      <form onSubmit={submit} className="mt-6 space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">E-mail</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Heslo</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-          />
+    <div
+      className="relative min-h-screen flex items-center justify-center px-6 py-16"
+      style={{ background: 'var(--gradient-hero), var(--color-ink-950)' }}
+    >
+      <div className="w-full max-w-md animate-fade-up">
+        <div className="mb-8 text-center">
+          <Link to="/" className="inline-block">
+            <span className="font-display text-3xl font-bold tracking-tight">
+              ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
+            </span>
+          </Link>
+          <h1 className="mt-6 font-display text-3xl font-bold text-ink-100">
+            Prihlásenie
+          </h1>
+          <p className="mt-2 text-sm text-ink-400">
+            Organizátorský portál Ticketio
+          </p>
         </div>
 
-        {error && (
-          <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>
-        )}
+        <div className="card-surface p-8" style={{ boxShadow: 'var(--shadow-glow)' }}>
+          <form onSubmit={submit} className="space-y-5">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">
+                E-mail
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-lg border border-ink-600 bg-ink-900 px-4 py-2.5 text-ink-100 placeholder:text-ink-500 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                placeholder="vas@email.sk"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">
+                Heslo
+              </label>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-ink-600 bg-ink-900 px-4 py-2.5 text-ink-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                placeholder="••••••••"
+              />
+            </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-indigo-600 px-5 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {submitting ? 'Prihlasujem…' : 'Prihlásiť sa'}
-        </button>
+            {error && (
+              <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                {error}
+              </p>
+            )}
 
-        <button
-          type="button"
-          disabled={submitting || !email || !password}
-          onClick={() => void doSignIn('/admin')}
-          className="w-full rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-        >
-          Prihlásiť sa do admin panelu
-        </button>
-      </form>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Prihlasujem…' : 'Prihlásiť sa'}
+            </button>
 
-      <p className="mt-4 text-sm text-gray-600">
-        Nemáte účet?{' '}
-        <Link to="/register" className="text-indigo-600 hover:underline">
-          Zaregistrujte sa
-        </Link>
-      </p>
+            <button
+              type="button"
+              disabled={submitting || !email || !password}
+              onClick={() => void doSignIn('/admin')}
+              className="btn-ghost w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Prihlásiť sa do admin panelu
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-ink-400">
+          Nemáte účet?{' '}
+          <Link
+            to="/register"
+            className="font-medium transition hover:underline"
+            style={{ color: 'var(--color-accent)' }}
+          >
+            Zaregistrujte sa
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }
