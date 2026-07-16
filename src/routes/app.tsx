@@ -28,38 +28,62 @@ function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <Link to="/app" className="font-semibold">
-            Ticketio <span className="text-gray-400">· portál</span>
+    <div className="app-shell">
+      <header
+        className="sticky top-0 z-40 backdrop-blur"
+        style={{
+          background: 'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
+          borderBottom: '1px solid var(--color-ink-700)',
+        }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+          <Link to="/app" className="flex items-center gap-2 font-display text-lg font-bold">
+            <span>
+              ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
+            </span>
+            <span className="text-xs font-normal uppercase tracking-widest text-ink-400">
+              · portál
+            </span>
           </Link>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-1 text-sm">
+            <Link
+              to="/app/settlements"
+              className="rounded-lg px-3 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+            >
+              Vyúčtovania
+            </Link>
             <Link
               to="/app/developers"
-              className="text-gray-600 hover:text-gray-900"
+              className="rounded-lg px-3 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
             >
               API
             </Link>
             <Link
               to="/app/settings"
-              className="text-gray-600 hover:text-gray-900"
+              className="rounded-lg px-3 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
             >
               Nastavenia
             </Link>
-            <span className="text-gray-600">
+            <div
+              className="mx-2 h-6 w-px"
+              style={{ background: 'var(--color-ink-700)' }}
+            />
+            <span
+              className="max-w-[160px] truncate text-xs text-ink-400"
+              title={session.organizer?.name ?? session.user.email}
+            >
               {session.organizer?.name ?? session.user.email}
             </span>
             <button
               onClick={logout}
-              className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+              className="ml-2 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
             >
               Odhlásiť
             </button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <Outlet />
       </main>
     </div>

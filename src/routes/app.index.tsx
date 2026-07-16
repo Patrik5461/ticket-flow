@@ -7,11 +7,31 @@ export const Route = createFileRoute('/app/')({
   component: Dashboard,
 })
 
-const STATUS: Record<EventStatus, { label: string; cls: string }> = {
-  draft: { label: 'Koncept', cls: 'bg-gray-100 text-gray-600' },
-  published: { label: 'Zverejnené', cls: 'bg-green-100 text-green-700' },
-  ended: { label: 'Ukončené', cls: 'bg-gray-100 text-gray-500' },
-  cancelled: { label: 'Zrušené', cls: 'bg-red-100 text-red-700' },
+const STATUS: Record<EventStatus, { label: string; dot: string; text: string; bg: string }> = {
+  draft: {
+    label: 'Koncept',
+    dot: '#6b6b76',
+    text: 'var(--color-ink-300)',
+    bg: 'var(--color-ink-800)',
+  },
+  published: {
+    label: 'Zverejnené',
+    dot: 'var(--color-accent)',
+    text: 'var(--color-accent)',
+    bg: 'color-mix(in oklab, var(--color-accent) 12%, transparent)',
+  },
+  ended: {
+    label: 'Ukončené',
+    dot: '#6b6b76',
+    text: 'var(--color-ink-400)',
+    bg: 'var(--color-ink-800)',
+  },
+  cancelled: {
+    label: 'Zrušené',
+    dot: '#ef4444',
+    text: '#fca5a5',
+    bg: 'rgba(239, 68, 68, 0.12)',
+  },
 }
 
 function fmtDate(iso: string, tz: string) {
@@ -26,60 +46,108 @@ function Dashboard() {
   const { events } = Route.useLoaderData()
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Moje podujatia</h1>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/app/settlements"
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-gray-50"
-          >
+    <div className="animate-fade-up">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight">
+            Moje podujatia
+          </h1>
+          <p className="mt-1 text-sm text-ink-400">
+            Prehľad všetkých vašich eventov a ich stavu predaja.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/app/settlements" className="btn-ghost text-sm">
             Vyúčtovania
           </Link>
-          <Link
-            to="/app/events/new"
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + Nové podujatie
+          <Link to="/app/events/new" className="btn-primary text-sm">
+            <span className="text-base leading-none">+</span> Nové podujatie
           </Link>
         </div>
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-white p-12 text-center text-gray-500">
-          Zatiaľ nemáte žiadne podujatia. Vytvorte prvé.
+        <div
+          className="card-surface flex flex-col items-center justify-center px-6 py-20 text-center"
+          style={{ borderStyle: 'dashed' }}
+        >
+          <div
+            className="mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+            style={{
+              background: 'color-mix(in oklab, var(--color-accent) 15%, transparent)',
+              color: 'var(--color-accent)',
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="font-display text-lg font-semibold text-ink-100">
+            Zatiaľ žiadne podujatia
+          </p>
+          <p className="mt-1 text-sm text-ink-400">
+            Vytvorte prvé podujatie a začnite predávať vstupenky.
+          </p>
+          <Link to="/app/events/new" className="btn-primary mt-6 text-sm">
+            Vytvoriť podujatie
+          </Link>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-3">
           {events.map((e: MyEventSummary) => {
             const s = STATUS[e.status]
+            const pct = e.capacity > 0 ? Math.min(100, Math.round((e.soldCount / e.capacity) * 100)) : 0
             return (
               <li key={e.id}>
                 <Link
                   to="/app/events/$eventId"
                   params={{ eventId: e.id }}
-                  className="flex items-center justify-between rounded-lg border bg-white p-4 transition hover:border-indigo-400"
+                  className="card-surface group block p-5 transition hover:-translate-y-0.5"
+                  style={{ transitionDuration: '150ms' }}
                 >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{e.title}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}
-                      >
-                        {s.label}
-                      </span>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lg font-semibold text-ink-100 transition group-hover:text-white">
+                          {e.title}
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+                          style={{ background: s.bg, color: s.text }}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ background: s.dot }}
+                          />
+                          {s.label}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-sm text-ink-400">
+                        {fmtDate(e.starts_at, e.timezone)}
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm text-gray-500">
-                      {fmtDate(e.starts_at, e.timezone)}
+                    <div className="text-right">
+                      <div className="font-display text-lg font-semibold tabular-nums text-ink-100">
+                        {e.soldCount}
+                        <span className="text-ink-500">/{e.capacity}</span>
+                      </div>
+                      <div className="text-xs text-ink-400">
+                        {e.ticketTypeCount} {e.ticketTypeCount === 1 ? 'typ' : 'typy'} vstupeniek
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right text-sm text-gray-500">
-                    <div className="tabular-nums">
-                      {e.soldCount}/{e.capacity} predaných
-                    </div>
-                    <div className="text-xs">
-                      {e.ticketTypeCount} typov vstupeniek
-                    </div>
+                  <div
+                    className="mt-4 h-1 overflow-hidden rounded-full"
+                    style={{ background: 'var(--color-ink-800)' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background:
+                          'linear-gradient(90deg, var(--color-accent-dim), var(--color-accent))',
+                      }}
+                    />
                   </div>
                 </Link>
               </li>

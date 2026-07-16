@@ -122,3 +122,106 @@ body {
   animation: shimmer 1.4s infinite linear;
   border-radius: 10px;
 }
+
+/* ============================================================================
+ * Dark scope — auto-applies to legacy Tailwind utilities used inside
+ * organizer portal (/app), admin panel (/admin), and check-in surfaces.
+ * Keeps business-logic JSX untouched while enforcing the dark design system.
+ * ============================================================================ */
+.app-shell {
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  min-height: 100vh;
+}
+
+.app-shell .bg-white,
+.app-shell .bg-gray-50,
+.app-shell .bg-gray-100 { background-color: var(--color-ink-800) !important; }
+.app-shell .bg-gray-900 { background-color: var(--color-ink-900) !important; }
+
+.app-shell .border,
+.app-shell .border-t,
+.app-shell .border-b,
+.app-shell .border-l,
+.app-shell .border-r,
+.app-shell .border-gray-100,
+.app-shell .border-gray-200,
+.app-shell .border-gray-300,
+.app-shell .border-dashed { border-color: var(--color-ink-700) !important; }
+
+.app-shell .text-gray-900,
+.app-shell .text-gray-800,
+.app-shell .text-gray-700 { color: var(--color-ink-100) !important; }
+.app-shell .text-gray-600,
+.app-shell .text-gray-500 { color: var(--color-ink-300) !important; }
+.app-shell .text-gray-400 { color: var(--color-ink-400) !important; }
+.app-shell .text-black { color: var(--color-ink-100) !important; }
+
+.app-shell input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.app-shell textarea,
+.app-shell select {
+  background-color: var(--color-ink-900);
+  color: var(--color-ink-100);
+  border-color: var(--color-ink-600);
+}
+.app-shell input:focus,
+.app-shell textarea:focus,
+.app-shell select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 25%, transparent);
+}
+.app-shell input::placeholder,
+.app-shell textarea::placeholder { color: var(--color-ink-500); }
+
+.app-shell .bg-indigo-600 { background-color: var(--color-accent) !important; color: var(--color-ink-950) !important; }
+.app-shell .bg-indigo-600:hover,
+.app-shell .hover\:bg-indigo-700:hover { background-color: #86efac !important; }
+.app-shell .text-indigo-600 { color: var(--color-accent) !important; }
+.app-shell .text-white { color: var(--color-ink-950) !important; }
+
+.app-shell .bg-green-100,
+.app-shell .bg-green-50 { background-color: color-mix(in oklab, var(--color-accent) 15%, transparent) !important; }
+.app-shell .text-green-700,
+.app-shell .text-green-600 { color: var(--color-accent) !important; }
+.app-shell .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; }
+.app-shell .bg-red-100 { background-color: rgba(239, 68, 68, 0.15) !important; }
+.app-shell .text-red-700,
+.app-shell .text-red-600 { color: #fca5a5 !important; }
+.app-shell .border-red-200,
+.app-shell .border-red-300 { border-color: rgba(239, 68, 68, 0.35) !important; }
+.app-shell .bg-yellow-50 { background-color: rgba(234, 179, 8, 0.1) !important; }
+.app-shell .text-yellow-700 { color: #fcd34d !important; }
+.app-shell .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1) !important; }
+.app-shell .text-blue-700 { color: #93c5fd !important; }
+
+.app-shell .hover\:bg-gray-50:hover,
+.app-shell .hover\:bg-gray-100:hover { background-color: var(--color-ink-700) !important; }
+.app-shell .hover\:border-indigo-400:hover { border-color: var(--color-accent) !important; }
+.app-shell .hover\:text-gray-900:hover { color: var(--color-ink-100) !important; }
+
+.app-shell table { color: var(--color-ink-200); }
+.app-shell thead { background-color: var(--color-ink-900); }
+.app-shell tbody tr:hover { background-color: var(--color-ink-800); }
+
+.app-shell .rounded-lg.bg-white,
+.app-shell .rounded-md.bg-white,
+.app-shell .rounded-xl.bg-white {
+  background: var(--gradient-card) !important;
+  border: 1px solid var(--color-ink-700);
+}
+
+@utility badge-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in oklab, #a855f7 20%, transparent);
+  color: #d8b4fe;
+  border: 1px solid color-mix(in oklab, #a855f7 40%, transparent);
+}
