@@ -327,6 +327,14 @@ export const unpublishEventFn = createServerFn({ method: 'POST' })
 // Ticket types
 // ---------------------------------------------------------------------------
 
+const customFieldSchema = z.object({
+  key: z.string().trim().min(1).max(40),
+  label: z.string().trim().min(1).max(120),
+  type: z.enum(['text', 'select', 'checkbox']),
+  required: z.boolean(),
+  options: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+})
+
 const ticketTypeInput = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional().nullable(),
@@ -335,6 +343,7 @@ const ticketTypeInput = z.object({
   maxPerOrder: z.number().int().min(1).max(100).default(10),
   sortOrder: z.number().int().default(0),
   hidden: z.boolean().default(false),
+  customFields: z.array(customFieldSchema).max(20).default([]),
 })
 
 export const createTicketTypeFn = createServerFn({ method: 'POST' })
@@ -357,6 +366,7 @@ export const createTicketTypeFn = createServerFn({ method: 'POST' })
           max_per_order: data.maxPerOrder,
           sort_order: data.sortOrder,
           hidden: data.hidden,
+          custom_fields: data.customFields,
         })
       if (error)
         throw new DashboardError('Typ vstupenky sa nepodarilo vytvoriť.')
@@ -384,6 +394,7 @@ export const updateTicketTypeFn = createServerFn({ method: 'POST' })
           max_per_order: data.maxPerOrder,
           sort_order: data.sortOrder,
           hidden: data.hidden,
+          custom_fields: data.customFields,
         })
         .eq('id', data.ticketTypeId)
       if (error) throw new DashboardError('Typ vstupenky sa nepodarilo uložiť.')

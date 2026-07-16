@@ -1,4 +1,9 @@
-import { createFileRoute, Link, notFound, useRouter } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useRouter,
+} from '@tanstack/react-router'
 import { useState } from 'react'
 import { getEventSalesFn, type SalesData } from '../server/dashboard'
 import { formatEur } from '../lib/money'
@@ -34,7 +39,9 @@ const STATUS_CLS: Record<OrderStatus, string> = {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
       <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
     </div>
   )
@@ -47,7 +54,9 @@ function SalesPage() {
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all')
 
   const orders =
-    filter === 'all' ? data.orders : data.orders.filter((o) => o.status === filter)
+    filter === 'all'
+      ? data.orders
+      : data.orders.filter((o) => o.status === filter)
 
   const fmtDate = (iso: string) =>
     new Intl.DateTimeFormat('sk-SK', {
@@ -57,7 +66,8 @@ function SalesPage() {
     }).format(new Date(iso))
 
   const csvHref =
-    `/api/events/${eventId}/sales-csv` + (filter !== 'all' ? `?status=${filter}` : '')
+    `/api/events/${eventId}/sales-csv` +
+    (filter !== 'all' ? `?status=${filter}` : '')
 
   return (
     <div className="space-y-6">
@@ -70,7 +80,9 @@ function SalesPage() {
           >
             ← Späť na podujatie
           </Link>
-          <h1 className="mt-2 text-2xl font-bold">Predaj — {data.event.title}</h1>
+          <h1 className="mt-2 text-2xl font-bold">
+            Predaj — {data.event.title}
+          </h1>
         </div>
         <button
           onClick={() => router.invalidate()}
@@ -83,9 +95,15 @@ function SalesPage() {
       {/* Totals (realized revenue = paid orders) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Hrubé tržby" value={formatEur(data.totals.grossCents)} />
-        <Stat label="Provízia platformy" value={formatEur(data.totals.feeCents)} />
+        <Stat
+          label="Provízia platformy"
+          value={formatEur(data.totals.feeCents)}
+        />
         <Stat label="Netto pre vás" value={formatEur(data.totals.netCents)} />
-        <Stat label="Zaplatené objednávky" value={String(data.totals.paidOrderCount)} />
+        <Stat
+          label="Zaplatené objednávky"
+          value={String(data.totals.paidOrderCount)}
+        />
       </div>
       <p className="-mt-3 text-xs text-gray-500">
         Súčty zahŕňajú len zaplatené objednávky.
@@ -93,7 +111,9 @@ function SalesPage() {
 
       {/* Per-type sold */}
       <section className="rounded-lg border bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold">Predané vstupenky podľa typu</h2>
+        <h2 className="mb-3 text-sm font-semibold">
+          Predané vstupenky podľa typu
+        </h2>
         <table className="w-full text-sm">
           <tbody>
             {data.perType.map((t) => (
@@ -131,12 +151,20 @@ function SalesPage() {
               ))}
             </select>
           </div>
-          <a
-            href={csvHref}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
-          >
-            Export CSV
-          </a>
+          <div className="flex gap-2">
+            <a
+              href={csvHref}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+            >
+              Export CSV
+            </a>
+            <a
+              href={`/api/events/${eventId}/attendees-csv`}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+            >
+              Export účastníkov
+            </a>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -169,7 +197,9 @@ function SalesPage() {
                   <td className="py-2 pr-3">
                     {o.buyer_email}
                     {o.buyer_name && (
-                      <div className="text-xs text-gray-400">{o.buyer_name}</div>
+                      <div className="text-xs text-gray-400">
+                        {o.buyer_name}
+                      </div>
                     )}
                   </td>
                   <td className="py-2 pr-3 text-gray-600">{o.itemsLabel}</td>

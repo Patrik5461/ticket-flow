@@ -15,21 +15,23 @@ import {
   deleteTicketTypeFn,
   createCouponFn,
   updateCouponFn,
-  deleteCouponFn,
-  type EventDetail,
+  deleteCouponFn
+  
 } from '../server/dashboard'
+import type {EventDetail} from '../server/dashboard';
 import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
 import type { BulkMessageLog } from '../server/bulk-messages'
 import { utcIsoToZonedLocal } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
+import type { CustomField } from '../lib/custom-fields'
 
 export const Route = createFileRoute('/app/events/$eventId')({
   loader: async ({ params }) => {
     const res = await getMyEventFn({ data: { eventId: params.eventId } })
     if (!res || 'error' in res) throw notFound()
-    return res as EventDetail
+    return res
   },
   component: ManageEvent,
 })
@@ -576,6 +578,7 @@ function TicketTypeForm({
     maxPerOrder: type ? String(type.max_per_order) : '10',
     hidden: type?.hidden ?? false,
   })
+  const [fields, setFields] = useState<CustomField[]>(type?.custom_fields ?? [])
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -590,6 +593,17 @@ function TicketTypeForm({
       maxPerOrder: parseInt(form.maxPerOrder || '10', 10),
       sortOrder: type?.sort_order ?? 0,
       hidden: form.hidden,
+      customFields: fields
+        .filter((f) => f.key.trim() && f.label.trim())
+        .map((f) => ({
+          key: f.key.trim(),
+          label: f.label.trim(),
+          type: f.type,
+          required: f.required,
+          ...(f.type === 'select'
+            ? { options: (f.options ?? []).filter((o) => o.trim()) }
+            : {}),
+        })),
     }
     const res = editing
       ? await updateTicketTypeFn({
@@ -601,7 +615,7 @@ function TicketTypeForm({
       setErr(res.error)
       return
     }
-    if (!editing)
+    if (!editing) {
       setForm({
         name: '',
         priceEur: '',
@@ -609,6 +623,8 @@ function TicketTypeForm({
         maxPerOrder: '10',
         hidden: false,
       })
+      setFields([])
+    }
     onChanged()
   }
 
@@ -680,6 +696,108 @@ function TicketTypeForm({
           Skryté
         </label>
       </div>
+
+      {/* Custom fields */}
+      <div className="mt-3 border-t pt-3">
+        <div className="mb-2 text-xs font-semibold text-gray-500">
+          Vlastné polia (vypĺňa kupujúci pri každej vstupenke)
+        </div>
+        <div className="space-y-2">
+          {fields.map((f, i) => (
+            <div key={i} className="grid grid-cols-12 items-center gap-2">
+              <input
+                value={f.label}
+                onChange={(e) =>
+                  setFields((fs) =>
+                    fs.map((x, j) =>
+                      j === i ? { ...x, label: e.target.value } : x,
+                    ),
+                  )
+                }
+                placeholder="Označenie"
+                className={`${inputCls} col-span-4`}
+              />
+              <select
+                value={f.type}
+                onChange={(e) =>
+                  setFields((fs) =>
+                    fs.map((x, j) =>
+                      j === i
+                        ? { ...x, type: e.target.value as CustomField['type'] }
+                        : x,
+                    ),
+                  )
+                }
+                className={`${inputCls} col-span-2`}
+              >
+                <option value="text">Text</option>
+                <option value="select">Výber</option>
+                <option value="checkbox">Súhlas</option>
+              </select>
+              <input
+                value={f.type === 'select' ? (f.options ?? []).join(', ') : ''}
+                onChange={(e) =>
+                  setFields((fs) =>
+                    fs.map((x, j) =>
+                      j === i
+                        ? {
+                            ...x,
+                            options: e.target.value
+                              .split(',')
+                              .map((o) => o.trim())
+                              .filter(Boolean),
+                          }
+                        : x,
+                    ),
+                  )
+                }
+                disabled={f.type !== 'select'}
+                placeholder="Možnosti (čiarkou)"
+                className={`${inputCls} col-span-3 disabled:bg-gray-100`}
+              />
+              <label className="col-span-2 flex items-center gap-1 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={f.required}
+                  onChange={(e) =>
+                    setFields((fs) =>
+                      fs.map((x, j) =>
+                        j === i ? { ...x, required: e.target.checked } : x,
+                      ),
+                    )
+                  }
+                />
+                Povinné
+              </label>
+              <button
+                type="button"
+                onClick={() => setFields((fs) => fs.filter((_, j) => j !== i))}
+                className="col-span-1 text-xs text-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setFields((fs) => [
+              ...fs,
+              {
+                key: `f${fs.length + 1}_${Date.now().toString(36)}`,
+                label: '',
+                type: 'text',
+                required: false,
+              },
+            ])
+          }
+          className="mt-2 rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+        >
+          + Pridať pole
+        </button>
+      </div>
+
       <div className="mt-2 flex items-center gap-2">
         <button
           onClick={submit}
@@ -768,7 +886,7 @@ function CouponForm({
     setErr(null)
     const payload = {
       code: form.code.trim(),
-      type: form.type as 'percent' | 'fixed',
+      type: form.type,
       value: parseInt(form.value || '0', 10),
       maxUses: form.maxUses ? parseInt(form.maxUses, 10) : null,
       validFromLocal: null,

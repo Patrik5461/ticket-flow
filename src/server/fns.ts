@@ -63,6 +63,10 @@ export const createOrderFn = createServerFn({ method: 'POST' })
           phone: z.string().trim().max(40).optional(),
         }),
         couponCode: z.string().trim().min(1).max(64).optional().nullable(),
+        answers: z
+          .record(z.string(), z.array(z.record(z.string(), z.string())))
+          .optional()
+          .nullable(),
         billing: z
           .object({
             ico: z.string().trim().max(20).optional().nullable(),
@@ -87,6 +91,7 @@ export const createOrderFn = createServerFn({ method: 'POST' })
         buyer: data.buyer,
         couponCode: data.couponCode,
         billing: data.billing,
+        answers: data.answers,
       })
     } catch (e) {
       if (e instanceof OrderError) {

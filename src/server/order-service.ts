@@ -32,6 +32,12 @@ import {
   appleWalletConfigured,
   generateApplePkpass,
 } from '../lib/wallet'
+import {
+  parseCustomFields,
+  validateAnswers
+  
+} from '../lib/custom-fields'
+import type {CustomField} from '../lib/custom-fields';
 import type {
   EventRow,
   OrganizerRow,
@@ -65,6 +71,7 @@ export interface PublicTicketType {
   max_per_order: number
   sort_order: number
   sold_out: boolean
+  customFields: CustomField[]
 }
 
 export class OrderError extends Error {}
@@ -120,6 +127,7 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
     max_per_order: t.max_per_order,
     sort_order: t.sort_order,
     sold_out: t.sold_count >= t.capacity,
+    customFields: parseCustomFields(t.custom_fields),
   }
 }
 
@@ -293,6 +301,8 @@ export interface CreateOrderInput {
   buyer: { email: string; name?: string; phone?: string }
   couponCode?: string | null
   billing?: CreateOrderBilling | null
+  /** Attendee answers keyed by ticket_type_id, one entry per quantity unit. */
+  answers?: Record<string, Array<Record<string, string>>> | null
 }
 
 export interface CreateOrderResult {
@@ -345,6 +355,17 @@ export async function createOrder(
       throw new OrderError(
         `Pre "${t.name}" je maximum ${t.max_per_order} ks na objednávku.`,
       )
+    }
+    // Custom-field validation: one answer set per quantity unit.
+    const fields = parseCustomFields(t.custom_fields)
+    if (fields.length > 0) {
+      const sets = input.answers?.[item.ticketTypeId] ?? []
+      for (let n = 0; n < item.quantity; n++) {
+        const err = validateAnswers(fields, sets[n] ?? {})
+        if (err) {
+          throw new OrderError(`${t.name}: ${err.message}`)
+        }
+      }
     }
   }
 
@@ -438,6 +459,18 @@ export async function createOrder(
     await releaseAll(reserved)
     await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
     throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
+  }
+
+  // Stage attendee answers (best-effort: tolerate a pre-migration DB).
+  if (input.answers) {
+    await db
+      .from('orders')
+      .update({ custom_answers: input.answers })
+      .eq('id', order.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      )
   }
 
   const token = signOrderToken(order.id, event.qr_secret)
@@ -671,24 +704,84 @@ async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {
     .eq('order_id', order.id)
     .returns<OrderItemRow[]>()
 
-  const rows: Array<Partial<TicketRow>> = []
+  // Answers staged at checkout + the field schema per type (both tolerant to a
+  // pre-migration DB, where they're simply absent).
+  const answers = await loadOrderAnswers(order.id)
+  const fieldsByType = await loadFieldsByType(
+    (items ?? []).map((i) => i.ticket_type_id),
+  )
+
+  const created: TicketRow[] = []
   for (const item of items ?? []) {
+    const fields = fieldsByType.get(item.ticket_type_id) ?? []
+    const sets = answers[item.ticket_type_id] ?? []
     for (let n = 0; n < item.quantity; n++) {
-      rows.push({
-        order_id: order.id,
-        ticket_type_id: item.ticket_type_id,
-        event_id: order.event_id,
-        status: 'valid',
-      })
+      const { data: ticket } = await db
+        .from('tickets')
+        .insert({
+          order_id: order.id,
+          ticket_type_id: item.ticket_type_id,
+          event_id: order.event_id,
+          status: 'valid',
+        })
+        .select('*')
+        .maybeSingle<TicketRow>()
+      if (!ticket) continue
+      created.push(ticket)
+
+      const ans = sets[n] ?? {}
+      if (fields.length > 0) {
+        await db
+          .from('ticket_answers')
+          .insert(
+            fields.map((f) => ({
+              ticket_id: ticket.id,
+              order_id: order.id,
+              event_id: order.event_id,
+              field_key: f.key,
+              field_label: f.label,
+              value: ans[f.key] ?? null,
+            })),
+          )
+          .then(
+            () => undefined,
+            () => undefined,
+          )
+      }
     }
   }
+  return created
+}
 
-  const { data: created } = await db
-    .from('tickets')
-    .insert(rows)
-    .select('*')
-    .returns<TicketRow[]>()
-  return created ?? []
+/** Read staged attendee answers off the order (tolerant of a pre-migration DB). */
+async function loadOrderAnswers(
+  orderId: string,
+): Promise<Record<string, Array<Record<string, string>>>> {
+  const { data } = await serviceClient()
+    .from('orders')
+    .select('custom_answers')
+    .eq('id', orderId)
+    .maybeSingle<{
+      custom_answers: Record<string, Array<Record<string, string>>> | null
+    }>()
+  return data?.custom_answers ?? {}
+}
+
+/** The custom-field schema per ticket type (tolerant of a pre-migration DB). */
+async function loadFieldsByType(
+  typeIds: string[],
+): Promise<Map<string, CustomField[]>> {
+  const map = new Map<string, CustomField[]>()
+  if (typeIds.length === 0) return map
+  const { data } = await serviceClient()
+    .from('ticket_types')
+    .select('id, custom_fields')
+    .in('id', typeIds)
+    .returns<{ id: string; custom_fields: unknown }[]>()
+  for (const t of data ?? []) {
+    map.set(t.id, parseCustomFields(t.custom_fields))
+  }
+  return map
 }
 
 async function sendPendingEmail(

@@ -3,6 +3,8 @@
  * purpose; can be replaced by `supabase gen types` output later.
  */
 
+import type { CustomField } from './custom-fields'
+
 export type EventStatus = 'draft' | 'published' | 'ended' | 'cancelled'
 export type OrderStatus =
   | 'pending'
@@ -74,6 +76,7 @@ export interface TicketTypeRow {
   max_per_order: number
   sort_order: number
   hidden: boolean
+  custom_fields: CustomField[]
 }
 
 export interface OrderRow {

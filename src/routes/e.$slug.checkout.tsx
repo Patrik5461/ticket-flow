@@ -8,12 +8,14 @@ import {
 } from '../server/fns'
 import { formatEur } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
+import type { CustomField } from '../lib/custom-fields'
 
 interface CartItem {
   ticketTypeId: string
   quantity: number
   name: string
   unitPriceCents: number
+  customFields: CustomField[]
 }
 
 function parseItems(raw: string): { ticketTypeId: string; quantity: number }[] {
@@ -49,6 +51,7 @@ export const Route = createFileRoute('/e/$slug/checkout')({
           quantity: i.quantity,
           name: t.name,
           unitPriceCents: t.price_cents,
+          customFields: t.customFields,
         }
       })
     return { event: data.event, cart }
@@ -75,6 +78,53 @@ function Field({
   )
 }
 
+function FieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: CustomField
+  value: string
+  onChange: (v: string) => void
+}) {
+  if (field.type === 'checkbox') {
+    return (
+      <label className="flex items-center gap-2 text-sm text-ink-200">
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+        />
+        {field.label} {field.required && <span className="text-accent">*</span>}
+      </label>
+    )
+  }
+  return (
+    <Field label={field.label} required={field.required}>
+      {field.type === 'select' ? (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+        >
+          <option value="">— vyberte —</option>
+          {(field.options ?? []).map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+        />
+      )}
+    </Field>
+  )
+}
+
 const inputCls =
   'w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-3 text-ink-100 placeholder:text-ink-500 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20'
 
@@ -87,6 +137,16 @@ function Checkout() {
   const [phone, setPhone] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [accept, setAccept] = useState(false)
+  // Attendee answers: { [ticketTypeId]: [ {fieldKey: value}, ... ] }
+  const [answers, setAnswers] = useState<
+    Record<string, Record<string, string>[]>
+  >({})
+  const setAnswer = (tid: string, idx: number, key: string, val: string) =>
+    setAnswers((a) => {
+      const arr = [...(a[tid] ?? [])]
+      arr[idx] = { ...(arr[idx] ?? {}), [key]: val }
+      return { ...a, [tid]: arr }
+    })
   // "Kúpiť na firmu"
   const [companyBuy, setCompanyBuy] = useState(false)
   const [ico, setIco] = useState('')
@@ -170,6 +230,7 @@ function Checkout() {
             phone: phone.trim() || undefined,
           },
           couponCode: couponCode.trim() || null,
+          answers,
           billing:
             companyBuy && companyName.trim()
               ? {
@@ -396,6 +457,50 @@ function Checkout() {
                 </div>
               )}
             </section>
+
+            {cart.some((c) => c.customFields.length > 0) && (
+              <section className="card-surface p-6">
+                <h2 className="font-display text-lg font-bold">
+                  Údaje účastníkov
+                </h2>
+                <div className="mt-4 space-y-5">
+                  {cart
+                    .filter((c) => c.customFields.length > 0)
+                    .map((c) => (
+                      <div key={c.ticketTypeId} className="space-y-3">
+                        {Array.from({ length: c.quantity }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-ink-700 p-4"
+                          >
+                            <div className="mb-3 text-sm font-semibold text-ink-200">
+                              {c.name} #{idx + 1}
+                            </div>
+                            <div className="space-y-3">
+                              {c.customFields.map((f) => (
+                                <FieldInput
+                                  key={f.key}
+                                  field={f}
+                                  value={
+                                    (
+                                      answers[c.ticketTypeId] as
+                                        | Record<string, string>[]
+                                        | undefined
+                                    )?.[idx]?.[f.key] ?? ''
+                                  }
+                                  onChange={(v) =>
+                                    setAnswer(c.ticketTypeId, idx, f.key, v)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                </div>
+              </section>
+            )}
 
             <section className="card-surface p-6">
               <h2 className="font-display text-lg font-bold">Zľavový kupón</h2>
