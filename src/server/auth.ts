@@ -14,11 +14,14 @@ import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { clientIpFromHeaders } from '../lib/client-ip'
 import { authLimiter } from './rate-guards'
+import { getImpersonation } from './impersonation-session'
 
 export interface SessionInfo {
   user: { id: string; email: string }
   organizer: { id: string; name: string; slug: string } | null
   role: 'owner' | 'admin' | 'checkin' | null
+  /** Set when a platform admin is viewing this organizer read-only. */
+  impersonating?: { organizerName: string }
 }
 
 async function uniqueOrganizerSlug(base: string): Promise<string> {
@@ -126,6 +129,23 @@ export const getSessionFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<SessionInfo | null> => {
     const user = await getCurrentUser()
     if (!user) return null
+
+    // Impersonation: a platform admin viewing an organizer read-only. Present the
+    // session as that organizer (with a flag) so /app renders through their eyes.
+    const imp = await getImpersonation(user)
+    if (imp) {
+      const { data: org } = await serviceClient()
+        .from('organizers')
+        .select('id, name, slug')
+        .eq('id', imp.organizerId)
+        .maybeSingle<{ id: string; name: string; slug: string }>()
+      return {
+        user: { id: user.id, email: user.email ?? '' },
+        organizer: org ?? null,
+        role: 'owner',
+        impersonating: { organizerName: imp.organizerName },
+      }
+    }
 
     const { data: membership } = await serviceClient()
       .from('organizer_members')

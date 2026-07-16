@@ -3,6 +3,7 @@ import {
   Link,
   notFound,
   useRouter,
+  useNavigate,
 } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
@@ -19,6 +20,7 @@ import type {
 } from '../server/admin-organizers'
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
+import { startImpersonationFn } from '../server/impersonation'
 
 export const Route = createFileRoute('/admin/organizers/$organizerId')({
   loader: async ({ params }) => {
@@ -53,7 +55,19 @@ function OrganizerDetail() {
   const { detail, stats } = Route.useLoaderData()
   const { organizer, stats: quickStats, audit } = detail
   const router = useRouter()
+  const navigate = useNavigate()
   const reload = () => router.invalidate()
+
+  const viewAs = async () => {
+    const res = await startImpersonationFn({
+      data: { organizerId: organizer.id },
+    })
+    if ('error' in res) {
+      alert(res.error)
+      return
+    }
+    await navigate({ to: '/app' })
+  }
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -64,7 +78,7 @@ function OrganizerDetail() {
         >
           ← Späť na organizátorov
         </Link>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold">{organizer.name}</h1>
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -75,6 +89,12 @@ function OrganizerDetail() {
           >
             {organizer.status === 'active' ? 'Aktívny' : 'Pozastavený'}
           </span>
+          <button
+            onClick={viewAs}
+            className="ml-auto rounded-md border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            👁 Prezerať ako organizátor (read-only)
+          </button>
         </div>
         <div className="mt-1 text-sm text-gray-400">/{organizer.slug}</div>
       </div>

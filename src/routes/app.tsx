@@ -6,6 +6,7 @@ import {
   useNavigate,
 } from '@tanstack/react-router'
 import { getSessionFn, signOutFn } from '../server/auth'
+import { stopImpersonationFn } from '../server/impersonation'
 
 export const Route = createFileRoute('/app')({
   beforeLoad: async () => {
@@ -27,17 +28,44 @@ function AppLayout() {
     await navigate({ to: '/login' })
   }
 
+  const exitImpersonation = async () => {
+    await stopImpersonationFn()
+    await navigate({ to: '/admin' })
+  }
+
   return (
     <div className="app-shell">
+      {session.impersonating && (
+        <div
+          className="sticky top-0 z-50 flex items-center justify-between gap-3 px-6 py-2 text-sm font-medium"
+          style={{ background: '#b45309', color: '#fff' }}
+        >
+          <span>
+            👁 Prezeráš ako{' '}
+            <strong>{session.impersonating.organizerName}</strong> — režim
+            čítania (zmeny sú zablokované)
+          </span>
+          <button
+            onClick={exitImpersonation}
+            className="rounded-md bg-white/20 px-3 py-1 text-xs font-semibold hover:bg-white/30"
+          >
+            Ukončiť a späť do /admin
+          </button>
+        </div>
+      )}
       <header
         className="sticky top-0 z-40 backdrop-blur"
         style={{
-          background: 'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
+          background:
+            'color-mix(in oklab, var(--color-ink-950) 85%, transparent)',
           borderBottom: '1px solid var(--color-ink-700)',
         }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-          <Link to="/app" className="flex items-center gap-2 font-display text-lg font-bold">
+          <Link
+            to="/app"
+            className="flex items-center gap-2 font-display text-lg font-bold"
+          >
             <span>
               ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
             </span>

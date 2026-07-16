@@ -9,6 +9,7 @@
 
 import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
+import { isImpersonating } from './impersonation-session'
 
 export class EventAuthzError extends Error {}
 
@@ -16,6 +17,12 @@ export class EventAuthzError extends Error {}
 export async function requireEventManager(eventId: string): Promise<string> {
   const user = await getCurrentUser()
   if (!user) throw new EventAuthzError('Neprihlásený.')
+  // Read-only impersonation may not mutate — refuse before the admin path.
+  if (await isImpersonating(user)) {
+    throw new EventAuthzError(
+      'Režim čítania (prezeranie ako organizátor) — zmeny nie sú povolené.',
+    )
+  }
   const db = serviceClient()
 
   const { data: admin } = await db

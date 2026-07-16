@@ -12,6 +12,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { getCurrentUser } from '../lib/supabase/auth'
+import { isImpersonating } from './impersonation-session'
 import { serviceClient } from '../lib/supabase/server'
 import { getEmailProvider } from '../lib/email'
 import { refundEmail } from '../lib/email/templates'
@@ -41,6 +42,11 @@ async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
 async function requireRefundActor(eventId: string): Promise<string> {
   const user = await getCurrentUser()
   if (!user) throw new RefundError('Neprihlásený.')
+  if (await isImpersonating(user)) {
+    throw new RefundError(
+      'Režim čítania (prezeranie ako organizátor) — zmeny nie sú povolené.',
+    )
+  }
   const db = serviceClient()
 
   const { data: admin } = await db

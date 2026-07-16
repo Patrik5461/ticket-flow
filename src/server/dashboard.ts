@@ -18,6 +18,7 @@ import { generateApiKey } from '../lib/api-keys'
 import { detectCoverMime, coverExt } from '../lib/images'
 import { isValidIco, isValidIban, normalizeIban } from '../lib/validation'
 import { writeAuditLog } from './admin'
+import { getImpersonation } from './impersonation-session'
 import { generateWebhookSecret, WEBHOOK_EVENT_TYPES } from '../lib/webhooks'
 import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
@@ -37,11 +38,25 @@ interface Actor {
   userId: string
   organizerId: string
   role: 'owner' | 'admin' | 'checkin'
+  /** True when a platform admin is viewing this organizer read-only. */
+  impersonating?: boolean
 }
 
 async function requireOrganizer(): Promise<Actor> {
   const user = await getCurrentUser()
   if (!user) throw new DashboardError('Neprihlásený.')
+
+  // Impersonation: a platform admin views this organizer's dashboard read-only.
+  const imp = await getImpersonation(user)
+  if (imp) {
+    return {
+      userId: user.id,
+      organizerId: imp.organizerId,
+      role: 'owner',
+      impersonating: true,
+    }
+  }
+
   const { data } = await serviceClient()
     .from('organizer_members')
     .select('organizer_id, role')
@@ -52,8 +67,13 @@ async function requireOrganizer(): Promise<Actor> {
   return { userId: user.id, organizerId: data.organizer_id, role: data.role }
 }
 
-/** Editors: owner + admin. Check-in role may not manage events. */
+/** Editors: owner + admin. Check-in role — and read-only impersonation — may not mutate. */
 function assertCanEdit(actor: Actor): void {
+  if (actor.impersonating) {
+    throw new DashboardError(
+      'Režim čítania (prezeranie ako organizátor) — zmeny nie sú povolené.',
+    )
+  }
   if (actor.role === 'checkin') {
     throw new DashboardError('Na túto akciu nemáte oprávnenie.')
   }
