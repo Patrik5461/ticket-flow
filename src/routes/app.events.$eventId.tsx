@@ -132,8 +132,56 @@ function ManageEvent() {
         onChanged={reload}
       />
       <BulkMessageSection eventId={event.id} />
+      <EmbedSnippetSection
+        slug={event.slug}
+        published={event.status === 'published'}
+      />
       <CancelEventSection event={event} onChanged={reload} />
     </div>
+  )
+}
+
+// --- Embed widget snippet -----------------------------------------------------
+
+function EmbedSnippetSection({
+  slug,
+  published,
+}: {
+  slug: string
+  published: boolean
+}) {
+  const [origin, setOrigin] = useState('')
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+
+  if (!published) return null
+  const snippet = `<script src="${origin}/widget.js" data-event="${slug}" async></script>`
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(snippet)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <h2 className="mb-1 text-lg font-semibold">Predávaj na svojom webe</h2>
+      <p className="mb-3 text-sm text-gray-500">
+        Vložte tento kód na svoju stránku — zobrazí sa widget s predajom
+        vstupeniek. Platba prebehne bezpečne na Ticketio.
+      </p>
+      <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
+        {snippet}
+      </pre>
+      <button
+        onClick={copy}
+        className="mt-3 rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+      >
+        {copied ? 'Skopírované ✓' : 'Kopírovať kód'}
+      </button>
+    </section>
   )
 }
 

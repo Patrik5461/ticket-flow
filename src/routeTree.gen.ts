@@ -23,6 +23,7 @@ import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
 import { Route as AdminOrganizersIndexRouteImport } from './routes/admin.organizers.index'
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin.orders.index'
+import { Route as ESlugEmbedRouteImport } from './routes/e.$slug.embed'
 import { Route as ESlugCheckoutRouteImport } from './routes/e.$slug.checkout'
 import { Route as AppEventsNewRouteImport } from './routes/app.events.new'
 import { Route as AppEventsEventIdRouteImport } from './routes/app.events.$eventId'
@@ -110,6 +111,11 @@ const AdminOrdersIndexRoute = AdminOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
   getParentRoute: () => AdminRoute,
+} as any)
+const ESlugEmbedRoute = ESlugEmbedRouteImport.update({
+  id: '/e/$slug/embed',
+  path: '/e/$slug/embed',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ESlugCheckoutRoute = ESlugCheckoutRouteImport.update({
   id: '/e/$slug/checkout',
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug/embed': typeof ESlugEmbedRoute
   '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug/embed': typeof ESlugEmbedRoute
   '/admin/orders': typeof AdminOrdersIndexRoute
   '/admin/organizers': typeof AdminOrganizersIndexRoute
   '/e/$slug': typeof ESlugIndexRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
+  '/e/$slug/embed': typeof ESlugEmbedRoute
   '/admin/orders/': typeof AdminOrdersIndexRoute
   '/admin/organizers/': typeof AdminOrganizersIndexRoute
   '/e/$slug/': typeof ESlugIndexRoute
@@ -325,6 +334,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/e/$slug/embed'
     | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/e/$slug/embed'
     | '/admin/orders'
     | '/admin/organizers'
     | '/e/$slug'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
+    | '/e/$slug/embed'
     | '/admin/orders/'
     | '/admin/organizers/'
     | '/e/$slug/'
@@ -415,6 +427,7 @@ export interface RootRouteChildren {
   ApiCronProcessRefundsRoute: typeof ApiCronProcessRefundsRoute
   ApiGopayNotifyRoute: typeof ApiGopayNotifyRoute
   ESlugCheckoutRoute: typeof ESlugCheckoutRoute
+  ESlugEmbedRoute: typeof ESlugEmbedRoute
   ESlugIndexRoute: typeof ESlugIndexRoute
   ApiEventsEventIdSalesCsvRoute: typeof ApiEventsEventIdSalesCsvRoute
   ApiSettlementsSettlementIdPdfRoute: typeof ApiSettlementsSettlementIdPdfRoute
@@ -520,6 +533,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/orders/'
       preLoaderRoute: typeof AdminOrdersIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/e/$slug/embed': {
+      id: '/e/$slug/embed'
+      path: '/e/$slug/embed'
+      fullPath: '/e/$slug/embed'
+      preLoaderRoute: typeof ESlugEmbedRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/e/$slug/checkout': {
       id: '/e/$slug/checkout'
@@ -711,6 +731,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronProcessRefundsRoute: ApiCronProcessRefundsRoute,
   ApiGopayNotifyRoute: ApiGopayNotifyRoute,
   ESlugCheckoutRoute: ESlugCheckoutRoute,
+  ESlugEmbedRoute: ESlugEmbedRoute,
   ESlugIndexRoute: ESlugIndexRoute,
   ApiEventsEventIdSalesCsvRoute: ApiEventsEventIdSalesCsvRoute,
   ApiSettlementsSettlementIdPdfRoute: ApiSettlementsSettlementIdPdfRoute,
