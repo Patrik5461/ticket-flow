@@ -80,10 +80,26 @@ export interface RenderedEmail {
 }
 
 /** One ticket's QR block for the tickets email (qrDataUrl is a data: URI). */
-export function ticketBlockHtml(typeName: string, qrDataUrl: string): string {
+export function ticketBlockHtml(
+  typeName: string,
+  qrDataUrl: string,
+  wallet?: { appleUrl?: string | null; googleUrl?: string | null },
+): string {
+  const walletBtns: string[] = []
+  if (wallet?.appleUrl) {
+    walletBtns.push(
+      `<a href="${escapeHtml(wallet.appleUrl)}" style="display:inline-block;margin:0 4px;padding:8px 12px;border-radius:8px;background:#000;color:#fff;text-decoration:none;font-size:12px">Apple Wallet</a>`,
+    )
+  }
+  if (wallet?.googleUrl) {
+    walletBtns.push(
+      `<a href="${escapeHtml(wallet.googleUrl)}" style="display:inline-block;margin:0 4px;padding:8px 12px;border-radius:8px;background:#4285f4;color:#fff;text-decoration:none;font-size:12px">Google Wallet</a>`,
+    )
+  }
   return `<div style="margin:0 0 16px;text-align:center">
     <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml(typeName)}</div>
     <img src="${qrDataUrl}" width="180" height="180" alt="QR" style="border-radius:8px"/>
+    ${walletBtns.length ? `<div style="margin-top:8px">${walletBtns.join('')}</div>` : ''}
   </div>`
 }
 

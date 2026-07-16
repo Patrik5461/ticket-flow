@@ -27,6 +27,11 @@ import {
 import { formatEur } from '../lib/money'
 import { createPayment, getPaymentStatus } from '../lib/gopay'
 import { gopayStateToAction } from '../lib/gopay-state'
+import {
+  googleWalletSaveUrl,
+  appleWalletConfigured,
+  generateApplePkpass,
+} from '../lib/wallet'
 import type {
   EventRow,
   OrganizerRow,
@@ -685,16 +690,20 @@ async function sendTicketEmail(
 ): Promise<void> {
   const typeNames = await ticketTypeNames(tickets.map((t) => t.ticket_type_id))
   const startsLabel = formatEventDate(event.starts_at, event.timezone)
+  const orderToken = signOrderToken(order.id, event.qr_secret)
+  const appleAvailable = appleWalletConfigured()
+  const appUrl = getEnv().APP_URL
 
   const attachments = []
   const qrBlocks: string[] = []
   for (const t of tickets) {
     const qrToken = signTicket(t.id, event.qr_secret)
+    const typeName = typeNames.get(t.ticket_type_id) ?? 'Vstupenka'
     const pdf = await renderTicketPdf({
       eventTitle: event.title,
       venue: event.venue_name,
       startsAtLabel: startsLabel,
-      ticketTypeName: typeNames.get(t.ticket_type_id) ?? 'Vstupenka',
+      ticketTypeName: typeName,
       holderName: t.holder_name,
       ticketRef: t.id.slice(0, 8).toUpperCase(),
       qrToken,
@@ -705,10 +714,23 @@ async function sendTicketEmail(
       contentType: 'application/pdf',
     })
     qrBlocks.push(
-      ticketBlockHtml(
-        typeNames.get(t.ticket_type_id) ?? 'Vstupenka',
-        await qrDataUrl(qrToken),
-      ),
+      ticketBlockHtml(typeName, await qrDataUrl(qrToken), {
+        appleUrl: appleAvailable
+          ? `${appUrl}/api/orders/${order.id}/tickets/${t.id}/pass?t=${encodeURIComponent(orderToken)}`
+          : null,
+        googleUrl: googleWalletSaveUrl({
+          ticketId: t.id,
+          eventId: event.id,
+          ref: t.id.slice(0, 8).toUpperCase(),
+          eventTitle: event.title,
+          whenLabel: startsLabel,
+          startsAtIso: event.starts_at,
+          venue: event.venue_name,
+          ticketTypeName: typeName,
+          holderName: t.holder_name,
+          qrToken,
+        }),
+      }),
     )
   }
 
@@ -762,6 +784,8 @@ export interface OrderView {
     status: TicketRow['status']
     qrDataUrl: string
     qrToken: string
+    googleSaveUrl: string | null
+    appleAvailable: boolean
   }>
 }
 
@@ -819,15 +843,31 @@ export async function getOrderView(
     (ticketRows ?? []).map((t) => t.ticket_type_id),
   )
 
+  const appleAvailable = appleWalletConfigured()
+  const whenLabel = formatEventDate(event.starts_at, event.timezone)
   const tickets = await Promise.all(
     (ticketRows ?? []).map(async (t) => {
       const qrToken = signTicket(t.id, event.qr_secret)
+      const typeName = names.get(t.ticket_type_id) ?? 'Vstupenka'
       return {
         id: t.id,
-        typeName: names.get(t.ticket_type_id) ?? 'Vstupenka',
+        typeName,
         status: t.status,
         qrToken,
         qrDataUrl: await qrDataUrl(qrToken),
+        googleSaveUrl: googleWalletSaveUrl({
+          ticketId: t.id,
+          eventId: event.id,
+          ref: t.id.slice(0, 8).toUpperCase(),
+          eventTitle: event.title,
+          whenLabel,
+          startsAtIso: event.starts_at,
+          venue: event.venue_name,
+          ticketTypeName: typeName,
+          holderName: t.holder_name,
+          qrToken,
+        }),
+        appleAvailable,
       }
     }),
   )
@@ -887,6 +927,49 @@ export async function getTicketPdf(
     qrToken: signTicket(ticket.id, event.qr_secret),
   })
   return { bytes, filename: `vstupenka-${ticket.id.slice(0, 8)}.pdf` }
+}
+
+/**
+ * Generate a ticket's Apple Wallet .pkpass for the buyer download link. Verifies
+ * the order token; returns null if Apple Wallet isn't configured or on mismatch.
+ */
+export async function getApplePass(
+  orderId: string,
+  ticketId: string,
+  token: string,
+): Promise<{ bytes: Uint8Array; filename: string } | null> {
+  const db = serviceClient()
+  const { data: ticket } = await db
+    .from('tickets')
+    .select('*')
+    .eq('id', ticketId)
+    .eq('order_id', orderId)
+    .maybeSingle<TicketRow>()
+  if (!ticket) return null
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', ticket.event_id)
+    .single<EventRow>()
+  if (!event) return null
+  if (!verifyOrderToken(orderId, token, event.qr_secret)) return null
+
+  const names = await ticketTypeNames([ticket.ticket_type_id])
+  const bytes = await generateApplePkpass({
+    ticketId: ticket.id,
+    eventId: event.id,
+    ref: ticket.id.slice(0, 8).toUpperCase(),
+    eventTitle: event.title,
+    whenLabel: formatEventDate(event.starts_at, event.timezone),
+    startsAtIso: event.starts_at,
+    venue: event.venue_name,
+    ticketTypeName: names.get(ticket.ticket_type_id) ?? 'Vstupenka',
+    holderName: ticket.holder_name,
+    qrToken: signTicket(ticket.id, event.qr_secret),
+  })
+  if (!bytes) return null
+  return { bytes, filename: `vstupenka-${ticket.id.slice(0, 8)}.pkpass` }
 }
 
 async function reconcileGoPay(order: OrderRow, event: EventRow): Promise<void> {

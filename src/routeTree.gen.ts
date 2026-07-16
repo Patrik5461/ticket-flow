@@ -41,6 +41,7 @@ import { Route as ApiSettlementsSettlementIdPdfRouteImport } from './routes/api.
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as AppEventsEventIdOrdersOrderIdRouteImport } from './routes/app.events.$eventId.orders.$orderId'
 import { Route as ApiOrdersOrderIdTicketsTicketIdRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId'
+import { Route as ApiOrdersOrderIdTicketsTicketIdPassRouteImport } from './routes/api.orders.$orderId.tickets.$ticketId.pass'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -209,6 +210,12 @@ const ApiOrdersOrderIdTicketsTicketIdRoute =
     path: '/api/orders/$orderId/tickets/$ticketId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOrdersOrderIdTicketsTicketIdPassRoute =
+  ApiOrdersOrderIdTicketsTicketIdPassRouteImport.update({
+    id: '/pass',
+    path: '/pass',
+    getParentRoute: () => ApiOrdersOrderIdTicketsTicketIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -241,8 +248,9 @@ export interface FileRoutesByFullPath {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
-  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
+  '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -273,8 +281,9 @@ export interface FileRoutesByTo {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
-  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
+  '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -308,8 +317,9 @@ export interface FileRoutesById {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
-  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
+  '/api/orders/$orderId/tickets/$ticketId/pass': typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -346,6 +356,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
+    | '/api/orders/$orderId/tickets/$ticketId/pass'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
+    | '/api/orders/$orderId/tickets/$ticketId/pass'
   id:
     | '__root__'
     | '/'
@@ -412,6 +424,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/app/events/$eventId/orders/$orderId'
+    | '/api/orders/$orderId/tickets/$ticketId/pass'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -431,7 +444,7 @@ export interface RootRouteChildren {
   ESlugIndexRoute: typeof ESlugIndexRoute
   ApiEventsEventIdSalesCsvRoute: typeof ApiEventsEventIdSalesCsvRoute
   ApiSettlementsSettlementIdPdfRoute: typeof ApiSettlementsSettlementIdPdfRoute
-  ApiOrdersOrderIdTicketsTicketIdRoute: typeof ApiOrdersOrderIdTicketsTicketIdRoute
+  ApiOrdersOrderIdTicketsTicketIdRoute: typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -660,6 +673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersOrderIdTicketsTicketIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/$orderId/tickets/$ticketId/pass': {
+      id: '/api/orders/$orderId/tickets/$ticketId/pass'
+      path: '/pass'
+      fullPath: '/api/orders/$orderId/tickets/$ticketId/pass'
+      preLoaderRoute: typeof ApiOrdersOrderIdTicketsTicketIdPassRouteImport
+      parentRoute: typeof ApiOrdersOrderIdTicketsTicketIdRoute
+    }
   }
 }
 
@@ -718,6 +738,21 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiOrdersOrderIdTicketsTicketIdRouteChildren {
+  ApiOrdersOrderIdTicketsTicketIdPassRoute: typeof ApiOrdersOrderIdTicketsTicketIdPassRoute
+}
+
+const ApiOrdersOrderIdTicketsTicketIdRouteChildren: ApiOrdersOrderIdTicketsTicketIdRouteChildren =
+  {
+    ApiOrdersOrderIdTicketsTicketIdPassRoute:
+      ApiOrdersOrderIdTicketsTicketIdPassRoute,
+  }
+
+const ApiOrdersOrderIdTicketsTicketIdRouteWithChildren =
+  ApiOrdersOrderIdTicketsTicketIdRoute._addFileChildren(
+    ApiOrdersOrderIdTicketsTicketIdRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -735,7 +770,8 @@ const rootRouteChildren: RootRouteChildren = {
   ESlugIndexRoute: ESlugIndexRoute,
   ApiEventsEventIdSalesCsvRoute: ApiEventsEventIdSalesCsvRoute,
   ApiSettlementsSettlementIdPdfRoute: ApiSettlementsSettlementIdPdfRoute,
-  ApiOrdersOrderIdTicketsTicketIdRoute: ApiOrdersOrderIdTicketsTicketIdRoute,
+  ApiOrdersOrderIdTicketsTicketIdRoute:
+    ApiOrdersOrderIdTicketsTicketIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

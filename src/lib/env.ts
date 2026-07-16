@@ -53,6 +53,18 @@ const schema = z.object({
   // provider (dev). EMAIL_FROM must be an address on a Resend-verified domain.
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('Ticketio <noreply@ticketio.sk>'),
+  // Apple Wallet (.pkpass). Without all of these the "Add to Apple Wallet" button
+  // is hidden. Certs are PEM strings (newlines as \n in the env).
+  APPLE_PASS_TYPE_ID: z.string().default(''),
+  APPLE_TEAM_ID: z.string().default(''),
+  APPLE_PASS_CERT_PEM: z.string().default(''),
+  APPLE_PASS_KEY_PEM: z.string().default(''),
+  APPLE_WWDR_PEM: z.string().default(''),
+  // Google Wallet. Without all of these the "Save to Google Wallet" button is
+  // hidden. SA key is the service account private key PEM.
+  GOOGLE_WALLET_ISSUER_ID: z.string().default(''),
+  GOOGLE_WALLET_SA_EMAIL: z.string().default(''),
+  GOOGLE_WALLET_SA_KEY: z.string().default(''),
 })
 
 export type Env = z.infer<typeof schema>
@@ -78,6 +90,14 @@ export function getEnv(): Env {
       FAKTERO_API_URL: process.env.FAKTERO_API_URL,
       RESEND_API_KEY: process.env.RESEND_API_KEY,
       EMAIL_FROM: process.env.EMAIL_FROM,
+      APPLE_PASS_TYPE_ID: process.env.APPLE_PASS_TYPE_ID,
+      APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
+      APPLE_PASS_CERT_PEM: process.env.APPLE_PASS_CERT_PEM,
+      APPLE_PASS_KEY_PEM: process.env.APPLE_PASS_KEY_PEM,
+      APPLE_WWDR_PEM: process.env.APPLE_WWDR_PEM,
+      GOOGLE_WALLET_ISSUER_ID: process.env.GOOGLE_WALLET_ISSUER_ID,
+      GOOGLE_WALLET_SA_EMAIL: process.env.GOOGLE_WALLET_SA_EMAIL,
+      GOOGLE_WALLET_SA_KEY: process.env.GOOGLE_WALLET_SA_KEY,
     })
   }
   return cached

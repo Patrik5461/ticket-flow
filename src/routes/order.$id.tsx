@@ -9,7 +9,9 @@ export const Route = createFileRoute('/order/$id')({
   }),
   loaderDeps: ({ search }) => ({ t: search.t }),
   loader: async ({ params, deps }) => {
-    const view = await getOrderFn({ data: { orderId: params.id, token: deps.t } })
+    const view = await getOrderFn({
+      data: { orderId: params.id, token: deps.t },
+    })
     return { view }
   },
   component: OrderPage,
@@ -67,13 +69,27 @@ function OrderPage() {
       <div className="mx-auto max-w-md px-6 py-24">
         <div className="card-surface p-10 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ink-800 text-ink-400">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
             </svg>
           </div>
-          <h1 className="mt-4 font-display text-2xl font-bold">Objednávka nenájdená</h1>
-          <p className="mt-2 text-ink-400">Objednávka sa nenašla alebo je odkaz neplatný.</p>
-          <Link to="/" className="btn-primary mt-6 inline-flex">Späť na úvod</Link>
+          <h1 className="mt-4 font-display text-2xl font-bold">
+            Objednávka nenájdená
+          </h1>
+          <p className="mt-2 text-ink-400">
+            Objednávka sa nenašla alebo je odkaz neplatný.
+          </p>
+          <Link to="/" className="btn-primary mt-6 inline-flex">
+            Späť na úvod
+          </Link>
         </div>
       </div>
     )
@@ -85,8 +101,18 @@ function OrderPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-3xl px-6 py-12 md:py-20">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-ink-100">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-ink-100"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           Späť na úvod
@@ -94,13 +120,20 @@ function OrderPage() {
 
         {/* Status header */}
         <div className="mt-8 animate-fade-up">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest ${TONE[s.tone]}`}>
+          <div
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest ${TONE[s.tone]}`}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-current" />
             {s.text}
           </div>
-          <h1 className="mt-4 font-display text-4xl font-bold md:text-5xl">{event.title}</h1>
+          <h1 className="mt-4 font-display text-4xl font-bold md:text-5xl">
+            {event.title}
+          </h1>
           <p className="mt-3 text-ink-400">
-            Objednávka <span className="font-mono text-ink-300">#{order.id.slice(0, 8).toUpperCase()}</span>
+            Objednávka{' '}
+            <span className="font-mono text-ink-300">
+              #{order.id.slice(0, 8).toUpperCase()}
+            </span>
           </p>
         </div>
 
@@ -114,12 +147,16 @@ function OrderPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-ink-400">
               <span>Medzisúčet</span>
-              <span className="tabular-nums">{formatEur(order.subtotal_cents)}</span>
+              <span className="tabular-nums">
+                {formatEur(order.subtotal_cents)}
+              </span>
             </div>
             {order.discount_cents > 0 && (
               <div className="flex justify-between text-accent">
                 <span>Zľava</span>
-                <span className="tabular-nums">−{formatEur(order.discount_cents)}</span>
+                <span className="tabular-nums">
+                  −{formatEur(order.discount_cents)}
+                </span>
               </div>
             )}
             <div className="flex items-baseline justify-between border-t border-ink-700 pt-3">
@@ -167,15 +204,42 @@ function OrderPage() {
                           {ticket.id.slice(0, 8).toUpperCase()}
                         </div>
                       </div>
-                      <a
-                        href={`/api/orders/${id}/tickets/${ticket.id}?t=${encodeURIComponent(t)}`}
-                        className="btn-ghost mt-4 self-start text-sm"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                        Stiahnuť PDF
-                      </a>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <a
+                          href={`/api/orders/${id}/tickets/${ticket.id}?t=${encodeURIComponent(t)}`}
+                          className="btn-ghost self-start text-sm"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                          </svg>
+                          Stiahnuť PDF
+                        </a>
+                        {ticket.appleAvailable && (
+                          <a
+                            href={`/api/orders/${id}/tickets/${ticket.id}/pass?t=${encodeURIComponent(t)}`}
+                            className="btn-ghost self-start text-sm"
+                          >
+                            Pridať do Apple Wallet
+                          </a>
+                        )}
+                        {ticket.googleSaveUrl && (
+                          <a
+                            href={ticket.googleSaveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn-ghost self-start text-sm"
+                          >
+                            Uložiť do Google Wallet
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </li>
