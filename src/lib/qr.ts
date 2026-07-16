@@ -9,13 +9,16 @@
  * payload short while staying well beyond brute-force reach.
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto'
+// Namespace-only import so Vite's client-side stub for `node:crypto` doesn't
+// throw at module load; properties are only read on-demand inside functions
+// (which never run in the browser).
+import * as nodeCrypto from 'node:crypto'
 
 const PREFIX = 'TIK'
 const SIG_BYTES = 16
 
 export function signTicket(ticketId: string, eventSecret: string): string {
-  const sig = createHmac('sha256', eventSecret)
+  const sig = nodeCrypto.createHmac('sha256', eventSecret)
     .update(ticketId)
     .digest()
     .subarray(0, SIG_BYTES)
@@ -38,5 +41,5 @@ export function verifyTicket(token: string, eventSecret: string): string | null 
   const a = Buffer.from(token)
   const b = Buffer.from(expected)
   if (a.length !== b.length) return null
-  return timingSafeEqual(a, b) ? ticketId : null
+  return nodeCrypto.timingSafeEqual(a, b) ? ticketId : null
 }

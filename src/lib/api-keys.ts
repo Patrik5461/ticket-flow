@@ -7,7 +7,9 @@
  * HMAC). Keys are high-entropy (32 random bytes), so a plain hash is sufficient.
  */
 
-import { createHash, randomBytes } from 'node:crypto'
+// Namespace import (see webhooks.ts) so Vite's client-side stub for
+// `node:crypto` doesn't throw at module load.
+import * as nodeCrypto from 'node:crypto'
 
 const KEY_PREFIX = 'tik_live_'
 /** Chars kept for display, e.g. "tik_live_a1b2c3d4". */
@@ -23,7 +25,7 @@ export interface GeneratedApiKey {
 }
 
 export function hashApiKey(key: string): string {
-  return createHash('sha256').update(key).digest('hex')
+  return nodeCrypto.createHash('sha256').update(key).digest('hex')
 }
 
 export function keyDisplayPrefix(key: string): string {
@@ -31,7 +33,7 @@ export function keyDisplayPrefix(key: string): string {
 }
 
 export function generateApiKey(): GeneratedApiKey {
-  const key = KEY_PREFIX + randomBytes(32).toString('base64url')
+  const key = KEY_PREFIX + nodeCrypto.randomBytes(32).toString('base64url')
   return { key, hash: hashApiKey(key), prefix: keyDisplayPrefix(key) }
 }
 
