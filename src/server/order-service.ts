@@ -20,6 +20,7 @@ import { qrDataUrl } from '../lib/tickets/qr-image'
 import { renderTicketPdf } from '../lib/tickets/pdf'
 import { getEmailProvider } from '../lib/email'
 import { createPayment, getPaymentStatus } from '../lib/gopay'
+import { gopayStateToAction } from '../lib/gopay-state'
 import type {
   EventRow,
   OrganizerRow,
@@ -753,9 +754,123 @@ async function reconcileGoPay(order: OrderRow, event: EventRow): Promise<void> {
     status.state,
     status,
   )
-  if (status.state === 'PAID') {
-    await markPaidAndFulfill(order, event)
+
+  // Every action is idempotent (guarded on the current order status), so a
+  // repeated notification or an out-of-order transition is safe.
+  switch (gopayStateToAction(status.state)) {
+    case 'fulfill':
+      await markPaidAndFulfill(order, event)
+      break
+    case 'refund_full':
+      await syncFullRefund(order)
+      break
+    case 'refund_partial':
+      await syncPartialRefund(order)
+      break
+    case 'cancel':
+      await cancelUnpaidOrder(order)
+      break
+    case 'none':
+      break
   }
+}
+
+/** Sum of non-failed refunds already booked against an order. */
+async function refundedTotal(orderId: string): Promise<number> {
+  const { data } = await serviceClient()
+    .from('refunds')
+    .select('amount_cents, status')
+    .eq('order_id', orderId)
+    .returns<{ amount_cents: number; status: string }[]>()
+  return (data ?? [])
+    .filter((r) => r.status !== 'failed')
+    .reduce((s, r) => s + r.amount_cents, 0)
+}
+
+/**
+ * GoPay reports the payment fully REFUNDED. Sync our DB idempotently WITHOUT
+ * calling the gateway again (the refund already happened at GoPay — this may be
+ * our own UI refund confirming, or one done in the GoPay portal). Records the
+ * remaining amount as a refund row so settlement accounting stays consistent.
+ */
+async function syncFullRefund(order: OrderRow): Promise<void> {
+  if (order.status === 'refunded') return
+  if (order.status !== 'paid' && order.status !== 'partially_refunded') return
+  const db = serviceClient()
+
+  const remaining = order.total_cents - (await refundedTotal(order.id))
+  if (remaining > 0) {
+    await db.from('refunds').insert({
+      order_id: order.id,
+      ticket_id: null,
+      amount_cents: remaining,
+      gopay_refund_id: order.gopay_payment_id,
+      status: 'done',
+      reason: 'GoPay refund (webhook)',
+      created_by: null,
+    })
+  }
+
+  const { data: tickets } = await db
+    .from('tickets')
+    .select('id, ticket_type_id, status')
+    .eq('order_id', order.id)
+    .neq('status', 'cancelled')
+    .returns<{ id: string; ticket_type_id: string; status: string }[]>()
+  for (const t of tickets ?? []) {
+    await db.from('tickets').update({ status: 'cancelled' }).eq('id', t.id)
+    await db
+      .rpc('release_ticket_capacity', {
+        p_ticket_type_id: t.ticket_type_id,
+        p_qty: 1,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+  }
+
+  await db.from('orders').update({ status: 'refunded' }).eq('id', order.id)
+}
+
+/**
+ * GoPay reports PARTIALLY_REFUNDED. If we initiated the partial the order is
+ * already 'partially_refunded' (and the amount is in the refunds ledger); this
+ * only advances a still-'paid' order that was partially refunded in the GoPay
+ * portal. The exact amount/tickets aren't derivable from the state alone, so we
+ * record only the status transition.
+ */
+async function syncPartialRefund(order: OrderRow): Promise<void> {
+  if (order.status !== 'paid') return
+  await serviceClient()
+    .from('orders')
+    .update({ status: 'partially_refunded' })
+    .eq('id', order.id)
+}
+
+/** GoPay CANCELED / TIMEOUTED: drop an unpaid reservation and free its capacity. */
+async function cancelUnpaidOrder(order: OrderRow): Promise<void> {
+  if (order.status !== 'pending') return
+  const db = serviceClient()
+
+  const { data: items } = await db
+    .from('order_items')
+    .select('ticket_type_id, quantity')
+    .eq('order_id', order.id)
+    .returns<{ ticket_type_id: string; quantity: number }[]>()
+  for (const it of items ?? []) {
+    await db
+      .rpc('release_ticket_capacity', {
+        p_ticket_type_id: it.ticket_type_id,
+        p_qty: it.quantity,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+  }
+
+  await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
 }
 
 /** Idempotent webhook entry point: called by /api/gopay/notify. */
