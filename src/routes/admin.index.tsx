@@ -5,18 +5,25 @@ import {
   getPlatformStatsFn,
 } from '../server/admin-overview'
 import type { PlatformStats, MonthlyPoint } from '../server/admin-overview'
+import { getAdminOpsFn } from '../server/admin-ops'
+import type { AdminOps } from '../server/admin-ops'
 import { generateSettlementsNowFn } from '../server/settlements'
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
 
 export const Route = createFileRoute('/admin/')({
   loader: async () => {
-    const [overview, platform] = await Promise.all([
+    const [overview, platform, ops] = await Promise.all([
       getAdminOverviewFn(),
       getPlatformStatsFn(),
+      getAdminOpsFn(),
     ])
     if ('error' in overview) throw new Error(overview.error)
-    return { overview, platform: 'error' in platform ? null : platform }
+    return {
+      overview,
+      platform: 'error' in platform ? null : platform,
+      ops: 'error' in ops ? null : ops,
+    }
   },
   component: AdminOverview,
 })
@@ -42,11 +49,13 @@ function Stat({
 }
 
 function AdminOverview() {
-  const { overview: o, platform } = Route.useLoaderData()
+  const { overview: o, platform, ops } = Route.useLoaderData()
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Prehľad platformy</h1>
+
+      {ops && <OpsPanel ops={ops} />}
 
       {platform && <RevenueBreakdown b={platform.breakdown} />}
 
@@ -80,6 +89,154 @@ function AdminOverview() {
       )}
 
       <GenerateSettlements />
+    </div>
+  )
+}
+
+function OpsPanel({ ops }: { ops: AdminOps }) {
+  const fmtDate = (iso: string) =>
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'short',
+      timeZone: 'Europe/Bratislava',
+    }).format(new Date(iso))
+  const fmtDateTime = (iso: string, tz: string) =>
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+      timeZone: tz,
+    }).format(new Date(iso))
+
+  const es = ops.health.eventsByStatus
+
+  return (
+    <div className="space-y-4">
+      {/* Actionable strip */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Link
+          to="/admin/payouts"
+          className={`rounded-lg border p-4 transition hover:shadow-sm ${
+            ops.pendingPayouts > 0 ? 'border-amber-300 bg-amber-50' : 'bg-white'
+          }`}
+        >
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Čakajúce vyplatenia
+          </div>
+          <div className="mt-1 text-2xl font-bold tabular-nums">
+            {ops.pendingPayouts}
+          </div>
+          <div className="mt-0.5 text-xs text-indigo-600">Spravovať →</div>
+        </Link>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Aktívni / pozastavení
+          </div>
+          <div className="mt-1 text-2xl font-bold tabular-nums">
+            {ops.health.organizersActive}
+            <span className="text-base font-normal text-gray-400">
+              {' '}
+              / {ops.health.organizersSuspended}
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs text-gray-400">organizátori</div>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Podujatia podľa stavu
+          </div>
+          <div className="mt-1 text-xs text-gray-600">
+            {(['published', 'draft', 'ended', 'cancelled'] as const)
+              .map((s) => `${s}: ${es[s] ?? 0}`)
+              .join(' · ')}
+          </div>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Najbližšie podujatia (7 dní)
+          </div>
+          <div className="mt-1 text-2xl font-bold tabular-nums">
+            {ops.upcomingEvents.length}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Upcoming events */}
+        <section className="rounded-lg border bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold">
+            Podujatia v najbližších 7 dňoch
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {ops.upcomingEvents.map((e) => (
+              <li key={e.id} className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{e.title}</span>
+                  <span className="block truncate text-xs text-gray-400">
+                    {e.organizerName} · {fmtDateTime(e.startsAt, e.timezone)}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-gray-500">
+                  {e.soldCount}/{e.capacity}
+                </span>
+              </li>
+            ))}
+            {ops.upcomingEvents.length === 0 && (
+              <li className="text-gray-400">Žiadne.</li>
+            )}
+          </ul>
+        </section>
+
+        {/* Recent large orders */}
+        <section className="rounded-lg border bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold">
+            Posledné veľké objednávky
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {ops.largeOrders.map((o) => (
+              <li key={o.id} className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block truncate">{o.eventTitle}</span>
+                  <span className="block truncate text-xs text-gray-400">
+                    {o.buyerEmail}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap tabular-nums">
+                  {formatEur(o.totalCents)}
+                </span>
+              </li>
+            ))}
+            {ops.largeOrders.length === 0 && (
+              <li className="text-gray-400">Žiadne.</li>
+            )}
+          </ul>
+        </section>
+
+        {/* Recent signups */}
+        <section className="rounded-lg border bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold">Posledné registrácie</h2>
+          <ul className="space-y-2 text-sm">
+            {ops.recentOrganizers.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between gap-3"
+              >
+                <Link
+                  to="/admin/organizers/$organizerId"
+                  params={{ organizerId: r.id }}
+                  className="truncate text-indigo-600 hover:underline"
+                >
+                  {r.name}
+                </Link>
+                <span className="whitespace-nowrap text-xs text-gray-400">
+                  {fmtDate(r.createdAt)}
+                </span>
+              </li>
+            ))}
+            {ops.recentOrganizers.length === 0 && (
+              <li className="text-gray-400">Žiadne.</li>
+            )}
+          </ul>
+        </section>
+      </div>
     </div>
   )
 }
