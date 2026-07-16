@@ -29,6 +29,7 @@ import { Route as OrderIdRouteImport } from './routes/order.$id'
 import { Route as AppSettlementsRouteImport } from './routes/app.settlements'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppDevelopersRouteImport } from './routes/app.developers'
+import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
@@ -163,6 +164,11 @@ const AppDevelopersRoute = AppDevelopersRouteImport.update({
   id: '/developers',
   path: '/developers',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCheckinRoute = ApiCheckinRouteImport.update({
   id: '/api/checkin',
@@ -361,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/api/health': typeof ApiHealthRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -415,6 +422,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/api/health': typeof ApiHealthRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -472,6 +480,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/events': typeof AdminEventsRoute
   '/api/checkin': typeof ApiCheckinRoute
+  '/api/health': typeof ApiHealthRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -530,6 +539,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/api/health'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -584,6 +594,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/api/health'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -640,6 +651,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/events'
     | '/api/checkin'
+    | '/api/health'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -696,6 +708,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiCheckinRoute: typeof ApiCheckinRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   OrderIdRoute: typeof OrderIdRoute
   ApiCronIssueInvoicesRoute: typeof ApiCronIssueInvoicesRoute
   ApiCronProcessEmailRoute: typeof ApiCronProcessEmailRoute
@@ -858,6 +871,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/developers'
       preLoaderRoute: typeof AppDevelopersRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/checkin': {
       id: '/api/checkin'
@@ -1214,6 +1234,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiCheckinRoute: ApiCheckinRoute,
+  ApiHealthRoute: ApiHealthRoute,
   OrderIdRoute: OrderIdRoute,
   ApiCronIssueInvoicesRoute: ApiCronIssueInvoicesRoute,
   ApiCronProcessEmailRoute: ApiCronProcessEmailRoute,
