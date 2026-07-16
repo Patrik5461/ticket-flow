@@ -64,6 +64,19 @@ export interface EventRow {
   meta_pixel_id: string | null
 }
 
+export type WaitlistStatus = 'waiting' | 'notified' | 'cancelled'
+
+export interface WaitlistEntryRow {
+  id: string
+  event_id: string
+  ticket_type_id: string
+  email: string
+  status: WaitlistStatus
+  notified_at: string | null
+  notify_expires_at: string | null
+  created_at: string
+}
+
 export interface TicketTypeRow {
   id: string
   event_id: string

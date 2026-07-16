@@ -5,7 +5,7 @@ import {
   Link,
 } from '@tanstack/react-router'
 import { useState } from 'react'
-import { getEventFn } from '../server/fns'
+import { getEventFn, joinWaitlistFn } from '../server/fns'
 import { formatEur } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
 
@@ -60,6 +60,79 @@ function Stepper({
       >
         +
       </button>
+    </div>
+  )
+}
+
+function WaitlistWatch({
+  slug,
+  ticketTypeId,
+}: {
+  slug: string
+  ticketTypeId: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await joinWaitlistFn({
+        data: { slug, ticketTypeId, email: email.trim() },
+      })
+      if (res.ok) {
+        setMsg({ ok: true, text: 'Dáme vám vedieť, keď sa uvoľní miesto.' })
+        setEmail('')
+      } else {
+        setMsg({ ok: false, text: res.message ?? 'Nepodarilo sa uložiť.' })
+      }
+    } catch {
+      setMsg({ ok: false, text: 'Nepodarilo sa uložiť. Skúste znova.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open && !msg) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-md border border-ink-700 px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+      >
+        Strážiť dostupnosť
+      </button>
+    )
+  }
+
+  return (
+    <div className="w-full max-w-[220px]">
+      {msg?.ok ? (
+        <p className="text-xs text-emerald-400">{msg.text}</p>
+      ) : (
+        <form onSubmit={submit} className="flex flex-col gap-1.5">
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            placeholder="vas@email.sk"
+            className="w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? 'Ukladám…' : 'Upozorniť ma'}
+          </button>
+          {msg && !msg.ok && <p className="text-xs text-red-400">{msg.text}</p>}
+        </form>
+      )}
     </div>
   )
 }
@@ -215,9 +288,12 @@ function EventPage() {
                           </div>
                         </div>
                         {t.sold_out ? (
-                          <span className="rounded-md bg-ink-800 px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink-400">
-                            Vypredané
-                          </span>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="rounded-md bg-ink-800 px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink-400">
+                              Vypredané
+                            </span>
+                            <WaitlistWatch slug={slug} ticketTypeId={t.id} />
+                          </div>
                         ) : (
                           <Stepper
                             value={qty[t.id] ?? 0}

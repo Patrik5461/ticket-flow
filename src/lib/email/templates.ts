@@ -235,6 +235,30 @@ export function reminderEmail(d: {
   }
 }
 
+export function waitlistEmail(d: {
+  eventTitle: string
+  typeName: string
+  link: string
+  windowMinutes: number
+}): RenderedEmail {
+  return {
+    subject: `Uvoľnila sa vstupenka — ${d.eventTitle}`,
+    html: emailLayout({
+      heading: 'Uvoľnila sa vstupenka 🎟️',
+      preheader: `${d.typeName} — ${d.eventTitle}`,
+      contentHtml:
+        p(
+          `Pre podujatie <strong>${escapeHtml(d.eventTitle)}</strong> sa uvoľnila kapacita typu <strong>${escapeHtml(d.typeName)}</strong>.`,
+        ) +
+        p(
+          `Dokončite nákup do <strong>${d.windowMinutes} minút</strong> — potom ponuku dostane ďalší v poradí.`,
+        ) +
+        p(button(d.link, 'Kúpiť vstupenku')) +
+        muted('Miesto nie je rezervované, kým nedokončíte objednávku.'),
+    }),
+  }
+}
+
 export function bulkMessageEmail(d: {
   eventTitle: string
   subject: string

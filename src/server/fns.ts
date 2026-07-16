@@ -15,6 +15,8 @@ import {
   OrderError,
 } from './order-service'
 import { lookupCompanyByIco, normalizeIco } from '../lib/rpo'
+import { joinWaitlist } from './waitlist'
+import { serviceClient } from '../lib/supabase/server'
 
 const cartItemsSchema = z
   .array(
@@ -121,4 +123,19 @@ export const lookupCompanyFn = createServerFn({ method: 'POST' })
     const company = await lookupCompanyByIco(data.ico)
     if (!company) return { error: 'Firma sa nenašla v registri.' } as const
     return { company } as const
+  })
+
+/** Public waitlist signup: watch a (sold-out) ticket type for availability. */
+export const joinWaitlistFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        slug: z.string().min(1),
+        ticketTypeId: z.string().uuid(),
+        email: z.string().trim().email().max(200),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    return joinWaitlist(serviceClient(), data)
   })
