@@ -206,6 +206,8 @@ const eventInput = z.object({
   startsAtLocal: z.string().min(1),
   endsAtLocal: z.string().optional().nullable(),
   timezone: z.string().default('Europe/Bratislava'),
+  ga4MeasurementId: z.string().trim().max(40).optional().nullable(),
+  metaPixelId: z.string().trim().max(40).optional().nullable(),
 })
 
 export const createEventFn = createServerFn({ method: 'POST' })
@@ -229,6 +231,8 @@ export const createEventFn = createServerFn({ method: 'POST' })
             ? zonedLocalToUtcIso(data.endsAtLocal, data.timezone)
             : null,
           timezone: data.timezone,
+          ga4_measurement_id: data.ga4MeasurementId ?? null,
+          meta_pixel_id: data.metaPixelId ?? null,
           status: 'draft',
         })
         .select('id')
@@ -266,6 +270,8 @@ export const updateEventFn = createServerFn({ method: 'POST' })
           starts_at: newStartsAt,
           ends_at: newEndsAt,
           timezone: data.timezone,
+          ga4_measurement_id: data.ga4MeasurementId ?? null,
+          meta_pixel_id: data.metaPixelId ?? null,
         })
         .eq('id', event.id)
       if (error) throw new DashboardError('Podujatie sa nepodarilo uložiť.')

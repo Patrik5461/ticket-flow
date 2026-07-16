@@ -407,6 +407,8 @@ function EventDetailsForm({
     venueAddress: event.venue_address ?? '',
     startsAtLocal: utcIsoToZonedLocal(event.starts_at, tz),
     endsAtLocal: event.ends_at ? utcIsoToZonedLocal(event.ends_at, tz) : '',
+    ga4: event.ga4_measurement_id ?? '',
+    pixel: event.meta_pixel_id ?? '',
   })
   const [msg, setMsg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -429,6 +431,8 @@ function EventDetailsForm({
         startsAtLocal: form.startsAtLocal,
         endsAtLocal: form.endsAtLocal || null,
         timezone: tz,
+        ga4MeasurementId: form.ga4.trim() || null,
+        metaPixelId: form.pixel.trim() || null,
       },
     })
     setSaving(false)
@@ -486,6 +490,26 @@ function EventDetailsForm({
               value={form.endsAtLocal}
               onChange={set('endsAtLocal')}
               className={inputCls}
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-4 border-t pt-4">
+          <label className="text-sm">
+            <span className="mb-1 block text-gray-600">GA4 Measurement ID</span>
+            <input
+              value={form.ga4}
+              onChange={set('ga4')}
+              className={inputCls}
+              placeholder="G-XXXXXXX"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-gray-600">Meta Pixel ID</span>
+            <input
+              value={form.pixel}
+              onChange={set('pixel')}
+              className={inputCls}
+              placeholder="123456789012345"
             />
           </label>
         </div>

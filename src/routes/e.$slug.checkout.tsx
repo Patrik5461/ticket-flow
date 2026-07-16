@@ -7,6 +7,7 @@ import {
   lookupCompanyFn,
 } from '../server/fns'
 import { formatEur } from '../lib/money'
+import { EventAnalytics } from '../components/EventAnalytics'
 
 interface CartItem {
   ticketTypeId: string
@@ -257,6 +258,10 @@ function Checkout() {
 
   return (
     <div className="min-h-screen">
+      <EventAnalytics
+        ga4Id={event.ga4_measurement_id}
+        pixelId={event.meta_pixel_id}
+      />
       <div className="mx-auto max-w-6xl px-6 py-10 md:py-16">
         <Link
           to="/e/$slug"

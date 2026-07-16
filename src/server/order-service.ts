@@ -46,6 +46,12 @@ const RESERVATION_MINUTES = 15
 
 // Columns safe to expose publicly (qr_secret intentionally excluded).
 const PUBLIC_EVENT_COLS =
+  'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status, ga4_measurement_id, meta_pixel_id'
+
+// Same as PUBLIC_EVENT_COLS but without the tracking columns — a fallback for
+// databases where the event-tracking migration hasn't been applied yet, so the
+// public pages keep working (tracking just inactive until the migration lands).
+const PUBLIC_EVENT_COLS_LEGACY =
   'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status'
 
 export type PublicEvent = Omit<EventRow, 'qr_secret'>
@@ -73,12 +79,22 @@ export async function getPublicEvent(
   // Public read: anon client (RLS allows published events + non-hidden types),
   // so the landing/event pages render without a service role key.
   const db = anonClient()
-  const { data: event } = await db
+  const primary = await db
     .from('events')
     .select(PUBLIC_EVENT_COLS)
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle<PublicEvent>()
+  const event = primary.error
+    ? (
+        await db
+          .from('events')
+          .select(PUBLIC_EVENT_COLS_LEGACY)
+          .eq('slug', slug)
+          .eq('status', 'published')
+          .maybeSingle<PublicEvent>()
+      ).data
+    : primary.data
 
   if (!event) return null
 
@@ -109,13 +125,21 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
 
 export async function listPublishedEvents(): Promise<PublicEvent[]> {
   const db = anonClient()
-  const { data } = await db
+  const primary = await db
     .from('events')
     .select(PUBLIC_EVENT_COLS)
     .eq('status', 'published')
     .order('starts_at', { ascending: true })
     .returns<PublicEvent[]>()
-  return data ?? []
+  if (!primary.error) return primary.data
+
+  const { data: legacy } = await db
+    .from('events')
+    .select(PUBLIC_EVENT_COLS_LEGACY)
+    .eq('status', 'published')
+    .order('starts_at', { ascending: true })
+    .returns<PublicEvent[]>()
+  return legacy ?? []
 }
 
 // ---------------------------------------------------------------------------

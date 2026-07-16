@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { getOrderFn } from '../server/fns'
 import { formatEur } from '../lib/money'
+import { EventAnalytics } from '../components/EventAnalytics'
 import type { OrderStatus } from '../lib/db-types'
 
 export const Route = createFileRoute('/order/$id')({
@@ -100,6 +101,15 @@ function OrderPage() {
 
   return (
     <div className="min-h-screen">
+      <EventAnalytics
+        ga4Id={event.ga4_measurement_id}
+        pixelId={event.meta_pixel_id}
+        purchase={
+          order.status === 'paid'
+            ? { transactionId: order.id, valueEur: order.total_cents / 100 }
+            : null
+        }
+      />
       <div className="mx-auto max-w-3xl px-6 py-12 md:py-20">
         <Link
           to="/"

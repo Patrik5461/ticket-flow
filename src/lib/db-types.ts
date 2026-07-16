@@ -56,6 +56,8 @@ export interface EventRow {
   cover_url: string | null
   status: EventStatus
   qr_secret: string
+  ga4_measurement_id: string | null
+  meta_pixel_id: string | null
 }
 
 export interface TicketTypeRow {

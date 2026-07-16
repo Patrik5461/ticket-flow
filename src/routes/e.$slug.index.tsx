@@ -1,7 +1,13 @@
-import { createFileRoute, notFound, useNavigate, Link } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  notFound,
+  useNavigate,
+  Link,
+} from '@tanstack/react-router'
 import { useState } from 'react'
 import { getEventFn } from '../server/fns'
 import { formatEur } from '../lib/money'
+import { EventAnalytics } from '../components/EventAnalytics'
 
 export const Route = createFileRoute('/e/$slug/')({
   loader: async ({ params }) => {
@@ -87,6 +93,10 @@ function EventPage() {
 
   return (
     <div className="min-h-screen">
+      <EventAnalytics
+        ga4Id={event.ga4_measurement_id}
+        pixelId={event.meta_pixel_id}
+      />
       {/* HERO */}
       <div
         className="relative"
@@ -101,7 +111,14 @@ function EventPage() {
             to="/"
             className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-ink-100"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Späť na podujatia
@@ -109,23 +126,38 @@ function EventPage() {
 
           <div className="mt-8 max-w-3xl animate-fade-up">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-950/60 px-3 py-1 text-xs font-medium text-accent backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              V predaji
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />V predaji
             </div>
             <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
               {event.title}
             </h1>
             <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-ink-200">
               <span className="inline-flex items-center gap-2">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M16 2v4M8 2v4M3 10h18" />
                 </svg>
                 {formatDate(event.starts_at, event.timezone)}
               </span>
               {event.venue_name && (
                 <span className="inline-flex items-center gap-2">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 22s-8-7.5-8-13a8 8 0 1 1 16 0c0 5.5-8 13-8 13z" /><circle cx="12" cy="9" r="3" />
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M12 22s-8-7.5-8-13a8 8 0 1 1 16 0c0 5.5-8 13-8 13z" />
+                    <circle cx="12" cy="9" r="3" />
                   </svg>
                   {event.venue_name}
                   {event.venue_address ? `, ${event.venue_address}` : ''}
@@ -147,7 +179,9 @@ function EventPage() {
                 {event.description}
               </p>
             ) : (
-              <p className="mt-4 text-ink-500">Bližší popis podujatia bude čoskoro.</p>
+              <p className="mt-4 text-ink-500">
+                Bližší popis podujatia bude čoskoro.
+              </p>
             )}
           </div>
 
@@ -168,7 +202,9 @@ function EventPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-ink-100">{t.name}</div>
+                          <div className="font-semibold text-ink-100">
+                            {t.name}
+                          </div>
                           {t.description && (
                             <div className="mt-0.5 text-xs text-ink-400 line-clamp-2">
                               {t.description}
@@ -210,7 +246,14 @@ function EventPage() {
                 >
                   {anySelected ? 'Pokračovať na platbu' : 'Vyberte vstupenky'}
                   {anySelected && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M5 12h14M13 5l7 7-7 7" />
                     </svg>
                   )}
@@ -226,12 +269,23 @@ function EventPage() {
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-ink-800 bg-ink-950/95 p-4 backdrop-blur-xl md:hidden animate-fade-up">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div>
-              <div className="text-xs text-ink-400">{totalItems} vstupeniek</div>
-              <div className="font-display text-xl font-bold">{formatEur(total)}</div>
+              <div className="text-xs text-ink-400">
+                {totalItems} vstupeniek
+              </div>
+              <div className="font-display text-xl font-bold">
+                {formatEur(total)}
+              </div>
             </div>
             <button onClick={goToCheckout} className="btn-primary">
               Pokračovať
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
             </button>
