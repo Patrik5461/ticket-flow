@@ -736,6 +736,92 @@ export const removeBrandLogoFn = createServerFn({ method: 'POST' }).handler(
 )
 
 // ---------------------------------------------------------------------------
+// Organizer dashboard overview (metrics across all events).
+// ---------------------------------------------------------------------------
+
+export interface OrganizerOverview {
+  soldTickets: number
+  grossCents: number
+  feeCents: number
+  netCents: number
+  paidOrderCount: number
+}
+
+export const getOrganizerOverviewFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z.object({ period: z.enum(['30d', 'all']).default('30d') }).parse(d),
+  )
+  .handler(async ({ data }): Promise<OrganizerOverview> => {
+    const actor = await requireOrganizer()
+    const db = serviceClient()
+
+    const { data: events } = await db
+      .from('events')
+      .select('id')
+      .eq('organizer_id', actor.organizerId)
+      .returns<{ id: string }[]>()
+    const eventIds = (events ?? []).map((e) => e.id)
+    const empty: OrganizerOverview = {
+      soldTickets: 0,
+      grossCents: 0,
+      feeCents: 0,
+      netCents: 0,
+      paidOrderCount: 0,
+    }
+    if (eventIds.length === 0) return empty
+
+    const { data: paid } = await db
+      .from('orders')
+      .select('id, total_cents, fee_cents, paid_at, created_at')
+      .in('event_id', eventIds)
+      .eq('status', 'paid')
+      .returns<
+        {
+          id: string
+          total_cents: number
+          fee_cents: number
+          paid_at: string | null
+          created_at: string
+        }[]
+      >()
+
+    const cutoff =
+      data.period === '30d' ? Date.now() - 30 * 24 * 60 * 60 * 1000 : 0
+    const orders = (paid ?? []).filter((o) => {
+      const when = new Date(o.paid_at ?? o.created_at).getTime()
+      return when >= cutoff
+    })
+
+    let grossCents = 0
+    let feeCents = 0
+    for (const o of orders) {
+      grossCents += o.total_cents
+      feeCents += o.fee_cents
+    }
+
+    let soldTickets = 0
+    if (orders.length > 0) {
+      const { data: items } = await db
+        .from('order_items')
+        .select('quantity, order_id')
+        .in(
+          'order_id',
+          orders.map((o) => o.id),
+        )
+        .returns<{ quantity: number; order_id: string }[]>()
+      soldTickets = (items ?? []).reduce((s, i) => s + i.quantity, 0)
+    }
+
+    return {
+      soldTickets,
+      grossCents,
+      feeCents,
+      netCents: grossCents - feeCents,
+      paidOrderCount: orders.length,
+    }
+  })
+
+// ---------------------------------------------------------------------------
 // Organizer company details + team.
 // ---------------------------------------------------------------------------
 
