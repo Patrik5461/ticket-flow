@@ -14,6 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          created_at: string
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          organizer_id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name?: string
+          organizer_id: string
+          revoked_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          organizer_id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+        }
+        Relationships: []
+      }
+      bulk_messages: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          recipient_count: number
+          subject: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          recipient_count?: number
+          subject: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          recipient_count?: number
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_messages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkin_log: {
         Row: {
           created_at: string
@@ -103,13 +233,101 @@ export type Database = {
           },
         ]
       }
+      email_jobs: {
+        Row: {
+          attempts: number
+          campaign_id: string | null
+          created_at: string
+          dedup_key: string | null
+          event_id: string | null
+          html: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          max_attempts: number
+          order_id: string | null
+          recipient: string
+          status: string
+          subject: string | null
+          ticket_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          campaign_id?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          event_id?: string | null
+          html?: string | null
+          id?: string
+          kind: string
+          last_error?: string | null
+          max_attempts?: number
+          order_id?: string | null
+          recipient: string
+          status?: string
+          subject?: string | null
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string | null
+          created_at?: string
+          dedup_key?: string | null
+          event_id?: string | null
+          html?: string | null
+          id?: string
+          kind?: string
+          last_error?: string | null
+          max_attempts?: number
+          order_id?: string | null
+          recipient?: string
+          status?: string
+          subject?: string | null
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_jobs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_jobs_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           cover_url: string | null
           created_at: string
           description: string | null
           ends_at: string | null
+          ga4_measurement_id: string | null
           id: string
+          meta_pixel_id: string | null
           organizer_id: string
           qr_secret: string
           slug: string
@@ -125,7 +343,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           ends_at?: string | null
+          ga4_measurement_id?: string | null
           id?: string
+          meta_pixel_id?: string | null
           organizer_id: string
           qr_secret?: string
           slug: string
@@ -141,7 +361,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           ends_at?: string | null
+          ga4_measurement_id?: string | null
           id?: string
+          meta_pixel_id?: string | null
           organizer_id?: string
           qr_secret?: string
           slug?: string
@@ -203,11 +425,17 @@ export type Database = {
       }
       orders: {
         Row: {
+          billing_address: string | null
+          billing_dic: string | null
+          billing_ic_dph: string | null
+          billing_ico: string | null
+          billing_name: string | null
           buyer_email: string
           buyer_name: string | null
           buyer_phone: string | null
           coupon_id: string | null
           created_at: string
+          custom_answers: Json | null
           discount_cents: number
           event_id: string
           expires_at: string | null
@@ -215,16 +443,24 @@ export type Database = {
           gopay_payment_id: string | null
           id: string
           paid_at: string | null
+          payment_method: string
           status: string
           subtotal_cents: number
+          terms_accepted_at: string | null
           total_cents: number
         }
         Insert: {
+          billing_address?: string | null
+          billing_dic?: string | null
+          billing_ic_dph?: string | null
+          billing_ico?: string | null
+          billing_name?: string | null
           buyer_email: string
           buyer_name?: string | null
           buyer_phone?: string | null
           coupon_id?: string | null
           created_at?: string
+          custom_answers?: Json | null
           discount_cents?: number
           event_id: string
           expires_at?: string | null
@@ -232,16 +468,24 @@ export type Database = {
           gopay_payment_id?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: string
           status?: string
           subtotal_cents?: number
+          terms_accepted_at?: string | null
           total_cents?: number
         }
         Update: {
+          billing_address?: string | null
+          billing_dic?: string | null
+          billing_ic_dph?: string | null
+          billing_ico?: string | null
+          billing_name?: string | null
           buyer_email?: string
           buyer_name?: string | null
           buyer_phone?: string | null
           coupon_id?: string | null
           created_at?: string
+          custom_answers?: Json | null
           discount_cents?: number
           event_id?: string
           expires_at?: string | null
@@ -249,8 +493,10 @@ export type Database = {
           gopay_payment_id?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: string
           status?: string
           subtotal_cents?: number
+          terms_accepted_at?: string | null
           total_cents?: number
         }
         Relationships: [
@@ -304,6 +550,9 @@ export type Database = {
       }
       organizers: {
         Row: {
+          admin_notes: string | null
+          brand_color: string | null
+          brand_logo_url: string | null
           created_at: string
           dic: string | null
           email: string | null
@@ -317,8 +566,12 @@ export type Database = {
           name: string
           phone: string | null
           slug: string
+          status: string
         }
         Insert: {
+          admin_notes?: string | null
+          brand_color?: string | null
+          brand_logo_url?: string | null
           created_at?: string
           dic?: string | null
           email?: string | null
@@ -332,8 +585,12 @@ export type Database = {
           name: string
           phone?: string | null
           slug: string
+          status?: string
         }
         Update: {
+          admin_notes?: string | null
+          brand_color?: string | null
+          brand_logo_url?: string | null
           created_at?: string
           dic?: string | null
           email?: string | null
@@ -347,6 +604,7 @@ export type Database = {
           name?: string
           phone?: string | null
           slug?: string
+          status?: string
         }
         Relationships: []
       }
@@ -385,11 +643,252 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      refund_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          event_id: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          order_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event_id: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          order_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          order_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_jobs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refunds: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          gopay_refund_id: string | null
+          id: string
+          order_id: string
+          reason: string | null
+          status: string
+          ticket_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          gopay_refund_id?: string | null
+          id?: string
+          order_id: string
+          reason?: string | null
+          status?: string
+          ticket_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          gopay_refund_id?: string | null
+          id?: string
+          order_id?: string
+          reason?: string | null
+          status?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          currency: string
+          fee_cents: number
+          generated_at: string
+          gross_cents: number
+          id: string
+          invoice_ref: string | null
+          invoice_status: string
+          invoiced_at: string | null
+          net_cents: number
+          order_count: number
+          organizer_id: string
+          period_end: string
+          period_month: string
+          period_start: string
+          refunded_cents: number
+          status: string
+        }
+        Insert: {
+          currency?: string
+          fee_cents?: number
+          generated_at?: string
+          gross_cents?: number
+          id?: string
+          invoice_ref?: string | null
+          invoice_status?: string
+          invoiced_at?: string | null
+          net_cents?: number
+          order_count?: number
+          organizer_id: string
+          period_end: string
+          period_month: string
+          period_start: string
+          refunded_cents?: number
+          status?: string
+        }
+        Update: {
+          currency?: string
+          fee_cents?: number
+          generated_at?: string
+          gross_cents?: number
+          id?: string
+          invoice_ref?: string | null
+          invoice_status?: string
+          invoiced_at?: string | null
+          net_cents?: number
+          order_count?: number
+          organizer_id?: string
+          period_end?: string
+          period_month?: string
+          period_start?: string
+          refunded_cents?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_answers: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          field_key: string
+          field_label: string
+          id: string
+          order_id: string | null
+          ticket_id: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          field_key: string
+          field_label: string
+          id?: string
+          order_id?: string | null
+          ticket_id: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          field_key?: string
+          field_label?: string
+          id?: string
+          order_id?: string | null
+          ticket_id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_answers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_answers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_answers_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_types: {
         Row: {
           capacity: number
           created_at: string
           currency: string
+          custom_fields: Json
           description: string | null
           event_id: string
           hidden: boolean
@@ -406,6 +905,7 @@ export type Database = {
           capacity: number
           created_at?: string
           currency?: string
+          custom_fields?: Json
           description?: string | null
           event_id: string
           hidden?: boolean
@@ -422,6 +922,7 @@ export type Database = {
           capacity?: number
           created_at?: string
           currency?: string
+          custom_fields?: Json
           description?: string | null
           event_id?: string
           hidden?: boolean
@@ -449,9 +950,11 @@ export type Database = {
           checked_in_by: string | null
           created_at: string
           event_id: string
+          holder_email: string | null
           holder_name: string | null
           id: string
-          order_id: string
+          order_id: string | null
+          source: string
           status: string
           ticket_type_id: string
           used_at: string | null
@@ -460,9 +963,11 @@ export type Database = {
           checked_in_by?: string | null
           created_at?: string
           event_id: string
+          holder_email?: string | null
           holder_name?: string | null
           id?: string
-          order_id: string
+          order_id?: string | null
+          source?: string
           status?: string
           ticket_type_id: string
           used_at?: string | null
@@ -471,9 +976,11 @@ export type Database = {
           checked_in_by?: string | null
           created_at?: string
           event_id?: string
+          holder_email?: string | null
           holder_name?: string | null
           id?: string
-          order_id?: string
+          order_id?: string | null
+          source?: string
           status?: string
           ticket_type_id?: string
           used_at?: string | null
@@ -502,16 +1009,179 @@ export type Database = {
           },
         ]
       }
+      waitlist_entries: {
+        Row: {
+          created_at: string
+          email: string
+          event_id: string
+          id: string
+          notified_at: string | null
+          notify_expires_at: string | null
+          status: string
+          ticket_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          event_id: string
+          id?: string
+          notified_at?: string | null
+          notify_expires_at?: string | null
+          status?: string
+          ticket_type_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          event_id?: string
+          id?: string
+          notified_at?: string | null
+          notify_expires_at?: string | null
+          status?: string
+          ticket_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_entries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          endpoint_id: string
+          event_type: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          payload: Json
+          response_status: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          payload: Json
+          response_status?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          endpoint_id?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          payload?: Json
+          response_status?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_endpoints: {
+        Row: {
+          active: boolean
+          created_at: string
+          events: string[]
+          id: string
+          organizer_id: string
+          secret: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          events?: string[]
+          id?: string
+          organizer_id: string
+          secret: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          events?: string[]
+          id?: string
+          organizer_id?: string
+          secret?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_endpoints_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      admin_search_orders: {
+        Args: { p_q: string }
+        Returns: {
+          buyer_email: string
+          buyer_name: string
+          created_at: string
+          event_id: string
+          event_title: string
+          id: string
+          organizer_id: string
+          organizer_name: string
+          paid_at: string
+          ref: string
+          status: string
+          total_cents: number
+        }[]
+      }
+      generate_previous_month_settlements: { Args: never; Returns: number }
+      generate_settlements: {
+        Args: { p_period_month: string }
+        Returns: number
+      }
       increment_coupon_use: {
         Args: { p_coupon_id: string }
         Returns: undefined
       }
       is_org_member: { Args: { p_org: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
+      organizer_is_active: { Args: { p_org: string }; Returns: boolean }
       release_expired_orders: { Args: never; Returns: number }
       release_ticket_capacity: {
         Args: { p_qty: number; p_ticket_type_id: string }
@@ -521,6 +1191,12 @@ export type Database = {
         Args: { p_qty: number; p_ticket_type_id: string }
         Returns: boolean
       }
+      schedule_reminder_jobs: { Args: never; Returns: number }
+      trigger_email_processing: { Args: never; Returns: undefined }
+      trigger_invoice_issuing: { Args: never; Returns: undefined }
+      trigger_refund_processing: { Args: never; Returns: undefined }
+      trigger_waitlist_processing: { Args: never; Returns: undefined }
+      trigger_webhook_processing: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
