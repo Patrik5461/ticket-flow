@@ -166,77 +166,74 @@ function ManageEvent() {
   }
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <div>
-        <Link to="/app" className="text-sm text-indigo-600 hover:underline">
-          ← Späť na podujatia
-        </Link>
-        <div className="mt-3 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{event.title}</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">
-              {event.status === 'published' ? 'Zverejnené' : 'Koncept'}
-            </span>
-            <button
-              onClick={togglePublish}
-              className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-                event.status === 'published'
-                  ? 'bg-gray-600 hover:bg-gray-700'
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
+    <div className="max-w-5xl space-y-8">
+      <section className="space-y-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <Link
+              to="/app"
+              className="inline-flex items-center gap-1 text-sm text-accent transition hover:text-accent-dim"
             >
-              {event.status === 'published' ? 'Skryť (koncept)' : 'Zverejniť'}
-            </button>
+              ← Späť na podujatia
+            </Link>
+            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">
+              {event.title}
+            </h1>
           </div>
+          <PublishToggle event={event} onToggle={togglePublish} />
         </div>
-        <div className="mt-2 flex items-center gap-4 text-sm">
-          <Link
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <ActionCard
             to="/app/events/$eventId/sales"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Predaj a tržby →
-          </Link>
-          <Link
+            icon={BarChart3}
+            title="Predaj a tržby"
+            subtitle="Prehľad a objednávky"
+            primary
+          />
+          <ActionCard
             to="/app/events/$eventId/checkin"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Check-in →
-          </Link>
-          <Link
+            icon={ScanLine}
+            title="Check-in"
+            subtitle="Skenovanie QR kódov"
+            primary
+          />
+          <ActionCard
             to="/app/events/$eventId/guestlist"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Guestlist →
-          </Link>
-          <Link
+            icon={Users}
+            title="Guestlist"
+            subtitle="Zoznam účastníkov"
+          />
+          <ActionCard
             to="/app/events/$eventId/manual-order"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Ručná objednávka →
-          </Link>
-          <Link
+            icon={ShoppingCart}
+            title="Ručná objednávka"
+            subtitle="Vytvoriť objednávku"
+          />
+          <ActionCard
             to="/app/events/$eventId/pos"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Pokladňa (POS) →
-          </Link>
+            icon={Receipt}
+            title="Pokladňa (POS)"
+            subtitle="Rýchly predaj na mieste"
+            primary
+          />
           {event.status === 'published' && (
-            <a
+            <ActionCard
               href={`/e/${event.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-indigo-600 hover:underline"
-            >
-              Verejná stránka: /e/{event.slug} ↗
-            </a>
+              external
+              icon={ExternalLink}
+              title="Verejná stránka"
+              subtitle="Otvoriť stránku"
+              ghost
+            />
           )}
         </div>
-      </div>
+      </section>
 
       <EventDetailsForm event={event} onSaved={reload} tz={tz} />
       <TicketTypesSection
