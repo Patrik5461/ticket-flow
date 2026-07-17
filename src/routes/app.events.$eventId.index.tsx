@@ -6,6 +6,14 @@ import {
 } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import {
+  BarChart3,
+  ScanLine,
+  Users,
+  ShoppingCart,
+  Receipt,
+  ExternalLink,
+} from 'lucide-react'
+import {
   getMyEventFn,
   updateEventFn,
   publishEventFn,
