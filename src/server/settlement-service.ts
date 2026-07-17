@@ -11,7 +11,9 @@ import { serviceClient } from '../lib/supabase/server'
 export interface SettlementRow {
   id: string
   organizer_id: string
-  period_month: string
+  kind: string
+  event_id: string | null
+  period_month: string | null
   period_start: string
   period_end: string
   gross_cents: number
@@ -54,7 +56,7 @@ export async function listSettlements(
     .from('settlements')
     .select('*')
     .eq('organizer_id', organizerId)
-    .order('period_month', { ascending: false })
+    .order('period_start', { ascending: false })
     .returns<SettlementRow[]>()
   return data ?? []
 }
@@ -92,15 +94,12 @@ export async function getSettlementForOrganizer(
     .eq('id', organizerId)
     .maybeSingle<SettlementDetail['organizer']>()
 
+  // Orders claimed by this settlement (settlement_id), so the PDF reconciles
+  // exactly to the stored totals — for both monthly and manual settlements.
   const { data: rawOrders } = await db
     .from('orders')
-    .select(
-      'id, total_cents, fee_cents, paid_at, events!inner(title, organizer_id)',
-    )
-    .gte('paid_at', settlement.period_start)
-    .lt('paid_at', settlement.period_end)
-    .in('status', ['paid', 'partially_refunded', 'refunded'])
-    .eq('events.organizer_id', organizerId)
+    .select('id, total_cents, fee_cents, paid_at, events(title)')
+    .eq('settlement_id', settlement.id)
     .order('paid_at', { ascending: true })
     .returns<RawOrder[]>()
 
