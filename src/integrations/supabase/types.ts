@@ -433,6 +433,7 @@ export type Database = {
           buyer_email: string
           buyer_name: string | null
           buyer_phone: string | null
+          cash_received_cents: number | null
           coupon_id: string | null
           created_at: string
           custom_answers: Json | null
@@ -440,10 +441,13 @@ export type Database = {
           event_id: string
           expires_at: string | null
           fee_cents: number
+          fiscal_code: string | null
           gopay_payment_id: string | null
           id: string
           paid_at: string | null
           payment_method: string
+          receipt_number: string | null
+          sold_by: string | null
           status: string
           subtotal_cents: number
           terms_accepted_at: string | null
@@ -458,6 +462,7 @@ export type Database = {
           buyer_email: string
           buyer_name?: string | null
           buyer_phone?: string | null
+          cash_received_cents?: number | null
           coupon_id?: string | null
           created_at?: string
           custom_answers?: Json | null
@@ -465,10 +470,13 @@ export type Database = {
           event_id: string
           expires_at?: string | null
           fee_cents?: number
+          fiscal_code?: string | null
           gopay_payment_id?: string | null
           id?: string
           paid_at?: string | null
           payment_method?: string
+          receipt_number?: string | null
+          sold_by?: string | null
           status?: string
           subtotal_cents?: number
           terms_accepted_at?: string | null
@@ -483,6 +491,7 @@ export type Database = {
           buyer_email?: string
           buyer_name?: string | null
           buyer_phone?: string | null
+          cash_received_cents?: number | null
           coupon_id?: string | null
           created_at?: string
           custom_answers?: Json | null
@@ -490,10 +499,13 @@ export type Database = {
           event_id?: string
           expires_at?: string | null
           fee_cents?: number
+          fiscal_code?: string | null
           gopay_payment_id?: string | null
           id?: string
           paid_at?: string | null
           payment_method?: string
+          receipt_number?: string | null
+          sold_by?: string | null
           status?: string
           subtotal_cents?: number
           terms_accepted_at?: string | null
