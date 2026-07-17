@@ -97,6 +97,9 @@ function AdminLayout() {
               <Link to="/admin/admins" className={navCls}>
                 Admini
               </Link>
+              <Link to="/admin/health" className={navCls}>
+                Status
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

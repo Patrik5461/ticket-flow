@@ -34,6 +34,7 @@ import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminSearchRouteImport } from './routes/admin.search'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
+import { Route as AdminHealthRouteImport } from './routes/admin.health'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
@@ -197,6 +198,11 @@ const AdminSearchRoute = AdminSearchRouteImport.update({
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/payouts',
   path: '/payouts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminHealthRoute = AdminHealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminEventsRoute = AdminEventsRouteImport.update({
@@ -424,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/health': typeof AdminHealthRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
@@ -488,6 +495,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/health': typeof AdminHealthRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
@@ -554,6 +562,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/health': typeof AdminHealthRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/health'
     | '/admin/payouts'
     | '/admin/search'
     | '/api/checkin'
@@ -686,6 +696,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/health'
     | '/admin/payouts'
     | '/admin/search'
     | '/api/checkin'
@@ -751,6 +762,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/health'
     | '/admin/payouts'
     | '/admin/search'
     | '/api/checkin'
@@ -1017,6 +1029,13 @@ declare module '@tanstack/react-router' {
       path: '/payouts'
       fullPath: '/admin/payouts'
       preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/health': {
+      id: '/admin/health'
+      path: '/health'
+      fullPath: '/admin/health'
+      preLoaderRoute: typeof AdminHealthRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/events': {
@@ -1298,6 +1317,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminEventsRoute: typeof AdminEventsRoute
+  AdminHealthRoute: typeof AdminHealthRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminSearchRoute: typeof AdminSearchRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -1310,6 +1330,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdminsRoute: AdminAdminsRoute,
   AdminEventsRoute: AdminEventsRoute,
+  AdminHealthRoute: AdminHealthRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminSearchRoute: AdminSearchRoute,
   AdminIndexRoute: AdminIndexRoute,
