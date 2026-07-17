@@ -26,6 +26,12 @@ Akceptácia: bežný organizátor dostane na /admin 404; zmena provízie sa prej
 
 Akceptácia: sandbox platba → refund → stav v DB aj GoPay konzistentný; zrušenie eventu so 3 objednávkami refunduje všetky a rozošle e-maily; settlement PDF sedí na cent s objednávkami.
 
+### Rozšírenie Fázy 6 — Manuálne generovanie settlementov (na požiadanie)
+
+Popri mesačnom cron: organizátor (v /app/settlements) aj platform admin vedia vygenerovať settlement za ľubovoľné obdobie (od–do) alebo za konkrétny event, rovnaký výpočet (gross/fee/net) + PDF protokol, audit.
+
+**Ochrana pred dvojitým započítaním (kľúčové, money-safe) — per-order claim:** `orders.settlement_id` (nullable FK na settlements). Objednávka patrí do NAJVIAC jedného settlementu. Generácia atomicky claimne len nezúčtované objednávky: `UPDATE orders SET settlement_id=:new WHERE settlement_id IS NULL AND paid_at ∈ [od,do) AND organizer/event matchne AND status ∈ (paid, partially_refunded, refunded)`; súčty sa počítajú nad claimnutými riadkami. Guard `settlement_id IS NULL` garantuje na úrovni DB, že žiadny order nie je v dvoch settlementoch (aj pri prekrývajúcich sa obdobiach). Mesačný `generate_settlements` sa zjednotí na ten istý claim-model, aby manuálny a mesačný nikdy nekolidovali. UI navyše upozorní pri prekrytí obdobia s existujúcim settlementom (informačne). Detail/PDF číta objednávky podľa `settlement_id`.
+
 ## Fáza 7 — E-maily naostro
 
 - Implementuj ResendEmailProvider (env RESEND_API_KEY; provider výber podľa env, console zostáva fallback v deve).
