@@ -36,8 +36,14 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
     scrollRestoration: true,
-    defaultPreload: 'intent',
-    defaultPreloadStaleTime: 0,
+    // Intent (hover) preload is disabled on purpose. The current @tanstack
+    // release set is skewed — react-start@1.168.28 ships start-client-core
+    // @1.170.14 while react-router@1.170.18 pulls router-core@1.171.15, whose
+    // `_nonReactive` store the older start-client preload path can't read, so
+    // preloadRoute crashes on hover ("Cannot read properties of undefined
+    // (reading '_nonReactive')"). Click-time navigation uses a different path
+    // and works. Re-enable ('intent') once the @tanstack versions are realigned.
+    defaultPreload: false,
     defaultNotFoundComponent: DefaultNotFound,
   })
 
