@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { getSessionFn, signOutFn } from '../server/auth'
 import { stopImpersonationFn } from '../server/impersonation'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export const Route = createFileRoute('/app')({
   beforeLoad: async () => {
