@@ -37,7 +37,7 @@ export interface CreatePaymentInput {
   amountCents: number
   orderNumber: string
   description: string
-  buyer: { email: string; name?: string | null }
+  buyer: { email: string; name?: string | null; phone?: string | null }
   items: { name: string; amountCents: number; count: number }[]
   returnUrl: string
   notificationUrl: string
@@ -91,6 +91,7 @@ export async function createPayment(
       contact: {
         email: input.buyer.email,
         ...(input.buyer.name ? { first_name: input.buyer.name } : {}),
+        ...(input.buyer.phone ? { phone_number: input.buyer.phone } : {}),
       },
     },
     target: { type: 'ACCOUNT', goid: Number(env.GOPAY_GOID) },

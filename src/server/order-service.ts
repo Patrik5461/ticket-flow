@@ -506,11 +506,19 @@ export async function createOrder(
   }
 
   try {
+    // Human-readable order ref (matches emails + dashboard). Correlation back to
+    // our order is via gopay_payment_id, so order_number is purely a GoPay-side
+    // label — safe to use the short ref instead of the raw UUID.
+    const orderRef = order.id.slice(0, 8).toUpperCase()
     const payment = await createPayment({
       amountCents: pricing.totalCents,
-      orderNumber: order.id,
-      description: event.title,
-      buyer: { email: input.buyer.email, name: input.buyer.name },
+      orderNumber: orderRef,
+      description: `${event.title.slice(0, 180)} · obj. ${orderRef}`,
+      buyer: {
+        email: input.buyer.email,
+        name: input.buyer.name,
+        phone: input.buyer.phone,
+      },
       items: cleanItems.map((i) => {
         const t = types.get(i.ticketTypeId)!
         return { name: t.name, amountCents: t.price_cents, count: i.quantity }
