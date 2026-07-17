@@ -447,6 +447,7 @@ export type Database = {
           paid_at: string | null
           payment_method: string
           receipt_number: string | null
+          settlement_id: string | null
           sold_by: string | null
           status: string
           subtotal_cents: number
@@ -476,6 +477,7 @@ export type Database = {
           paid_at?: string | null
           payment_method?: string
           receipt_number?: string | null
+          settlement_id?: string | null
           sold_by?: string | null
           status?: string
           subtotal_cents?: number
@@ -505,6 +507,7 @@ export type Database = {
           paid_at?: string | null
           payment_method?: string
           receipt_number?: string | null
+          settlement_id?: string | null
           sold_by?: string | null
           status?: string
           subtotal_cents?: number
@@ -524,6 +527,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
             referencedColumns: ["id"]
           },
         ]
@@ -827,7 +837,9 @@ export type Database = {
       }
       settlements: {
         Row: {
+          created_by: string | null
           currency: string
+          event_id: string | null
           fee_cents: number
           generated_at: string
           gross_cents: number
@@ -835,17 +847,20 @@ export type Database = {
           invoice_ref: string | null
           invoice_status: string
           invoiced_at: string | null
+          kind: string
           net_cents: number
           order_count: number
           organizer_id: string
           period_end: string
-          period_month: string
+          period_month: string | null
           period_start: string
           refunded_cents: number
           status: string
         }
         Insert: {
+          created_by?: string | null
           currency?: string
+          event_id?: string | null
           fee_cents?: number
           generated_at?: string
           gross_cents?: number
@@ -853,17 +868,20 @@ export type Database = {
           invoice_ref?: string | null
           invoice_status?: string
           invoiced_at?: string | null
+          kind?: string
           net_cents?: number
           order_count?: number
           organizer_id: string
           period_end: string
-          period_month: string
+          period_month?: string | null
           period_start: string
           refunded_cents?: number
           status?: string
         }
         Update: {
+          created_by?: string | null
           currency?: string
+          event_id?: string | null
           fee_cents?: number
           generated_at?: string
           gross_cents?: number
@@ -871,16 +889,24 @@ export type Database = {
           invoice_ref?: string | null
           invoice_status?: string
           invoiced_at?: string | null
+          kind?: string
           net_cents?: number
           order_count?: number
           organizer_id?: string
           period_end?: string
-          period_month?: string
+          period_month?: string | null
           period_start?: string
           refunded_cents?: number
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "settlements_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "settlements_organizer_id_fkey"
             columns: ["organizer_id"]
@@ -1233,6 +1259,17 @@ export type Database = {
         }[]
       }
       generate_previous_month_settlements: { Args: never; Returns: number }
+      generate_settlement_range: {
+        Args: {
+          p_created_by: string
+          p_event_id: string
+          p_from: string
+          p_kind: string
+          p_organizer: string
+          p_to: string
+        }
+        Returns: string
+      }
       generate_settlements: {
         Args: { p_period_month: string }
         Returns: number
@@ -1244,6 +1281,7 @@ export type Database = {
       is_org_member: { Args: { p_org: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       organizer_is_active: { Args: { p_org: string }; Returns: boolean }
+      recompute_settlement: { Args: { p_id: string }; Returns: number }
       release_expired_orders: { Args: never; Returns: number }
       release_ticket_capacity: {
         Args: { p_qty: number; p_ticket_type_id: string }
