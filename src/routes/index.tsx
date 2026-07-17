@@ -251,8 +251,13 @@ function Landing() {
                 </a>
               </div>
 
+              {/* Mobile product preview */}
+              <div className="mt-8 md:hidden">
+                <TicketPreview compact />
+              </div>
+
               {/* stats */}
-              <div className="mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8">
+              <div className="mt-10 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8 md:mt-16">
                 <div>
                   <div className="font-display text-3xl font-bold text-ink-100">
                     4 %
