@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:clean": "node scripts/clean-cache.mjs && vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build:dev": "vite build",
     "build": "vite build",
