@@ -109,6 +109,16 @@ Pravidlo proti duplicite: pred každým blokom preskúmať repo (server fns, rou
 - **Blok 7 — Export dát platformy:** CSV všetkých objednávok a organizátorov za obdobie (BOM pre Excel), platform admin guard + audit.
 - **Blok 8 — Správa platform adminov:** UI na pridanie/odobratie admina podľa e-mailu, zoznam, audit, poistka že posledný admin sa nedá odobrať.
 
+## Fáza 16 — Health check / systémový status panel v admine
+
+Nadviazať na existujúce (`/api/health`, `admin-ops.ts`) — neduplikovať.
+
+- **Blok 1 — Health kontroly (server):** rozšíriť o overenie závislostí, každá ok/degraded/down + latencia: DB (Supabase), GoPay (ak creds, inak „nenakonfigurované"), Resend, Faktero, Storage; cron workery — posledná aktivita + zaseknuté joby (pending staršie ako X) pre refund/email/invoice/waitlist/webhook.
+- **Blok 2 — `/admin/health`:** panel s farebným indikátorom + latenciou + poslednou kontrolou; sekcia „Fronty úloh" (pending/failed/stuck per fronta); sekcia „Systém" (verzia/commit, uptime, počty organizátorov/eventov/objednávok); auto-refresh 30 s.
+- **Blok 3 — Alerty (voliteľné):** ak služba down alebo fronta zaseknutá → viditeľné upozornenie hore v celom admine.
+
+Dark dizajn, konzistentné s adminom.
+
 ## Pred spustením — checklist mimo kódu
 
 - [ ] VOP + GDPR od právnika (sprostredkovateľský model, refund povinnosti, vzťah organizátor–kupujúci–platforma)

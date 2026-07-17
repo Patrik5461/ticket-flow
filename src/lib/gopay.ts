@@ -129,6 +129,17 @@ export async function createPayment(
   return (await res.json()) as GoPayPayment
 }
 
+/** Health probe: obtain an OAuth token. True if GoPay auth + reachability work. */
+export async function gopayHealthy(): Promise<boolean> {
+  assertConfigured()
+  try {
+    await accessToken()
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function getPaymentStatus(
   paymentId: string,
 ): Promise<GoPayPayment> {
