@@ -8,6 +8,7 @@ import {
 import { useState } from 'react'
 import { getAdminSessionFn } from '../server/admin-session'
 import { signOutFn } from '../server/auth'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 /**
  * Platform super-admin shell. The guard maps a non-admin caller to a 404 (not a
