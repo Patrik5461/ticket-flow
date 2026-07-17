@@ -21,9 +21,10 @@ declare
 begin
   insert into organizers (id, name, slug)
     values (v_org, 'MS TEST', 'ms-test-' || v_sfx);
-  insert into events (id, organizer_id, title, slug, starts_at, timezone, qr_secret, status)
+  insert into events (id, organizer_id, title, slug, starts_at, timezone, status)
     values (v_ev, v_org, 'MS TEST EV', 'ms-ev-' || v_sfx,
-            '2026-01-15 18:00+01', 'Europe/Bratislava', 'secret', 'published');
+            '2026-01-15 18:00+01', 'Europe/Bratislava', 'published');
+  -- (qr_secret is uuid with a default; leave it to default)
 
   -- 3 paid orders in January 2026 (two inside 5–20 Jan, one on 25 Jan).
   insert into orders (event_id, buyer_email, status, subtotal_cents, total_cents, fee_cents, paid_at, payment_method)
