@@ -109,6 +109,8 @@ function AdminLayout() {
               />
             </form>
             <span className="text-xs text-ink-400">{admin.email}</span>
+            <ThemeToggle />
+
             <button
               onClick={logout}
               className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
