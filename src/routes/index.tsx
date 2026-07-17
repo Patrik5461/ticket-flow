@@ -136,61 +136,71 @@ function Landing() {
         style={{ background: 'var(--gradient-hero)' }}
       >
         <div className="mx-auto max-w-7xl px-6 pt-20 pb-28 md:pt-32 md:pb-40">
-          <div className="animate-fade-up max-w-4xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/60 px-4 py-1.5 text-xs font-medium text-ink-300 backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
-              Nová generácia predaja vstupeniek
-            </div>
-            <h1 className="font-display text-5xl font-bold leading-[0.95] tracking-tight md:text-7xl lg:text-8xl">
-              Vstupenky
-              <br />
-              <span className="text-accent">bez starostí.</span>
-            </h1>
-            <p className="mt-8 max-w-2xl text-lg text-ink-300 md:text-xl">
-              Transparentný cenník bez skrytých poplatkov. Priebežný payout cez
-              GoPay — peniaze máte na účte hneď, nie až po evente. Moderné
-              odbavenie cez mobil.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <a href="#events" className="btn-primary">
-                Zobraziť podujatia
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path d="M5 12h14M13 5l7 7-7 7" />
-                </svg>
-              </a>
-              <a href="#how" className="btn-ghost">
-                Ako to funguje
-              </a>
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <div className="animate-fade-up">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/60 px-4 py-1.5 text-xs font-medium text-ink-300 backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
+                Nová generácia predaja vstupeniek
+              </div>
+              <h1 className="font-display text-5xl font-bold leading-[0.95] tracking-tight md:text-7xl lg:text-8xl">
+                Vstupenky
+                <br />
+                <span className="text-accent">bez starostí.</span>
+              </h1>
+              <p className="mt-8 max-w-2xl text-lg text-ink-300 md:text-xl">
+                Transparentný cenník bez skrytých poplatkov. Priebežný payout cez
+                GoPay — peniaze máte na účte hneď, nie až po evente. Moderné
+                odbavenie cez mobil.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <a href="#events" className="btn-primary">
+                  Zobraziť podujatia
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </a>
+                <a href="#how" className="btn-ghost">
+                  Ako to funguje
+                </a>
+              </div>
+
+              {/* stats */}
+              <div className="mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8">
+                <div>
+                  <div className="font-display text-3xl font-bold text-ink-100">
+                    4 %
+                  </div>
+                  <div className="mt-1 text-xs text-ink-400">Nízka provízia</div>
+                </div>
+                <div>
+                  <div className="font-display text-3xl font-bold text-ink-100">
+                    24 h
+                  </div>
+                  <div className="mt-1 text-xs text-ink-400">Payout</div>
+                </div>
+                <div>
+                  <div className="font-display text-3xl font-bold text-ink-100">
+                    0 €
+                  </div>
+                  <div className="mt-1 text-xs text-ink-400">Zriadenie</div>
+                </div>
+              </div>
             </div>
 
-            {/* stats */}
-            <div className="mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8">
-              <div>
-                <div className="font-display text-3xl font-bold text-ink-100">
-                  4 %
-                </div>
-                <div className="mt-1 text-xs text-ink-400">Nízka provízia</div>
-              </div>
-              <div>
-                <div className="font-display text-3xl font-bold text-ink-100">
-                  24 h
-                </div>
-                <div className="mt-1 text-xs text-ink-400">Payout</div>
-              </div>
-              <div>
-                <div className="font-display text-3xl font-bold text-ink-100">
-                  0 €
-                </div>
-                <div className="mt-1 text-xs text-ink-400">Zriadenie</div>
-              </div>
+            <div className="relative hidden md:block">
+              <TicketPreview />
             </div>
+          </div>
+
+          <div className="mt-14 md:hidden">
+            <TicketPreview compact />
           </div>
         </div>
       </section>
