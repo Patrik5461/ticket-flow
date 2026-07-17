@@ -108,6 +108,13 @@ function ManageEvent() {
           >
             Ručná objednávka →
           </Link>
+          <Link
+            to="/app/events/$eventId/pos"
+            params={{ eventId: event.id }}
+            className="font-medium text-indigo-600 hover:underline"
+          >
+            Pokladňa (POS) →
+          </Link>
           {event.status === 'published' && (
             <a
               href={`/e/${event.slug}`}
