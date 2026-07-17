@@ -56,6 +56,7 @@ import { Route as ApiCronProcessEmailRouteImport } from './routes/api.cron.proce
 import { Route as ApiCronIssueInvoicesRouteImport } from './routes/api.cron.issue-invoices'
 import { Route as AdminOrganizersOrganizerIdRouteImport } from './routes/admin.organizers.$organizerId'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
+import { Route as AppEventsEventIdIndexRouteImport } from './routes/app.events.$eventId.index'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
 import { Route as AppEventsEventIdPosSummaryRouteImport } from './routes/app.events.$eventId.pos-summary'
 import { Route as AppEventsEventIdPosRouteImport } from './routes/app.events.$eventId.pos'
@@ -309,6 +310,11 @@ const AdminOrdersOrderIdRoute = AdminOrdersOrderIdRouteImport.update({
   path: '/orders/$orderId',
   getParentRoute: () => AdminRoute,
 } as any)
+const AppEventsEventIdIndexRoute = AppEventsEventIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppEventsEventIdRoute,
+} as any)
 const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
@@ -461,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
   '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
+  '/app/events/$eventId/': typeof AppEventsEventIdIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -505,7 +512,6 @@ export interface FileRoutesByTo {
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/orders': typeof ApiV1OrdersRoute
-  '/app/events/$eventId': typeof AppEventsEventIdRouteWithChildren
   '/app/events/new': typeof AppEventsNewRoute
   '/e/$slug/checkout': typeof ESlugCheckoutRoute
   '/e/$slug/embed': typeof ESlugEmbedRoute
@@ -524,6 +530,7 @@ export interface FileRoutesByTo {
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
   '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
+  '/app/events/$eventId': typeof AppEventsEventIdIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -590,6 +597,7 @@ export interface FileRoutesById {
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
   '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
+  '/app/events/$eventId/': typeof AppEventsEventIdIndexRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
   '/app/events/$eventId/orders/$orderId': typeof AppEventsEventIdOrdersOrderIdRoute
@@ -657,6 +665,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/pos'
     | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
+    | '/app/events/$eventId/'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
@@ -701,7 +710,6 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/api/v1/openapi.json'
     | '/api/v1/orders'
-    | '/app/events/$eventId'
     | '/app/events/new'
     | '/e/$slug/checkout'
     | '/e/$slug/embed'
@@ -720,6 +728,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/pos'
     | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
+    | '/app/events/$eventId'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
@@ -785,6 +794,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/pos'
     | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
+    | '/app/events/$eventId/'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
     | '/app/events/$eventId/orders/$orderId'
@@ -1163,6 +1173,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersOrderIdRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/app/events/$eventId/': {
+      id: '/app/events/$eventId/'
+      path: '/'
+      fullPath: '/app/events/$eventId/'
+      preLoaderRoute: typeof AppEventsEventIdIndexRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
     '/app/events/$eventId/sales': {
       id: '/app/events/$eventId/sales'
       path: '/sales'
@@ -1311,6 +1328,7 @@ interface AppEventsEventIdRouteChildren {
   AppEventsEventIdPosRoute: typeof AppEventsEventIdPosRoute
   AppEventsEventIdPosSummaryRoute: typeof AppEventsEventIdPosSummaryRoute
   AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
+  AppEventsEventIdIndexRoute: typeof AppEventsEventIdIndexRoute
   AppEventsEventIdOrdersOrderIdRoute: typeof AppEventsEventIdOrdersOrderIdRoute
 }
 
@@ -1321,6 +1339,7 @@ const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
   AppEventsEventIdPosRoute: AppEventsEventIdPosRoute,
   AppEventsEventIdPosSummaryRoute: AppEventsEventIdPosSummaryRoute,
   AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
+  AppEventsEventIdIndexRoute: AppEventsEventIdIndexRoute,
   AppEventsEventIdOrdersOrderIdRoute: AppEventsEventIdOrdersOrderIdRoute,
 }
 
