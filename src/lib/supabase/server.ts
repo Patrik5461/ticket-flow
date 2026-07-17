@@ -6,7 +6,8 @@
  *  - anon client: honours RLS. Used for public reads (published events etc.).
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEnv, getServiceRoleKey } from '../env'
 
 const authOpts = { auth: { persistSession: false, autoRefreshToken: false } }

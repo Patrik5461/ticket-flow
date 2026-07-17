@@ -3,7 +3,8 @@
  * Runs on the server with prices read from the DB — the client never sets a price.
  */
 
-import { couponDiscountCents, type CouponType } from './coupons'
+import { couponDiscountCents } from './coupons'
+import type { CouponType } from './coupons'
 
 export interface PricingItem {
   quantity: number

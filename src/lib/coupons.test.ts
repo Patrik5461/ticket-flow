@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { couponDiscountCents, validateCoupon, type CouponLike } from './coupons'
+import { couponDiscountCents, validateCoupon } from './coupons'
+import type { CouponLike } from './coupons'
 
 const base: CouponLike = {
   code: 'TEST',
