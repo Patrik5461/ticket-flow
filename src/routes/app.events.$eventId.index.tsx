@@ -6,6 +6,14 @@ import {
 } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import {
+  BarChart3,
+  ScanLine,
+  Users,
+  ShoppingCart,
+  Receipt,
+  ExternalLink,
+} from 'lucide-react'
+import {
   getMyEventFn,
   updateEventFn,
   publishEventFn,
@@ -40,6 +48,107 @@ const inputCls = 'w-full rounded-md border px-3 py-2 text-sm'
 const eurToCents = (s: string) => Math.round(parseFloat(s || '0') * 100)
 const centsToEur = (c: number) => (c / 100).toFixed(2)
 
+function PublishToggle({
+  event,
+  onToggle,
+}: {
+  event: EventDetail['event']
+  onToggle: () => void
+}) {
+  const published = event.status === 'published'
+  return (
+    <div className="card-surface flex items-center gap-2 p-1.5">
+      <span className="flex items-center gap-2 px-2 text-sm text-ink-200">
+        <span
+          className={`h-2 w-2 rounded-full ${
+            published ? 'bg-accent' : 'bg-ink-500'
+          }`}
+        />
+        {published ? 'Zverejnené' : 'Koncept'}
+      </span>
+      <button
+        onClick={onToggle}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+          published
+            ? 'border border-ink-600 text-ink-100 hover:bg-ink-700'
+            : 'bg-accent text-ink-950 hover:bg-accent-dim'
+        }`}
+      >
+        {published ? 'Skryť (koncept)' : 'Zverejniť'}
+      </button>
+    </div>
+  )
+}
+
+type ActionCardProps = {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  subtitle: string
+  primary?: boolean
+  ghost?: boolean
+  to?: string
+  params?: Record<string, string>
+  href?: string
+  external?: boolean
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  subtitle,
+  primary,
+  ghost,
+  to,
+  params,
+  href,
+  external,
+}: ActionCardProps) {
+  const base =
+    'group relative flex min-h-[88px] flex-col justify-between rounded-[14px] border p-4 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+  const surface = ghost
+    ? 'border-ink-700 bg-ink-900/60 hover:border-ink-500 hover:bg-ink-800'
+    : primary
+      ? 'border-accent/20 bg-gradient-to-br from-ink-800 to-ink-900 hover:border-accent/50 hover:shadow-[0_0_20px_-8px_rgba(74,222,128,0.35)]'
+      : 'border-ink-700 bg-gradient-to-br from-ink-800 to-ink-900 hover:border-ink-500 hover:bg-ink-800'
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <Icon
+          className={`h-6 w-6 transition-colors ${
+            primary ? 'text-accent' : 'text-ink-300 group-hover:text-accent'
+          }`}
+        />
+        {external && <ExternalLink className="h-3.5 w-3.5 text-ink-500" />}
+      </div>
+      <div>
+        <div className="font-display text-sm font-semibold text-ink-100">
+          {title}
+        </div>
+        <div className="mt-0.5 text-xs text-ink-400">{subtitle}</div>
+      </div>
+    </>
+  )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={external ? '_blank' : undefined}
+        rel={external ? 'noreferrer' : undefined}
+        className={`${base} ${surface}`}
+      >
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <Link to={to!} params={params} className={`${base} ${surface}`}>
+      {content}
+    </Link>
+  )
+}
+
 function ManageEvent() {
   const { event, ticketTypes, coupons } = Route.useLoaderData()
   const router = useRouter()
@@ -56,77 +165,74 @@ function ManageEvent() {
   }
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <div>
-        <Link to="/app" className="text-sm text-indigo-600 hover:underline">
-          ← Späť na podujatia
-        </Link>
-        <div className="mt-3 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{event.title}</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">
-              {event.status === 'published' ? 'Zverejnené' : 'Koncept'}
-            </span>
-            <button
-              onClick={togglePublish}
-              className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-                event.status === 'published'
-                  ? 'bg-gray-600 hover:bg-gray-700'
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
+    <div className="max-w-5xl space-y-8">
+      <section className="space-y-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <Link
+              to="/app"
+              className="inline-flex items-center gap-1 text-sm text-accent transition hover:text-accent-dim"
             >
-              {event.status === 'published' ? 'Skryť (koncept)' : 'Zverejniť'}
-            </button>
+              ← Späť na podujatia
+            </Link>
+            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">
+              {event.title}
+            </h1>
           </div>
+          <PublishToggle event={event} onToggle={togglePublish} />
         </div>
-        <div className="mt-2 flex items-center gap-4 text-sm">
-          <Link
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <ActionCard
             to="/app/events/$eventId/sales"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Predaj a tržby →
-          </Link>
-          <Link
+            icon={BarChart3}
+            title="Predaj a tržby"
+            subtitle="Prehľad a objednávky"
+            primary
+          />
+          <ActionCard
             to="/app/events/$eventId/checkin"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Check-in →
-          </Link>
-          <Link
+            icon={ScanLine}
+            title="Check-in"
+            subtitle="Skenovanie QR kódov"
+            primary
+          />
+          <ActionCard
             to="/app/events/$eventId/guestlist"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Guestlist →
-          </Link>
-          <Link
+            icon={Users}
+            title="Guestlist"
+            subtitle="Zoznam účastníkov"
+          />
+          <ActionCard
             to="/app/events/$eventId/manual-order"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Ručná objednávka →
-          </Link>
-          <Link
+            icon={ShoppingCart}
+            title="Ručná objednávka"
+            subtitle="Vytvoriť objednávku"
+          />
+          <ActionCard
             to="/app/events/$eventId/pos"
             params={{ eventId: event.id }}
-            className="font-medium text-indigo-600 hover:underline"
-          >
-            Pokladňa (POS) →
-          </Link>
+            icon={Receipt}
+            title="Pokladňa (POS)"
+            subtitle="Rýchly predaj na mieste"
+            primary
+          />
           {event.status === 'published' && (
-            <a
+            <ActionCard
               href={`/e/${event.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-indigo-600 hover:underline"
-            >
-              Verejná stránka: /e/{event.slug} ↗
-            </a>
+              external
+              icon={ExternalLink}
+              title="Verejná stránka"
+              subtitle="Otvoriť stránku"
+              ghost
+            />
           )}
         </div>
-      </div>
+      </section>
 
       <EventDetailsForm event={event} onSaved={reload} tz={tz} />
       <TicketTypesSection
