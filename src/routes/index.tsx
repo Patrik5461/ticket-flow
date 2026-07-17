@@ -195,8 +195,55 @@ function Landing() {
         </div>
       </section>
 
+      {/* MARQUEE */}
+      {events.length > 0 && (
+        <section aria-label="Podujatia" className="border-y border-ink-800/60 bg-ink-900/30 py-8">
+          <div className="marquee">
+            <ul className="marquee-track" aria-hidden={events.length < 3 ? undefined : 'true'}>
+              {[...events, ...events].map((e, idx) => {
+                const cover = (e as unknown as { cover_url?: string | null }).cover_url
+                const fromPrice = (e as unknown as { from_price_cents?: number | null }).from_price_cents
+                return (
+                  <li key={`${e.id}-${idx}`} className="shrink-0">
+                    <Link
+                      to="/e/$slug"
+                      params={{ slug: e.slug }}
+                      className="card-surface group flex w-[280px] items-center gap-3 overflow-hidden p-2 transition hover:border-accent/40"
+                    >
+                      <div
+                        className="h-16 w-16 shrink-0 rounded-lg"
+                        style={{
+                          background: cover
+                            ? `url(${cover}) center/cover`
+                            : 'var(--gradient-fallback)',
+                        }}
+                      />
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="truncate font-display text-sm font-semibold text-ink-100 transition group-hover:text-accent">
+                          {e.title}
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-ink-400">
+                          {formatDateShort(e.starts_at, e.timezone)}
+                          {e.venue_name ? ` · ${e.venue_name}` : ''}
+                        </div>
+                        {typeof fromPrice === 'number' && (
+                          <div className="mt-0.5 text-xs text-ink-300">
+                            od <span className="text-accent">{(fromPrice / 100).toFixed(0)} €</span>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </section>
+      )}
+
       {/* EVENTS */}
       <section id="events" className="mx-auto max-w-7xl px-6 py-20">
+
         <div className="mb-10 flex items-end justify-between">
           <div>
             <div className="text-sm font-medium uppercase tracking-widest text-accent">

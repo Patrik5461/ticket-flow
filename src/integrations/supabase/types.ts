@@ -550,9 +550,11 @@ export type Database = {
       }
       organizers: {
         Row: {
+          address: string | null
           admin_notes: string | null
           brand_color: string | null
           brand_logo_url: string | null
+          contact_email: string | null
           created_at: string
           dic: string | null
           email: string | null
@@ -569,9 +571,11 @@ export type Database = {
           status: string
         }
         Insert: {
+          address?: string | null
           admin_notes?: string | null
           brand_color?: string | null
           brand_logo_url?: string | null
+          contact_email?: string | null
           created_at?: string
           dic?: string | null
           email?: string | null
@@ -588,9 +592,11 @@ export type Database = {
           status?: string
         }
         Update: {
+          address?: string | null
           admin_notes?: string | null
           brand_color?: string | null
           brand_logo_url?: string | null
+          contact_email?: string | null
           created_at?: string
           dic?: string | null
           email?: string | null
@@ -639,6 +645,50 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_requests: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          organizer_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          organizer_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          organizer_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_requests_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
             referencedColumns: ["id"]
           },
         ]
