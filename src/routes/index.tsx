@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { listEventsFn } from '../server/fns'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export const Route = createFileRoute('/')({
   loader: async () => ({ events: await listEventsFn() }),
