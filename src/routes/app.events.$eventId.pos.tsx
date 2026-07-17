@@ -76,7 +76,7 @@ function PosPage() {
       </div>
 
       {/* Two-column workspace */}
-      <div className="grid flex-1 grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* LEFT — ticket tile grid */}
         <div className="lg:col-span-3 xl:col-span-3">
           {ticketTypes.length === 0 ? (
@@ -85,7 +85,7 @@ function PosPage() {
               v nastaveniach podujatia.
             </div>
           ) : (
-            <div className="grid h-full auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {ticketTypes.map((t) => (
                 <TicketTile
                   key={t.id}
@@ -134,7 +134,7 @@ function PosPage() {
           <button
             onClick={() => setCheckoutOpen(true)}
             disabled={totalQty === 0}
-            className="rounded-lg bg-emerald-400 px-6 py-3.5 text-base font-semibold text-zinc-950 shadow-[0_0_24px_-6px_rgba(74,222,128,0.6)] hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:shadow-none"
+            className="rounded-lg bg-emerald-400 px-6 py-3.5 text-base font-semibold text-zinc-950 hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500"
           >
             Predať
           </button>
@@ -220,14 +220,14 @@ function ReceiptPanel({
           <span className="text-sm uppercase tracking-wider text-zinc-500">
             Spolu
           </span>
-          <span className="font-display text-4xl font-bold tabular-nums text-white">
+          <span className="font-display text-4xl font-bold tabular-nums text-emerald-400">
             {formatEur(totalCents)}
           </span>
         </div>
         <button
           onClick={onSell}
           disabled={empty}
-          className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-4 text-lg font-semibold text-zinc-950 shadow-[0_0_30px_-6px_rgba(74,222,128,0.6)] transition hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:shadow-none"
+          className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-4 text-lg font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500"
         >
           Predať
         </button>
@@ -258,12 +258,12 @@ function TicketTile({
 
   return (
     <div
-      className={`group relative flex flex-col justify-between rounded-2xl border p-5 transition ${
+      className={`group relative flex flex-col rounded-xl border p-4 transition ${
         soldOut
           ? 'border-zinc-900 bg-zinc-950/40 opacity-50'
           : active
-            ? 'border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_24px_-8px_rgba(74,222,128,0.5)]'
-            : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900'
+            ? 'border-emerald-400/70 bg-zinc-900'
+            : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-900'
       }`}
     >
       {/* Tap the body to add one — big, fast target */}
@@ -271,10 +271,10 @@ function TicketTile({
         type="button"
         onClick={() => onChange(quantity + 1)}
         disabled={soldOut || quantity >= available}
-        className="min-h-[96px] text-left"
+        className="text-left"
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="font-display text-lg font-semibold leading-tight text-white">
+          <div className="font-display text-base font-semibold leading-tight text-white">
             {type.name}
           </div>
           {type.hidden && (
@@ -283,32 +283,28 @@ function TicketTile({
             </span>
           )}
         </div>
-        <div
-          className={`mt-2 font-display text-3xl font-bold tabular-nums ${
-            active ? 'text-emerald-300' : 'text-white'
-          }`}
-        >
+        <div className="mt-1.5 font-display text-2xl font-bold tabular-nums text-white">
           {formatEur(type.price_cents)}
         </div>
-        <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
+        <div className="mt-0.5 text-xs uppercase tracking-wider text-zinc-500">
           {soldOut ? 'Vypredané' : `zostáva ${available}`}
         </div>
       </button>
 
       {/* Stepper */}
-      <div className="mt-4 flex items-center justify-between gap-2">
+      <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => onChange(quantity - 1)}
           disabled={quantity === 0}
-          className="h-14 w-14 rounded-xl border border-zinc-800 bg-zinc-950 text-3xl font-bold text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 disabled:opacity-25"
+          className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-2xl font-bold text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800 disabled:opacity-25"
           aria-label="Odobrať"
         >
           −
         </button>
         <span
-          className={`min-w-[3ch] text-center font-display text-3xl font-bold tabular-nums ${
-            active ? 'text-emerald-300' : 'text-zinc-600'
+          className={`min-w-[3ch] text-center font-display text-2xl font-bold tabular-nums ${
+            active ? 'text-emerald-400' : 'text-zinc-300'
           }`}
         >
           {quantity}
@@ -317,7 +313,7 @@ function TicketTile({
           type="button"
           onClick={() => onChange(quantity + 1)}
           disabled={soldOut || quantity >= available}
-          className="h-14 w-14 rounded-xl bg-emerald-400 text-3xl font-bold text-zinc-950 shadow-[0_0_20px_-6px_rgba(74,222,128,0.7)] hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:shadow-none"
+          className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400 text-2xl font-bold text-zinc-950 hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-600"
           aria-label="Pridať"
         >
           +
