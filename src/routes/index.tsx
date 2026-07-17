@@ -41,6 +41,7 @@ function Nav() {
           </a>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/login"
             className="hidden text-sm text-ink-300 transition hover:text-ink-100 sm:inline-flex sm:px-3 sm:py-1.5"
