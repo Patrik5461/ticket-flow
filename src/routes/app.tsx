@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { getSessionFn, signOutFn } from '../server/auth'
 import { stopImpersonationFn } from '../server/impersonation'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export const Route = createFileRoute('/app')({
   beforeLoad: async () => {
@@ -102,9 +103,10 @@ function AppLayout() {
             >
               {session.organizer?.name ?? session.user.email}
             </span>
+            <ThemeToggle className="ml-2" />
             <button
               onClick={logout}
-              className="ml-2 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
+              className="ml-1 rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
             >
               Odhlásiť
             </button>

@@ -8,6 +8,7 @@ import {
 import { useState } from 'react'
 import { getAdminSessionFn } from '../server/admin-session'
 import { signOutFn } from '../server/auth'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 /**
  * Platform super-admin shell. The guard maps a non-admin caller to a 404 (not a
@@ -108,6 +109,8 @@ function AdminLayout() {
               />
             </form>
             <span className="text-xs text-ink-400">{admin.email}</span>
+            <ThemeToggle />
+
             <button
               onClick={logout}
               className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
