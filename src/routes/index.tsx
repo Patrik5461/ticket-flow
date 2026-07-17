@@ -123,6 +123,86 @@ function Footer() {
   )
 }
 
+function QRPlaceholder({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <rect width="64" height="64" rx="4" fill="white" />
+      <rect x="6" y="6" width="20" height="20" rx="2" fill="#09090b" />
+      <rect x="12" y="12" width="8" height="8" rx="1" fill="white" />
+      <rect x="38" y="6" width="20" height="20" rx="2" fill="#09090b" />
+      <rect x="44" y="12" width="8" height="8" rx="1" fill="white" />
+      <rect x="6" y="38" width="20" height="20" rx="2" fill="#09090b" />
+      <rect x="12" y="44" width="8" height="8" rx="1" fill="white" />
+      <rect x="34" y="34" width="6" height="6" rx="1" fill="#09090b" />
+      <rect x="46" y="34" width="6" height="6" rx="1" fill="#09090b" />
+      <rect x="34" y="46" width="6" height="6" rx="1" fill="#09090b" />
+      <rect x="46" y="52" width="6" height="6" rx="1" fill="#09090b" />
+      <rect x="52" y="42" width="6" height="6" rx="1" fill="#09090b" />
+    </svg>
+  )
+}
+
+function TicketPreview({ compact }: { compact?: boolean }) {
+  return (
+    <div className={`ticket-preview ${compact ? 'mx-auto max-w-xs' : ''}`} aria-hidden="true">
+      {!compact && (
+        <div className="ticket-checkin-card">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-lg text-accent">
+              ✓
+            </span>
+            <div>
+              <div className="text-xs font-semibold text-ink-200">Vstup overený</div>
+              <div className="text-[10px] text-ink-500">Check-in appka</div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="ticket-card relative p-5">
+        <div className="absolute inset-0 rounded-[22px] bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-lg font-bold leading-tight text-ink-100 md:text-xl">
+                Letný festival 2026
+              </div>
+              <div className="mt-1.5 text-xs text-ink-400">
+                15. júla 2026 • Bratislava
+              </div>
+            </div>
+            <div className="shrink-0 rounded-lg bg-white p-1.5 shadow-sm">
+              <QRPlaceholder size={compact ? 48 : 64} />
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-end justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                Vstupenka
+              </div>
+              <div className="mt-0.5 truncate text-sm font-medium text-ink-200">
+                VIP Early Bird
+              </div>
+            </div>
+            <div className="shrink-0 font-display text-2xl font-bold text-accent md:text-3xl">
+              24,90 €
+            </div>
+          </div>
+
+          <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-ink-800">
+            <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-accent-dim to-accent" />
+          </div>
+
+          <div className="mt-4 flex items-center gap-1.5 text-[10px] text-ink-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            Okamžité doručenie e-mailom
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Landing() {
   const { events } = Route.useLoaderData()
 
