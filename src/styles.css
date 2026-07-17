@@ -147,6 +147,66 @@ body {
 }
 
 /* ============================================================================
+ * Decorative ticket preview (landing hero)
+ * ============================================================================ */
+@keyframes ticket-float {
+  0%, 100% { transform: translateY(0) rotate(5deg); }
+  50% { transform: translateY(-14px) rotate(5deg); }
+}
+
+.ticket-preview {
+  position: relative;
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.ticket-card {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: ticket-float 5.5s ease-in-out infinite;
+  background: linear-gradient(145deg, rgba(30, 30, 36, 0.95) 0%, rgba(16, 16, 20, 0.98) 100%);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 28%, transparent);
+  border-radius: 22px;
+  box-shadow:
+    0 25px 70px -20px rgba(0, 0, 0, 0.55),
+    0 0 40px -10px var(--color-accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.ticket-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  padding: 1px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--color-accent) 45%, transparent), transparent 60%);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.ticket-checkin-card {
+  position: absolute;
+  right: -1.5rem;
+  bottom: -1rem;
+  z-index: 0;
+  padding: 1rem 1.25rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(28, 28, 34, 0.92), rgba(16, 16, 20, 0.96));
+  border: 1px solid var(--color-ink-700);
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.5);
+  transform: rotate(-8deg) translateZ(-40px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-card { animation: none; }
+}
+
+/* ============================================================================
  * Dark scope — auto-applies to legacy Tailwind utilities used inside
  * organizer portal (/app), admin panel (/admin), and check-in surfaces.
  * Keeps business-logic JSX untouched while enforcing the dark design system.
