@@ -21,6 +21,7 @@ import type {
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
 import { startImpersonationFn } from '../server/impersonation'
+import { adminGenerateSettlementFn } from '../server/settlements'
 
 export const Route = createFileRoute('/admin/organizers/$organizerId')({
   loader: async ({ params }) => {
@@ -111,6 +112,7 @@ function OrganizerDetail() {
 
       {stats && <StatsSection organizerId={organizer.id} initial={stats} />}
 
+      <AdminGenerateSettlement organizerId={organizer.id} />
       <FeeForm organizer={organizer} onSaved={reload} />
       <StatusSection organizer={organizer} onChanged={reload} />
       <NotesForm organizer={organizer} onSaved={reload} />
@@ -250,6 +252,79 @@ function StatsSection({
         <EventTable rows={past} />
       </section>
     </div>
+  )
+}
+
+function AdminGenerateSettlement({ organizerId }: { organizerId: string }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const generate = async () => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await adminGenerateSettlementFn({
+        data: { organizerId, from: from || null, to: to || null },
+      })
+      if ('error' in res) {
+        setMsg({ ok: false, text: res.error })
+      } else if (res.settlementId === null) {
+        setMsg({ ok: true, text: 'Za toto obdobie už bolo všetko zaúčtované.' })
+      } else {
+        setMsg({ ok: true, text: 'Vyúčtovanie vygenerované.' })
+        setFrom('')
+        setTo('')
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <h2 className="mb-1 text-lg font-semibold">Vygenerovať vyúčtovanie</h2>
+      <p className="mb-3 text-sm text-gray-500">
+        Za obdobie nad zatiaľ nezaúčtovanými objednávkami tohto organizátora.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Od</span>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Do</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <button
+          onClick={generate}
+          disabled={busy}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {busy ? 'Generujem…' : 'Vygenerovať'}
+        </button>
+        {msg && (
+          <span
+            className={`text-sm ${msg.ok ? 'text-green-700' : 'text-red-600'}`}
+          >
+            {msg.text}
+          </span>
+        )}
+      </div>
+    </section>
   )
 }
 

@@ -1,17 +1,137 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
-import { listMySettlementsFn } from '../server/settlements'
-import { getPayoutInfoFn, requestPayoutFn } from '../server/dashboard'
-import type { PayoutInfo, PayoutStatus } from '../server/dashboard'
+import {
+  listMySettlementsFn,
+  generateMySettlementFn,
+} from '../server/settlements'
+import {
+  getPayoutInfoFn,
+  requestPayoutFn,
+  listMyEventsFn,
+} from '../server/dashboard'
+import type {
+  PayoutInfo,
+  PayoutStatus,
+  MyEventSummary,
+} from '../server/dashboard'
 import { formatEur } from '../lib/money'
 
 export const Route = createFileRoute('/app/settlements')({
   loader: async () => ({
     settlements: await listMySettlementsFn(),
     payout: await getPayoutInfoFn(),
+    events: await listMyEventsFn(),
   }),
   component: SettlementsPage,
 })
+
+function GenerateSettlementSection({ events }: { events: MyEventSummary[] }) {
+  const router = useRouter()
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [eventId, setEventId] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const generate = async () => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await generateMySettlementFn({
+        data: {
+          from: from || null,
+          to: to || null,
+          eventId: eventId || null,
+        },
+      })
+      if ('error' in res) {
+        setMsg({ ok: false, text: res.error })
+      } else if (res.settlementId === null) {
+        setMsg({
+          ok: true,
+          text: 'Za toto obdobie už bolo všetko zaúčtované — nič nové.',
+        })
+      } else {
+        setMsg({ ok: true, text: 'Vyúčtovanie vygenerované.' })
+        setFrom('')
+        setTo('')
+        setEventId('')
+        router.invalidate()
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-lg border bg-white p-5">
+      <div>
+        <h2 className="text-sm font-semibold">Vygenerovať vyúčtovanie</h2>
+        <p className="mt-0.5 text-xs text-gray-500">
+          Za obdobie (od–do) alebo za konkrétne podujatie. Objednávky už
+          zaúčtované v inom vyúčtovaní sa nezapočítajú znova.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Od</span>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Do</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">
+            Podujatie (voliteľné)
+          </span>
+          <select
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">— všetky —</option>
+            {events.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={generate}
+          disabled={busy}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {busy ? 'Generujem…' : 'Vygenerovať'}
+        </button>
+      </div>
+      {msg && (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            msg.ok
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {msg.text}
+        </div>
+      )}
+    </section>
+  )
+}
 
 const PAYOUT_STATUS: Record<PayoutStatus, { label: string; cls: string }> = {
   requested: { label: 'Požiadané', cls: 'bg-amber-100 text-amber-800' },
@@ -148,7 +268,7 @@ function PayoutSection({ payout }: { payout: PayoutInfo }) {
 }
 
 function SettlementsPage() {
-  const { settlements, payout } = Route.useLoaderData()
+  const { settlements, payout, events } = Route.useLoaderData()
 
   const monthLabel = (iso: string) =>
     new Intl.DateTimeFormat('sk-SK', {
@@ -171,6 +291,8 @@ function SettlementsPage() {
       </div>
 
       <PayoutSection payout={payout} />
+
+      <GenerateSettlementSection events={events} />
 
       <section className="overflow-x-auto rounded-lg border bg-white">
         <table className="w-full text-sm">
