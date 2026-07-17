@@ -149,7 +149,6 @@ function ActionCard({
   )
 }
 
-
 function ManageEvent() {
   const { event, ticketTypes, coupons } = Route.useLoaderData()
   const router = useRouter()
