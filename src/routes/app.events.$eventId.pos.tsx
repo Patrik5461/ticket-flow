@@ -1,7 +1,8 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { getMyEventFn } from '../server/dashboard'
-import { formatEur } from '../lib/money'
+import { createPosOrderFn } from '../server/pos'
+import { formatEur, toCents } from '../lib/money'
 import type { TicketTypeRow } from '../lib/db-types'
 
 export const Route = createFileRoute('/app/events/$eventId/pos')({
@@ -113,9 +114,14 @@ function PosPage() {
 
       {checkoutOpen && (
         <CheckoutModal
+          eventId={eventId}
           lines={lines}
           totalCents={totalCents}
           onClose={() => setCheckoutOpen(false)}
+          onCompleted={() => {
+            setCheckoutOpen(false)
+            reset()
+          }}
         />
       )}
     </div>
@@ -196,58 +202,239 @@ interface CartLine {
   quantity: number
 }
 
+type PayMethod = 'cash' | 'terminal'
+
+/** Cash quick-pick suggestions: exact, then the next round notes above total. */
+function cashSuggestions(totalCents: number): number[] {
+  const out = new Set<number>([totalCents])
+  for (const note of [500, 1000, 2000, 5000, 10000]) {
+    out.add(Math.ceil(totalCents / note) * note)
+  }
+  return [...out].sort((a, b) => a - b).slice(0, 5)
+}
+
 function CheckoutModal({
+  eventId,
   lines,
   totalCents,
   onClose,
+  onCompleted,
 }: {
+  eventId: string
   lines: CartLine[]
   totalCents: number
   onClose: () => void
+  onCompleted: () => void
 }) {
+  const [method, setMethod] = useState<PayMethod | null>(null)
+  const [receivedEur, setReceivedEur] = useState('')
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [doneOrderId, setDoneOrderId] = useState<string | null>(null)
+
+  const receivedCents = receivedEur ? toCents(parseFloat(receivedEur)) : 0
+  const changeCents = receivedCents - totalCents
+  const emailOk = email.trim() === '' || /.+@.+\..+/.test(email.trim())
+  const canComplete =
+    !busy &&
+    emailOk &&
+    (method === 'terminal' ||
+      (method === 'cash' && receivedCents >= totalCents))
+
+  const complete = async () => {
+    if (!method || !canComplete) return
+    setBusy(true)
+    setErr(null)
+    const res = await createPosOrderFn({
+      data: {
+        eventId,
+        items: lines.map((l) => ({
+          ticketTypeId: l.type.id,
+          quantity: l.quantity,
+        })),
+        paymentMethod: method,
+        cashReceivedCents: method === 'cash' ? receivedCents : null,
+        buyerEmail: email.trim() || null,
+      },
+    })
+    setBusy(false)
+    if ('error' in res) {
+      setErr(res.error)
+      return
+    }
+    setDoneOrderId(res.orderId)
+  }
+
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Predaj</h2>
-          <button
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
-          >
-            Zavrieť
-          </button>
-        </div>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+        {doneOrderId ? (
+          <SaleDone orderId={doneOrderId} onCompleted={onCompleted} />
+        ) : (
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Predaj</h2>
+              <button
+                onClick={onClose}
+                className="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+              >
+                Zavrieť
+              </button>
+            </div>
 
-        <ul className="space-y-2">
-          {lines.map((l) => (
-            <li key={l.type.id} className="flex justify-between text-sm">
-              <span>
-                {l.quantity}× {l.type.name}
-              </span>
-              <span className="tabular-nums">
-                {formatEur(l.quantity * l.type.price_cents)}
-              </span>
-            </li>
-          ))}
-        </ul>
+            <ul className="space-y-2">
+              {lines.map((l) => (
+                <li key={l.type.id} className="flex justify-between text-sm">
+                  <span>
+                    {l.quantity}× {l.type.name}
+                  </span>
+                  <span className="tabular-nums">
+                    {formatEur(l.quantity * l.type.price_cents)}
+                  </span>
+                </li>
+              ))}
+            </ul>
 
-        <div className="mt-3 flex justify-between border-t pt-3 text-base font-bold">
-          <span>Spolu</span>
-          <span className="tabular-nums">{formatEur(totalCents)}</span>
-        </div>
+            <div className="mt-3 flex justify-between border-t pt-3 text-lg font-bold">
+              <span>Spolu</span>
+              <span className="tabular-nums">{formatEur(totalCents)}</span>
+            </div>
 
-        {/* Block 2 fills this in: payment method (cash / terminal), change
-            calculation, order creation (paid_cash / paid_terminal, source=pos),
-            ticket generation + print/e-mail. */}
-        <div className="mt-6 rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400">
-          Spôsob úhrady a doklad — pripravujeme v ďalšom kroku.
-        </div>
+            {/* Payment method */}
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setMethod('cash')}
+                className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
+                  method === 'cash'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                💶 Hotovosť
+              </button>
+              <button
+                onClick={() => setMethod('terminal')}
+                className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
+                  method === 'terminal'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                💳 Kartou (terminál)
+              </button>
+            </div>
 
-        <button
-          disabled
-          className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white disabled:opacity-40"
+            {/* Cash: received + change */}
+            {method === 'cash' && (
+              <div className="mt-4 rounded-lg border bg-gray-50 p-4">
+                <label className="block text-sm font-medium text-gray-600">
+                  Prijaté (€)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={receivedEur}
+                    onChange={(e) => setReceivedEur(e.target.value)}
+                    placeholder="0,00"
+                    className="mt-1 w-full rounded-md border px-3 py-3 text-2xl font-bold tabular-nums"
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {cashSuggestions(totalCents).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setReceivedEur((c / 100).toFixed(2))}
+                      className="rounded-lg border bg-white px-3 py-2 text-sm font-medium hover:bg-gray-100"
+                    >
+                      {formatEur(c)}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-between text-lg font-bold">
+                  <span className="text-gray-600">Výdavok</span>
+                  <span
+                    className={`tabular-nums ${
+                      changeCents < 0 ? 'text-red-600' : 'text-green-700'
+                    }`}
+                  >
+                    {formatEur(Math.max(0, changeCents))}
+                  </span>
+                </div>
+                {changeCents < 0 && (
+                  <p className="mt-1 text-right text-xs text-red-600">
+                    Chýba {formatEur(-changeCents)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Optional buyer e-mail */}
+            <div className="mt-4">
+              <label className="block text-sm text-gray-600">
+                E-mail kupujúceho (voliteľné) — pošleme vstupenky
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="napr. jozko@example.sk"
+                  className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${
+                    emailOk ? '' : 'border-red-400'
+                  }`}
+                />
+              </label>
+            </div>
+
+            {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+
+            <button
+              onClick={complete}
+              disabled={!canComplete}
+              className="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+            >
+              {busy
+                ? 'Dokončujem…'
+                : `Dokončiť predaj · ${formatEur(totalCents)}`}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SaleDone({
+  orderId,
+  onCompleted,
+}: {
+  orderId: string
+  onCompleted: () => void
+}) {
+  return (
+    <div className="py-4 text-center">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-700">
+        ✓
+      </div>
+      <h2 className="text-xl font-bold">Predaj dokončený</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        Vstupenky sú vygenerované. Vytlačte doklad a vstupenky, alebo začnite
+        nový predaj.
+      </p>
+      <div className="mt-6 space-y-3">
+        <a
+          href={`/pos-receipt/${orderId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="block w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white hover:bg-indigo-700"
         >
-          Dokončiť predaj
+          🖨 Vytlačiť doklad a vstupenky
+        </a>
+        <button
+          onClick={onCompleted}
+          className="block w-full rounded-lg border px-4 py-3 text-base font-medium hover:bg-gray-50"
+        >
+          Nový predaj
         </button>
       </div>
     </div>

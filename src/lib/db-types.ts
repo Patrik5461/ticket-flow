@@ -14,6 +14,8 @@ export type OrderStatus =
   | 'refunded'
   | 'partially_refunded'
 export type TicketStatus = 'valid' | 'used' | 'cancelled'
+export type TicketSource = 'order' | 'guestlist' | 'manual' | 'pos'
+export type PaymentMethod = 'gopay' | 'manual' | 'cash' | 'terminal'
 
 export type OrganizerStatus = 'active' | 'suspended'
 
@@ -117,6 +119,13 @@ export interface OrderRow {
   expires_at: string | null
   created_at: string
   paid_at: string | null
+  payment_method: PaymentMethod
+  /** POS cash sales: amount tendered, in cents (null otherwise). */
+  cash_received_cents: number | null
+  /** eKasa fiscal receipt number — populated later by the eKasa integration. */
+  receipt_number: string | null
+  /** eKasa OKP/QR verification code from FS SR — populated later. */
+  fiscal_code: string | null
   billing_ico: string | null
   billing_dic: string | null
   billing_ic_dph: string | null
@@ -140,6 +149,7 @@ export interface TicketRow {
   holder_name: string | null
   status: TicketStatus
   used_at: string | null
+  source: TicketSource
 }
 
 export interface CouponRow {

@@ -88,7 +88,12 @@ export const sendBulkMessageFn = createServerFn({ method: 'POST' })
           .in('status', ['paid', 'partially_refunded'])
           .returns<{ buyer_email: string }[]>()
         const emails = [
-          ...new Set((orders ?? []).map((o) => o.buyer_email.toLowerCase())),
+          ...new Set(
+            (orders ?? [])
+              .map((o) => o.buyer_email.trim().toLowerCase())
+              // POS sales may have no buyer e-mail — skip empty addresses.
+              .filter((e) => e.length > 0),
+          ),
         ].slice(0, MAX_RECIPIENTS)
 
         const { data: campaign, error: cErr } = await db

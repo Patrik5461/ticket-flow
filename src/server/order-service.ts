@@ -45,6 +45,7 @@ import type {
   OrderItemRow,
   TicketRow,
   CouponRow,
+  TicketSource,
 } from '../lib/db-types'
 
 const RESERVATION_MINUTES = 15
@@ -657,6 +658,262 @@ export async function createManualOrder(
   return { orderId: order.id }
 }
 
+export interface PosOrderInput {
+  eventId: string
+  items: CartItemInput[]
+  paymentMethod: 'cash' | 'terminal'
+  /** Cash tendered by the buyer, in cents (required for cash, ignored otherwise). */
+  cashReceivedCents?: number | null
+  /** Optional — when set, the tickets are also e-mailed to the buyer. */
+  buyerEmail?: string | null
+}
+
+/**
+ * On-site POS sale. Like a manual order (already-paid, capacity reserved, tickets
+ * issued), but distinguished by payment_method 'cash' | 'terminal' and tickets
+ * source='pos'. No GoPay. The platform fee still applies per the organizer's
+ * config, so POS sales flow into sales + settlements like any paid order. The
+ * buyer e-mail is optional: with one, the tickets are e-mailed; without, the sale
+ * is completed for immediate print only. The caller must have authorized the
+ * organizer for the event.
+ */
+export async function createPosOrder(
+  input: PosOrderInput,
+): Promise<{ orderId: string }> {
+  const db = serviceClient()
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', input.eventId)
+    .maybeSingle<EventRow>()
+  if (!event) throw new OrderError('Podujatie sa nenašlo.')
+
+  const { data: organizer } = await db
+    .from('organizers')
+    .select('fee_percent, fee_min_cents, status')
+    .eq('id', event.organizer_id)
+    .single<Pick<OrganizerRow, 'fee_percent' | 'fee_min_cents' | 'status'>>()
+  if (organizer?.status === 'suspended') {
+    throw new OrderError(
+      'Predaj vstupeniek je pre tohto organizátora pozastavený.',
+    )
+  }
+
+  const ids = input.items.map((i) => i.ticketTypeId)
+  const { data: typeRows } = await db
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', event.id)
+    .in('id', ids)
+    .returns<TicketTypeRow[]>()
+  const types = new Map((typeRows ?? []).map((t) => [t.id, t]))
+
+  const cleanItems = input.items.filter(
+    (i) => i.quantity > 0 && types.has(i.ticketTypeId),
+  )
+  if (cleanItems.length === 0) {
+    throw new OrderError('Vyberte aspoň jednu vstupenku.')
+  }
+
+  const pricing = computePricing({
+    items: cleanItems.map((i) => ({
+      quantity: i.quantity,
+      unitPriceCents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+    coupon: null,
+    feePercent: organizer?.fee_percent ?? 4.0,
+    feeMinCents: organizer?.fee_min_cents ?? 40,
+  })
+
+  // Cash tender: the amount handed over must cover the total. Terminal payments
+  // carry no cash amount.
+  let cashReceived: number | null = null
+  if (input.paymentMethod === 'cash') {
+    cashReceived = input.cashReceivedCents ?? null
+    if (cashReceived == null || cashReceived < pricing.totalCents) {
+      throw new OrderError('Prijatá hotovosť nepokrýva sumu na úhradu.')
+    }
+  }
+
+  const reserved: CartItemInput[] = []
+  for (const item of cleanItems) {
+    const { data: ok, error } = await db.rpc('reserve_ticket_capacity', {
+      p_ticket_type_id: item.ticketTypeId,
+      p_qty: item.quantity,
+    })
+    if (error || !ok) {
+      await releaseAll(reserved)
+      const name = types.get(item.ticketTypeId)!.name
+      throw new OrderError(`"${name}" nemá dostatok voľných miest.`)
+    }
+    reserved.push(item)
+  }
+
+  const email = input.buyerEmail?.trim() || ''
+  const { data: order, error: orderErr } = await db
+    .from('orders')
+    .insert({
+      event_id: event.id,
+      buyer_email: email,
+      status: 'paid',
+      payment_method: input.paymentMethod,
+      cash_received_cents: cashReceived,
+      subtotal_cents: pricing.subtotalCents,
+      discount_cents: pricing.discountCents,
+      total_cents: pricing.totalCents,
+      fee_cents: pricing.feeCents,
+      paid_at: new Date().toISOString(),
+    })
+    .select('*')
+    .maybeSingle<OrderRow>()
+  if (orderErr || !order) {
+    await releaseAll(reserved)
+    throw new OrderError('Predaj sa nepodarilo dokončiť.')
+  }
+
+  const { error: itemsErr } = await db.from('order_items').insert(
+    cleanItems.map((i) => ({
+      order_id: order.id,
+      ticket_type_id: i.ticketTypeId,
+      quantity: i.quantity,
+      unit_price_cents: types.get(i.ticketTypeId)!.price_cents,
+    })),
+  )
+  if (itemsErr) {
+    await releaseAll(reserved)
+    await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    throw new OrderError('Predaj sa nepodarilo dokončiť.')
+  }
+
+  const tickets = await ensureTickets(order, 'pos')
+  // Only e-mail when the buyer gave an address; otherwise print-only.
+  if (email) {
+    await sendTicketEmail(order, event, tickets).catch(() => undefined)
+  }
+
+  return { orderId: order.id }
+}
+
+export interface PosReceiptView {
+  event: {
+    id: string
+    title: string
+    venue_name: string | null
+    venue_address: string | null
+    starts_at: string
+    timezone: string
+  }
+  order: {
+    id: string
+    ref: string
+    created_at: string
+    paymentMethod: OrderRow['payment_method']
+    subtotalCents: number
+    discountCents: number
+    totalCents: number
+    cashReceivedCents: number | null
+    changeCents: number | null
+    buyerEmail: string | null
+    receiptNumber: string | null
+    fiscalCode: string | null
+  }
+  lines: { name: string; quantity: number; unitPriceCents: number }[]
+  tickets: { id: string; ref: string; typeName: string; qrDataUrl: string }[]
+}
+
+/**
+ * Assemble a POS sale's receipt for the staff print page: the sale summary plus
+ * every issued ticket rendered with its check-in QR. Pure read — the caller
+ * authorizes against the returned event. Returns null if the order is not a POS
+ * sale (or does not exist).
+ */
+export async function getPosReceipt(
+  orderId: string,
+): Promise<PosReceiptView | null> {
+  const db = serviceClient()
+  const { data: order } = await db
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .maybeSingle<OrderRow>()
+  if (!order) return null
+  if (order.payment_method !== 'cash' && order.payment_method !== 'terminal') {
+    return null
+  }
+
+  const { data: event } = await db
+    .from('events')
+    .select('*')
+    .eq('id', order.event_id)
+    .single<EventRow>()
+  if (!event) return null
+
+  const { data: items } = await db
+    .from('order_items')
+    .select('*')
+    .eq('order_id', order.id)
+    .returns<OrderItemRow[]>()
+
+  const { data: ticketRows } = await db
+    .from('tickets')
+    .select('*')
+    .eq('order_id', order.id)
+    .returns<TicketRow[]>()
+
+  const names = await ticketTypeNames([
+    ...(items ?? []).map((i) => i.ticket_type_id),
+    ...(ticketRows ?? []).map((t) => t.ticket_type_id),
+  ])
+
+  const lines = (items ?? []).map((i) => ({
+    name: names.get(i.ticket_type_id) ?? 'Vstupenka',
+    quantity: i.quantity,
+    unitPriceCents: i.unit_price_cents,
+  }))
+
+  const tickets = await Promise.all(
+    (ticketRows ?? []).map(async (t) => ({
+      id: t.id,
+      ref: t.id.slice(0, 8).toUpperCase(),
+      typeName: names.get(t.ticket_type_id) ?? 'Vstupenka',
+      qrDataUrl: await qrDataUrl(signTicket(t.id, event.qr_secret)),
+    })),
+  )
+
+  const changeCents =
+    order.cash_received_cents == null
+      ? null
+      : order.cash_received_cents - order.total_cents
+
+  return {
+    event: {
+      id: event.id,
+      title: event.title,
+      venue_name: event.venue_name,
+      venue_address: event.venue_address,
+      starts_at: event.starts_at,
+      timezone: event.timezone,
+    },
+    order: {
+      id: order.id,
+      ref: order.id.slice(0, 8).toUpperCase(),
+      created_at: order.created_at,
+      paymentMethod: order.payment_method,
+      subtotalCents: order.subtotal_cents,
+      discountCents: order.discount_cents,
+      totalCents: order.total_cents,
+      cashReceivedCents: order.cash_received_cents,
+      changeCents,
+      buyerEmail: order.buyer_email || null,
+      receiptNumber: order.receipt_number,
+      fiscalCode: order.fiscal_code,
+    },
+    lines,
+    tickets,
+  }
+}
+
 async function releaseAll(items: CartItemInput[]): Promise<void> {
   const db = serviceClient()
   for (const i of items) {
@@ -717,7 +974,10 @@ async function markPaidAndFulfill(
   )
 }
 
-async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {
+async function ensureTickets(
+  order: OrderRow,
+  source: TicketSource = 'order',
+): Promise<TicketRow[]> {
   const db = serviceClient()
   const { data: existing } = await db
     .from('tickets')
@@ -751,6 +1011,7 @@ async function ensureTickets(order: OrderRow): Promise<TicketRow[]> {
           ticket_type_id: item.ticket_type_id,
           event_id: order.event_id,
           status: 'valid',
+          source,
         })
         .select('*')
         .maybeSingle<TicketRow>()
