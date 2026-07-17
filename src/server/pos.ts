@@ -15,6 +15,8 @@ import { serviceClient } from '../lib/supabase/server'
 import { requireEventManager, EventAuthzError } from './event-authz'
 import { createPosOrder, getPosReceipt, OrderError } from './order-service'
 import type { PosReceiptView } from './order-service'
+import { buildPosSummary } from './pos-summary'
+import type { PosSummary } from './pos-summary'
 
 export const createPosOrderFn = createServerFn({ method: 'POST' })
   .validator((d: unknown) =>
@@ -42,13 +44,14 @@ export const createPosOrderFn = createServerFn({ method: 'POST' })
       data,
     }): Promise<{ ok: true; orderId: string } | { error: string }> => {
       try {
-        await requireEventManager(data.eventId)
+        const actorId = await requireEventManager(data.eventId)
         const res = await createPosOrder({
           eventId: data.eventId,
           items: data.items,
           paymentMethod: data.paymentMethod,
           cashReceivedCents: data.cashReceivedCents ?? null,
           buyerEmail: data.buyerEmail ?? null,
+          soldBy: actorId,
         })
         return { ok: true as const, orderId: res.orderId }
       } catch (e) {
@@ -85,3 +88,26 @@ export const getPosReceiptFn = createServerFn({ method: 'GET' })
       }
     },
   )
+
+export const getPosSummaryFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z.object({ eventId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<PosSummary | { error: string }> => {
+    try {
+      await requireEventManager(data.eventId)
+      const { data: ev } = await serviceClient()
+        .from('events')
+        .select('organizer_id')
+        .eq('id', data.eventId)
+        .maybeSingle<{ organizer_id: string }>()
+      if (!ev) return { error: 'Podujatie sa nenašlo.' }
+
+      const summary = await buildPosSummary(data.eventId, ev.organizer_id)
+      if (!summary) return { error: 'Podujatie sa nenašlo.' }
+      return summary
+    } catch (e) {
+      if (e instanceof EventAuthzError) return { error: e.message }
+      throw e
+    }
+  })

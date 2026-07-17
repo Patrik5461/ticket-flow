@@ -8,7 +8,7 @@
  */
 
 import { serviceClient } from '../lib/supabase/server'
-import type { OrderStatus } from '../lib/db-types'
+import type { OrderStatus, PaymentMethod } from '../lib/db-types'
 
 export interface SalesOrder {
   id: string
@@ -19,6 +19,7 @@ export interface SalesOrder {
   status: OrderStatus
   total_cents: number
   itemsLabel: string
+  paymentMethod: PaymentMethod
 }
 
 export interface SalesData {
@@ -41,6 +42,7 @@ interface RawSalesOrder {
   status: OrderStatus
   total_cents: number
   fee_cents: number
+  payment_method: PaymentMethod
   order_items: {
     quantity: number
     ticket_type_id: string
@@ -71,7 +73,7 @@ export async function buildSalesData(
   const { data: rawOrders } = await db
     .from('orders')
     .select(
-      'id, created_at, buyer_email, buyer_name, status, total_cents, fee_cents, order_items(quantity, ticket_type_id, ticket_types(name))',
+      'id, created_at, buyer_email, buyer_name, status, total_cents, fee_cents, payment_method, order_items(quantity, ticket_type_id, ticket_types(name))',
     )
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
@@ -92,6 +94,7 @@ export async function buildSalesData(
     buyer_name: o.buyer_name,
     status: o.status,
     total_cents: o.total_cents,
+    paymentMethod: o.payment_method,
     itemsLabel: (o.order_items ?? [])
       .map((i) => `${i.quantity}× ${i.ticket_types?.name ?? '—'}`)
       .join(', '),

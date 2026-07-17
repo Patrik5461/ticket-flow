@@ -666,6 +666,8 @@ export interface PosOrderInput {
   cashReceivedCents?: number | null
   /** Optional — when set, the tickets are also e-mailed to the buyer. */
   buyerEmail?: string | null
+  /** Staff user ringing up the sale (recorded for the POS overview). */
+  soldBy?: string | null
 }
 
 /**
@@ -758,6 +760,7 @@ export async function createPosOrder(
       buyer_email: email,
       status: 'paid',
       payment_method: input.paymentMethod,
+      sold_by: input.soldBy ?? null,
       cash_received_cents: cashReceived,
       subtotal_cents: pricing.subtotalCents,
       discount_cents: pricing.discountCents,

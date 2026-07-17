@@ -7,7 +7,7 @@ import {
 import { useState } from 'react'
 import { getEventSalesFn, type SalesData } from '../server/dashboard'
 import { formatEur } from '../lib/money'
-import type { OrderStatus } from '../lib/db-types'
+import type { OrderStatus, PaymentMethod } from '../lib/db-types'
 
 export const Route = createFileRoute('/app/events/$eventId/sales')({
   loader: async ({ params }) => {
@@ -34,6 +34,13 @@ const STATUS_CLS: Record<OrderStatus, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
   refunded: 'bg-red-100 text-red-700',
   partially_refunded: 'bg-amber-100 text-amber-800',
+}
+
+const SOURCE_SK: Record<PaymentMethod, string> = {
+  gopay: 'Online',
+  manual: 'Manuál',
+  cash: 'POS · hotovosť',
+  terminal: 'POS · terminál',
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -84,12 +91,21 @@ function SalesPage() {
             Predaj — {data.event.title}
           </h1>
         </div>
-        <button
-          onClick={() => router.invalidate()}
-          className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-        >
-          Obnoviť
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/app/events/$eventId/pos-summary"
+            params={{ eventId }}
+            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+          >
+            POS uzávierka →
+          </Link>
+          <button
+            onClick={() => router.invalidate()}
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            Obnoviť
+          </button>
+        </div>
       </div>
 
       {/* Totals (realized revenue = paid orders) */}
@@ -175,6 +191,7 @@ function SalesPage() {
                 <th className="py-2 pr-3">Dátum</th>
                 <th className="py-2 pr-3">E-mail</th>
                 <th className="py-2 pr-3">Vstupenky</th>
+                <th className="py-2 pr-3">Zdroj</th>
                 <th className="py-2 pr-3 text-right">Suma</th>
                 <th className="py-2">Stav</th>
               </tr>
@@ -203,6 +220,18 @@ function SalesPage() {
                     )}
                   </td>
                   <td className="py-2 pr-3 text-gray-600">{o.itemsLabel}</td>
+                  <td className="py-2 pr-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        o.paymentMethod === 'cash' ||
+                        o.paymentMethod === 'terminal'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {SOURCE_SK[o.paymentMethod]}
+                    </span>
+                  </td>
                   <td className="py-2 pr-3 text-right tabular-nums">
                     {formatEur(o.total_cents)}
                   </td>
@@ -217,7 +246,7 @@ function SalesPage() {
               ))}
               {orders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-gray-500">
+                  <td colSpan={7} className="py-6 text-center text-gray-500">
                     Žiadne objednávky.
                   </td>
                 </tr>

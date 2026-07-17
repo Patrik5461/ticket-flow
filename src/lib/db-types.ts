@@ -120,6 +120,8 @@ export interface OrderRow {
   created_at: string
   paid_at: string | null
   payment_method: PaymentMethod
+  /** Staff user who rang up a POS/manual sale (null for online orders). */
+  sold_by: string | null
   /** POS cash sales: amount tendered, in cents (null otherwise). */
   cash_received_cents: number | null
   /** eKasa fiscal receipt number — populated later by the eKasa integration. */

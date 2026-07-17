@@ -57,6 +57,7 @@ import { Route as ApiCronIssueInvoicesRouteImport } from './routes/api.cron.issu
 import { Route as AdminOrganizersOrganizerIdRouteImport } from './routes/admin.organizers.$organizerId'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
 import { Route as AppEventsEventIdSalesRouteImport } from './routes/app.events.$eventId.sales'
+import { Route as AppEventsEventIdPosSummaryRouteImport } from './routes/app.events.$eventId.pos-summary'
 import { Route as AppEventsEventIdPosRouteImport } from './routes/app.events.$eventId.pos'
 import { Route as AppEventsEventIdManualOrderRouteImport } from './routes/app.events.$eventId.manual-order'
 import { Route as AppEventsEventIdGuestlistRouteImport } from './routes/app.events.$eventId.guestlist'
@@ -313,6 +314,12 @@ const AppEventsEventIdSalesRoute = AppEventsEventIdSalesRouteImport.update({
   path: '/sales',
   getParentRoute: () => AppEventsEventIdRoute,
 } as any)
+const AppEventsEventIdPosSummaryRoute =
+  AppEventsEventIdPosSummaryRouteImport.update({
+    id: '/pos-summary',
+    path: '/pos-summary',
+    getParentRoute: () => AppEventsEventIdRoute,
+  } as any)
 const AppEventsEventIdPosRoute = AppEventsEventIdPosRouteImport.update({
   id: '/pos',
   path: '/pos',
@@ -452,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
+  '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
@@ -514,6 +522,7 @@ export interface FileRoutesByTo {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
+  '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
@@ -579,6 +588,7 @@ export interface FileRoutesById {
   '/app/events/$eventId/guestlist': typeof AppEventsEventIdGuestlistRoute
   '/app/events/$eventId/manual-order': typeof AppEventsEventIdManualOrderRoute
   '/app/events/$eventId/pos': typeof AppEventsEventIdPosRoute
+  '/app/events/$eventId/pos-summary': typeof AppEventsEventIdPosSummaryRoute
   '/app/events/$eventId/sales': typeof AppEventsEventIdSalesRoute
   '/api/orders/$orderId/tickets/$ticketId': typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
   '/api/v1/events/$id/tickets': typeof ApiV1EventsIdTicketsRoute
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/pos'
+    | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/pos'
+    | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
@@ -771,6 +783,7 @@ export interface FileRouteTypes {
     | '/app/events/$eventId/guestlist'
     | '/app/events/$eventId/manual-order'
     | '/app/events/$eventId/pos'
+    | '/app/events/$eventId/pos-summary'
     | '/app/events/$eventId/sales'
     | '/api/orders/$orderId/tickets/$ticketId'
     | '/api/v1/events/$id/tickets'
@@ -1157,6 +1170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventsEventIdSalesRouteImport
       parentRoute: typeof AppEventsEventIdRoute
     }
+    '/app/events/$eventId/pos-summary': {
+      id: '/app/events/$eventId/pos-summary'
+      path: '/pos-summary'
+      fullPath: '/app/events/$eventId/pos-summary'
+      preLoaderRoute: typeof AppEventsEventIdPosSummaryRouteImport
+      parentRoute: typeof AppEventsEventIdRoute
+    }
     '/app/events/$eventId/pos': {
       id: '/app/events/$eventId/pos'
       path: '/pos'
@@ -1289,6 +1309,7 @@ interface AppEventsEventIdRouteChildren {
   AppEventsEventIdGuestlistRoute: typeof AppEventsEventIdGuestlistRoute
   AppEventsEventIdManualOrderRoute: typeof AppEventsEventIdManualOrderRoute
   AppEventsEventIdPosRoute: typeof AppEventsEventIdPosRoute
+  AppEventsEventIdPosSummaryRoute: typeof AppEventsEventIdPosSummaryRoute
   AppEventsEventIdSalesRoute: typeof AppEventsEventIdSalesRoute
   AppEventsEventIdOrdersOrderIdRoute: typeof AppEventsEventIdOrdersOrderIdRoute
 }
@@ -1298,6 +1319,7 @@ const AppEventsEventIdRouteChildren: AppEventsEventIdRouteChildren = {
   AppEventsEventIdGuestlistRoute: AppEventsEventIdGuestlistRoute,
   AppEventsEventIdManualOrderRoute: AppEventsEventIdManualOrderRoute,
   AppEventsEventIdPosRoute: AppEventsEventIdPosRoute,
+  AppEventsEventIdPosSummaryRoute: AppEventsEventIdPosSummaryRoute,
   AppEventsEventIdSalesRoute: AppEventsEventIdSalesRoute,
   AppEventsEventIdOrdersOrderIdRoute: AppEventsEventIdOrdersOrderIdRoute,
 }

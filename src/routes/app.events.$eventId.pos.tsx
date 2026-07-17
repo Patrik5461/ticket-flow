@@ -50,18 +50,29 @@ function PosPage() {
   return (
     <div className="space-y-6 pb-28">
       {/* Header */}
-      <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Link
+            to="/app/events/$eventId"
+            params={{ eventId }}
+            className="text-sm text-indigo-600 hover:underline"
+          >
+            ← Späť na podujatie
+          </Link>
+          <h1 className="mt-2 text-2xl font-bold">
+            Pokladňa (POS) — {event.title}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Rýchly predaj na mieste. Vyberte počty vstupeniek a stlačte „Predať".
+          </p>
+        </div>
         <Link
-          to="/app/events/$eventId"
+          to="/app/events/$eventId/pos-summary"
           params={{ eventId }}
-          className="text-sm text-indigo-600 hover:underline"
+          className="shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
         >
-          ← Späť na podujatie
+          Uzávierka →
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Pokladňa (POS) — {event.title}</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Rýchly predaj na mieste. Vyberte počty vstupeniek a stlačte „Predať".
-        </p>
       </div>
 
       {/* Ticket-type tiles */}
