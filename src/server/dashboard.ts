@@ -15,6 +15,7 @@ import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { generateApiKey } from '../lib/api-keys'
+import { settlementNet } from '../lib/settlement-math'
 import { detectCoverMime, coverExt } from '../lib/images'
 import { isValidIco, isValidIban, normalizeIban } from '../lib/validation'
 import { writeAuditLog } from './admin'
@@ -785,15 +786,30 @@ async function computeAvailablePayout(organizerId: string): Promise<number> {
     .returns<{ id: string }[]>()
   const eventIds = (events ?? []).map((e) => e.id)
 
+  // Same net formula as settlements (gross − fee − refunded), so the payout
+  // "available" figure matches settlement net even with partial refunds.
   let netPaid = 0
   if (eventIds.length > 0) {
     const { data: orders } = await db
       .from('orders')
-      .select('total_cents, fee_cents')
+      .select('id, total_cents, fee_cents')
       .in('event_id', eventIds)
-      .eq('status', 'paid')
-      .returns<{ total_cents: number; fee_cents: number }[]>()
-    for (const o of orders ?? []) netPaid += o.total_cents - o.fee_cents
+      .in('status', ['paid', 'partially_refunded', 'refunded'])
+      .returns<{ id: string; total_cents: number; fee_cents: number }[]>()
+    const orderList = orders ?? []
+    let refunds: { amount_cents: number; status: string }[] = []
+    if (orderList.length > 0) {
+      const { data: refundRows } = await db
+        .from('refunds')
+        .select('amount_cents, status')
+        .in(
+          'order_id',
+          orderList.map((o) => o.id),
+        )
+        .returns<{ amount_cents: number; status: string }[]>()
+      refunds = refundRows ?? []
+    }
+    netPaid = settlementNet(orderList, refunds)
   }
 
   const { data: reqs } = await db
