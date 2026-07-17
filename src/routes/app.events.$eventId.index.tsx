@@ -48,6 +48,108 @@ const inputCls = 'w-full rounded-md border px-3 py-2 text-sm'
 const eurToCents = (s: string) => Math.round(parseFloat(s || '0') * 100)
 const centsToEur = (c: number) => (c / 100).toFixed(2)
 
+function PublishToggle({
+  event,
+  onToggle,
+}: {
+  event: EventDetail['event']
+  onToggle: () => void
+}) {
+  const published = event.status === 'published'
+  return (
+    <div className="card-surface flex items-center gap-2 p-1.5">
+      <span className="flex items-center gap-2 px-2 text-sm text-ink-200">
+        <span
+          className={`h-2 w-2 rounded-full ${
+            published ? 'bg-accent' : 'bg-ink-500'
+          }`}
+        />
+        {published ? 'Zverejnené' : 'Koncept'}
+      </span>
+      <button
+        onClick={onToggle}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+          published
+            ? 'border border-ink-600 text-ink-100 hover:bg-ink-700'
+            : 'bg-accent text-ink-950 hover:bg-accent-dim'
+        }`}
+      >
+        {published ? 'Skryť (koncept)' : 'Zverejniť'}
+      </button>
+    </div>
+  )
+}
+
+type ActionCardProps = {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  subtitle: string
+  primary?: boolean
+  ghost?: boolean
+  to?: string
+  params?: Record<string, string>
+  href?: string
+  external?: boolean
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  subtitle,
+  primary,
+  ghost,
+  to,
+  params,
+  href,
+  external,
+}: ActionCardProps) {
+  const base =
+    'group relative flex min-h-[88px] flex-col justify-between rounded-[14px] border p-4 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+  const surface = ghost
+    ? 'border-ink-700 bg-ink-900/60 hover:border-ink-500 hover:bg-ink-800'
+    : primary
+      ? 'border-accent/20 bg-gradient-to-br from-ink-800 to-ink-900 hover:border-accent/50 hover:shadow-[0_0_20px_-8px_rgba(74,222,128,0.35)]'
+      : 'border-ink-700 bg-gradient-to-br from-ink-800 to-ink-900 hover:border-ink-500 hover:bg-ink-800'
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <Icon
+          className={`h-6 w-6 transition-colors ${
+            primary ? 'text-accent' : 'text-ink-300 group-hover:text-accent'
+          }`}
+        />
+        {external && <ExternalLink className="h-3.5 w-3.5 text-ink-500" />}
+      </div>
+      <div>
+        <div className="font-display text-sm font-semibold text-ink-100">
+          {title}
+        </div>
+        <div className="mt-0.5 text-xs text-ink-400">{subtitle}</div>
+      </div>
+    </>
+  )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={external ? '_blank' : undefined}
+        rel={external ? 'noreferrer' : undefined}
+        className={`${base} ${surface}`}
+      >
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <Link to={to!} params={params} className={`${base} ${surface}`}>
+      {content}
+    </Link>
+  )
+}
+
+
 function ManageEvent() {
   const { event, ticketTypes, coupons } = Route.useLoaderData()
   const router = useRouter()
