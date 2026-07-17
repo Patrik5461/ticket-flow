@@ -283,10 +283,6 @@ function Landing() {
               <TicketPreview />
             </div>
           </div>
-
-          <div className="mt-14 md:hidden">
-            <TicketPreview compact />
-          </div>
         </div>
       </section>
 
