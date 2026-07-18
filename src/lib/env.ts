@@ -68,6 +68,9 @@ const schema = z.object({
   // Anthropic (AI support assistant). Without it, the support chat widget is
   // hidden. Server-only — must never reach the client bundle.
   ANTHROPIC_API_KEY: z.string().default(''),
+  // Max Anthropic API calls per UTC day across all buyers. Once reached the
+  // assistant serves a static FAQ instead of calling the model. 0 = unlimited.
+  SUPPORT_DAILY_LIMIT: z.coerce.number().int().min(0).default(500),
 })
 
 export type Env = z.infer<typeof schema>
@@ -102,6 +105,7 @@ export function getEnv(): Env {
       GOOGLE_WALLET_SA_EMAIL: process.env.GOOGLE_WALLET_SA_EMAIL,
       GOOGLE_WALLET_SA_KEY: process.env.GOOGLE_WALLET_SA_KEY,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      SUPPORT_DAILY_LIMIT: process.env.SUPPORT_DAILY_LIMIT,
     })
   }
   return cached

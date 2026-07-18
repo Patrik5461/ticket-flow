@@ -11,6 +11,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { getEnv } from '../lib/env'
 import { lookupOrderFn, resendTicketsFn, requestEmailChangeFn } from './support'
+import {
+  supportDailyLimit,
+  getTodaySupportCalls,
+  bumpSupportUsage,
+} from './support-usage'
 
 const MODEL = 'claude-sonnet-4-6'
 const MAX_TOOL_LOOPS = 6
@@ -18,6 +23,17 @@ const MAX_MESSAGES = 30
 
 const FALLBACK =
   'Ospravedlňujem sa, asistent je momentálne nedostupný. Kontaktujte prosím organizátora podujatia.'
+
+// Served when the daily API-call limit is exhausted — a static, no-cost FAQ so
+// buyers still get help without calling the model.
+const FAQ_FALLBACK = `Asistent je dnes vyťažený, tu je zopár rýchlych odpovedí:
+
+• Neprišla vstupenka? Skontrolujte priečinok Spam/Hromadné. Vstupenky posielame na e-mail zadaný pri objednávke — vždy sa dajú znovu poslať naň.
+• Zadali ste zlý e-mail? Napíšte organizátorovi podujatia, vie ho zmeniť a vstupenky preposlať.
+• Kde a kedy je podujatie? Detaily nájdete na stránke podujatia aj priamo vo vstupenke (PDF).
+• Refundácia alebo reklamácia? Tie rieši priamo organizátor podujatia.
+
+Ďakujeme za trpezlivosť, skúste asistenta znova neskôr.`
 
 const SYSTEM_PROMPT = `Si podporný asistent platformy Ticketio (predaj vstupeniek na podujatia). Pomáhaš KUPUJÚCIM s ich objednávkami. Odpovedáš po slovensky, stručne a priateľsky.
 
@@ -127,55 +143,73 @@ async function runSupportChat(
   const key = getEnv().ANTHROPIC_API_KEY
   if (!key) return { reply: FALLBACK }
 
+  // Daily cost guard: once the configured cap is reached, serve the static FAQ
+  // instead of calling the model.
+  const limit = supportDailyLimit()
+  if (limit > 0 && (await getTodaySupportCalls()) >= limit) {
+    await bumpSupportUsage(0, 0, 1)
+    return { reply: FAQ_FALLBACK }
+  }
+
   const messages: { role: string; content: unknown }[] = clientMessages
     .slice(-MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.text }))
 
-  for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
-    let data: { stop_reason?: string; content?: AnthropicBlock[] }
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          tools: TOOLS,
-          messages,
-        }),
-        signal: AbortSignal.timeout(30_000),
-      })
-      if (!res.ok) return { reply: FALLBACK }
-      data = await res.json()
-    } catch {
-      return { reply: FALLBACK }
-    }
-
-    const content = data.content ?? []
-    if (data.stop_reason === 'tool_use') {
-      messages.push({ role: 'assistant', content })
-      const results = []
-      for (const b of content) {
-        if (b.type === 'tool_use' && b.name && b.id) {
-          const r = await execTool(b.name, b.input ?? {})
-          results.push({
-            type: 'tool_result',
-            tool_use_id: b.id,
-            content: JSON.stringify(r),
-          })
-        }
+  let apiCalls = 0
+  let toolCalls = 0
+  let reply = FALLBACK
+  try {
+    for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
+      let data: { stop_reason?: string; content?: AnthropicBlock[] }
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            max_tokens: 1024,
+            system: SYSTEM_PROMPT,
+            tools: TOOLS,
+            messages,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        })
+        apiCalls++
+        if (!res.ok) break
+        data = await res.json()
+      } catch {
+        break
       }
-      messages.push({ role: 'user', content: results })
-      continue
+
+      const content = data.content ?? []
+      if (data.stop_reason === 'tool_use') {
+        messages.push({ role: 'assistant', content })
+        const results = []
+        for (const b of content) {
+          if (b.type === 'tool_use' && b.name && b.id) {
+            toolCalls++
+            const r = await execTool(b.name, b.input ?? {})
+            results.push({
+              type: 'tool_result',
+              tool_use_id: b.id,
+              content: JSON.stringify(r),
+            })
+          }
+        }
+        messages.push({ role: 'user', content: results })
+        continue
+      }
+      reply = textOf(content) || FALLBACK
+      break
     }
-    return { reply: textOf(content) || FALLBACK }
+  } finally {
+    await bumpSupportUsage(apiCalls, toolCalls, reply === FALLBACK ? 1 : 0)
   }
-  return { reply: FALLBACK }
+  return { reply }
 }
 
 const chatSchema = z.object({

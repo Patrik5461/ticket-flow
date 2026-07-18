@@ -7,22 +7,26 @@ import {
 import type { PlatformStats, MonthlyPoint } from '../server/admin-overview'
 import { getAdminOpsFn } from '../server/admin-ops'
 import type { AdminOps } from '../server/admin-ops'
+import { getSupportUsageFn } from '../server/support-usage'
+import type { SupportUsage } from '../server/support-usage'
 import { generateSettlementsNowFn } from '../server/settlements'
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
 
 export const Route = createFileRoute('/admin/')({
   loader: async () => {
-    const [overview, platform, ops] = await Promise.all([
+    const [overview, platform, ops, support] = await Promise.all([
       getAdminOverviewFn(),
       getPlatformStatsFn(),
       getAdminOpsFn(),
+      getSupportUsageFn(),
     ])
     if ('error' in overview) throw new Error(overview.error)
     return {
       overview,
       platform: 'error' in platform ? null : platform,
       ops: 'error' in ops ? null : ops,
+      support: 'error' in support ? null : support,
     }
   },
   component: AdminOverview,
@@ -49,13 +53,15 @@ function Stat({
 }
 
 function AdminOverview() {
-  const { overview: o, platform, ops } = Route.useLoaderData()
+  const { overview: o, platform, ops, support } = Route.useLoaderData()
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Prehľad platformy</h1>
 
       {ops && <OpsPanel ops={ops} />}
+
+      {support && <SupportUsagePanel usage={support} />}
 
       {platform && <RevenueBreakdown b={platform.breakdown} />}
 
@@ -91,6 +97,88 @@ function AdminOverview() {
       <ExportData />
       <GenerateSettlements />
     </div>
+  )
+}
+
+function SupportUsagePanel({ usage }: { usage: SupportUsage }) {
+  const { limit, today, days } = usage
+  const pct = limit > 0 ? Math.min(100, (today.apiCalls / limit) * 100) : 0
+  const near = limit > 0 && today.apiCalls >= limit * 0.8
+  return (
+    <section className="rounded-lg border bg-white p-5">
+      <h2 className="mb-1 text-sm font-semibold">AI podpora — spotreba</h2>
+      <p className="mb-3 text-xs text-gray-500">
+        Volania na Anthropic API (odhad nákladov). Denný limit:{' '}
+        {limit > 0 ? `${limit} volaní/deň` : 'bez limitu'}. Po vyčerpaní sa
+        kupujúcim zobrazí statické FAQ.
+      </p>
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="text-xs text-gray-500">Dnes — volania</div>
+          <div className="text-2xl font-bold tabular-nums">
+            {today.apiCalls}
+            {limit > 0 && (
+              <span className="text-sm font-normal text-gray-400">
+                {' '}
+                / {limit}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="text-xs text-gray-500">Dnes — nástroje</div>
+          <div className="text-2xl font-bold tabular-nums">
+            {today.toolCalls}
+          </div>
+        </div>
+        <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="text-xs text-gray-500">Dnes — FAQ fallback</div>
+          <div className="text-2xl font-bold tabular-nums">
+            {today.fallbackHits}
+          </div>
+        </div>
+      </div>
+      {limit > 0 && (
+        <div className="mb-4">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className={`h-full ${near ? 'bg-amber-500' : 'bg-green-500'}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {days.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500">
+                <th className="py-1 pr-4 font-medium">Deň</th>
+                <th className="py-1 pr-4 text-right font-medium">Volania</th>
+                <th className="py-1 pr-4 text-right font-medium">Nástroje</th>
+                <th className="py-1 text-right font-medium">FAQ fallback</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((d) => (
+                <tr key={d.day} className="border-t">
+                  <td className="py-1 pr-4">{d.day}</td>
+                  <td className="py-1 pr-4 text-right tabular-nums">
+                    {d.apiCalls}
+                  </td>
+                  <td className="py-1 pr-4 text-right tabular-nums">
+                    {d.toolCalls}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">
+                    {d.fallbackHits}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }
 
