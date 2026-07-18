@@ -16,3 +16,5 @@ export const checkoutLimiter = new RateLimiter(20, MINUTE)
 export const authLimiter = new RateLimiter(10, MINUTE)
 /** Check-in scans — staff scan fast, so this is high; just a flood ceiling. */
 export const checkinLimiter = new RateLimiter(300, MINUTE)
+/** Public support lookups — anti-enumeration: 5 attempts / 15 min / IP. */
+export const supportLimiter = new RateLimiter(5, 15 * MINUTE)
