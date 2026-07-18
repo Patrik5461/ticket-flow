@@ -105,15 +105,15 @@ function AdminLayout() {
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-sm">
-            <form onSubmit={search}>
+            <form onSubmit={search} className="hidden md:block">
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Hľadať…"
-                className="w-48 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
+                className="w-40 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent xl:w-56"
               />
             </form>
-            <span className="hidden max-w-[140px] truncate text-xs text-ink-400 lg:inline">{admin.email}</span>
+            <span className="hidden max-w-[140px] truncate text-xs text-ink-400 xl:inline">{admin.email}</span>
             <ThemeToggle />
             <button
               onClick={logout}
@@ -122,6 +122,7 @@ function AdminLayout() {
               Odhlásiť
             </button>
           </div>
+
         </div>
 
       </header>
