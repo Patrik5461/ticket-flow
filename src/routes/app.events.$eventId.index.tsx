@@ -149,7 +149,7 @@ function ActionCard({
   }
 
   return (
-    <Link to={to} params={params} className={`${base} ${surface}`}>
+    <Link to={to} params={params as never} className={`${base} ${surface}`}>
       {content}
     </Link>
   )
