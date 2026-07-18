@@ -257,40 +257,39 @@ async function count(table: string): Promise<number> {
   return c ?? 0
 }
 
-async function buildHealth(): Promise<SystemHealth> {
-  const [
-    database,
-    storage,
-    gopay,
-    resend,
-    faktero,
-    refund,
-    email,
-    webhook,
-    waitlist,
-    invoice,
-    organizers,
-    events,
-    orders,
-  ] = await Promise.all([
+async function checkServices(): Promise<ServiceCheck[]> {
+  return Promise.all([
     timed('database', checkDatabase),
     timed('storage', checkStorage),
     cached('gopay', checkGopay),
     cached('resend', checkResend),
     cached('faktero', checkFaktero),
+  ])
+}
+
+async function checkQueues(): Promise<QueueStat[]> {
+  const [refund, email, webhook, waitlist, invoice] = await Promise.all([
     jobQueue('refund_jobs', 'refund', ['pending', 'processing', 'failed']),
     jobQueue('email_jobs', 'email', ['pending', 'sending', 'failed']),
     jobQueue('webhook_deliveries', 'webhook', ['pending', 'sending', 'failed']),
     waitlistQueue(),
     invoiceQueue(),
+  ])
+  return [refund, email, invoice, waitlist, webhook]
+}
+
+async function buildHealth(): Promise<SystemHealth> {
+  const [services, queues, organizers, events, orders] = await Promise.all([
+    checkServices(),
+    checkQueues(),
     count('organizers'),
     count('events'),
     count('orders'),
   ])
 
   return {
-    services: [database, storage, gopay, resend, faktero],
-    queues: [refund, email, invoice, waitlist, webhook],
+    services,
+    queues,
     system: {
       version: process.env.APP_COMMIT || process.env.APP_VERSION || 'dev',
       uptimeSeconds: Math.round(process.uptime()),
@@ -307,6 +306,66 @@ export const getSystemHealthFn = createServerFn({ method: 'GET' }).handler(
     return runAdmin(async () => {
       await requirePlatformAdmin()
       return buildHealth()
+    })
+  },
+)
+
+// -- lean alerts (admin-wide banner) ----------------------------------------
+
+export interface HealthAlert {
+  level: 'down' | 'warn'
+  text: string
+}
+
+const QUEUE_LABEL: Record<string, string> = {
+  refund: 'Refundácie',
+  email: 'E-maily',
+  invoice: 'Faktúry',
+  waitlist: 'Waitlist',
+  webhook: 'Webhooky',
+}
+const SERVICE_LABEL: Record<string, string> = {
+  database: 'Databáza',
+  storage: 'Úložisko',
+  gopay: 'GoPay',
+  resend: 'Resend',
+  faktero: 'Faktero',
+}
+
+/** Only the actionable problems — services down, queues stuck or with dead jobs.
+ *  Reuses the cached external checks so the admin-wide poll stays cheap. */
+export const getHealthAlertsFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<{ alerts: HealthAlert[] } | { error: string }> => {
+    return runAdmin(async () => {
+      await requirePlatformAdmin()
+      const [services, queues] = await Promise.all([
+        checkServices(),
+        checkQueues(),
+      ])
+      const alerts: HealthAlert[] = []
+      for (const s of services) {
+        if (s.status === 'down') {
+          alerts.push({
+            level: 'down',
+            text: `${SERVICE_LABEL[s.name] ?? s.name} nedostupné`,
+          })
+        }
+      }
+      for (const q of queues) {
+        if (q.stuck > 0) {
+          alerts.push({
+            level: 'down',
+            text: `Fronta „${QUEUE_LABEL[q.name] ?? q.name}" zaseknutá (${q.stuck})`,
+          })
+        }
+        if (q.failed > 0) {
+          alerts.push({
+            level: 'warn',
+            text: `Fronta „${QUEUE_LABEL[q.name] ?? q.name}": ${q.failed} zlyhaných`,
+          })
+        }
+      }
+      return { alerts }
     })
   },
 )

@@ -5,9 +5,11 @@ import {
   Link,
   useNavigate,
 } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getAdminSessionFn } from '../server/admin-session'
 import { signOutFn } from '../server/auth'
+import { getHealthAlertsFn } from '../server/health'
+import type { HealthAlert } from '../server/health'
 import { ThemeToggle } from '../components/ThemeToggle'
 
 /**
@@ -123,9 +125,54 @@ function AdminLayout() {
           </div>
         </div>
       </header>
+      <HealthAlerts />
       <main className="mx-auto max-w-6xl px-6 py-10">
         <Outlet />
       </main>
+    </div>
+  )
+}
+
+/** Admin-wide banner for services down / stuck queues. Mounted once in the
+ *  layout, polls every 60s independent of page navigation. */
+function HealthAlerts() {
+  const [alerts, setAlerts] = useState<HealthAlert[]>([])
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const res = await getHealthAlertsFn()
+        if (active && !('error' in res)) setAlerts(res.alerts)
+      } catch {
+        /* ignore — banner just stays hidden */
+      }
+    }
+    void load()
+    const id = setInterval(load, 60_000)
+    return () => {
+      active = false
+      clearInterval(id)
+    }
+  }, [])
+
+  if (alerts.length === 0) return null
+  const hasDown = alerts.some((a) => a.level === 'down')
+
+  return (
+    <div
+      className="px-6 py-2 text-sm font-medium"
+      style={{
+        background: hasDown ? '#7f1d1d' : '#78350f',
+        color: '#fff',
+      }}
+    >
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1">
+        <span>⚠️ {alerts.map((a) => a.text).join(' · ')}</span>
+        <Link to="/admin/health" className="underline">
+          Detail →
+        </Link>
+      </div>
     </div>
   )
 }
