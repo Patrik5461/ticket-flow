@@ -55,11 +55,11 @@ function AdminLayout() {
           borderBottom: '1px solid var(--color-ink-700)',
         }}
       >
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
-          <div className="flex flex-wrap items-center gap-5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-3.5">
+          <div className="flex min-w-0 items-center gap-5">
             <Link
               to="/admin"
-              className="flex items-center gap-2 font-display text-lg font-bold"
+              className="flex shrink-0 items-center gap-2 font-display text-lg font-bold"
             >
               <span>
                 ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
@@ -104,18 +104,17 @@ function AdminLayout() {
               </Link>
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex shrink-0 items-center gap-2 text-sm">
             <form onSubmit={search}>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Hľadať e-mail, event, org, obj.#, GoPay…"
-                className="w-64 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
+                placeholder="Hľadať…"
+                className="w-48 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
               />
             </form>
-            <span className="text-xs text-ink-400">{admin.email}</span>
+            <span className="hidden max-w-[140px] truncate text-xs text-ink-400 lg:inline">{admin.email}</span>
             <ThemeToggle />
-
             <button
               onClick={logout}
               className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
@@ -124,6 +123,7 @@ function AdminLayout() {
             </button>
           </div>
         </div>
+
       </header>
       <HealthAlerts />
       <main className="mx-auto max-w-6xl px-6 py-10">
