@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import appCss from '../styles.css?url'
 import { CookieConsent } from '../components/CookieConsent'
+import { SupportChat } from '../components/SupportChat'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -56,6 +57,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <SupportChat />
         <CookieConsent />
         <TanStackDevtools
           config={{ position: 'bottom-right' }}

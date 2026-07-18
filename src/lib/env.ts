@@ -65,6 +65,9 @@ const schema = z.object({
   GOOGLE_WALLET_ISSUER_ID: z.string().default(''),
   GOOGLE_WALLET_SA_EMAIL: z.string().default(''),
   GOOGLE_WALLET_SA_KEY: z.string().default(''),
+  // Anthropic (AI support assistant). Without it, the support chat widget is
+  // hidden. Server-only — must never reach the client bundle.
+  ANTHROPIC_API_KEY: z.string().default(''),
 })
 
 export type Env = z.infer<typeof schema>
@@ -98,6 +101,7 @@ export function getEnv(): Env {
       GOOGLE_WALLET_ISSUER_ID: process.env.GOOGLE_WALLET_ISSUER_ID,
       GOOGLE_WALLET_SA_EMAIL: process.env.GOOGLE_WALLET_SA_EMAIL,
       GOOGLE_WALLET_SA_KEY: process.env.GOOGLE_WALLET_SA_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     })
   }
   return cached
