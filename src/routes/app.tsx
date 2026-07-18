@@ -62,7 +62,7 @@ function AppLayout() {
           borderBottom: '1px solid var(--color-ink-700)',
         }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-3.5">
           <Link
             to="/app"
             className="flex items-center gap-2 font-display text-lg font-bold"
