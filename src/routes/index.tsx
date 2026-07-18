@@ -301,16 +301,17 @@ function Landing() {
                     <Link
                       to="/e/$slug"
                       params={{ slug: e.slug }}
-                      className="card-surface group flex w-[280px] items-center gap-3 overflow-hidden p-2 transition hover:border-accent/40"
+                      className="card-surface group flex w-[380px] items-center gap-4 overflow-hidden p-3 transition hover:border-accent/40"
                     >
                       <div
-                        className="h-16 w-16 shrink-0 rounded-lg"
+                        className="h-24 w-24 shrink-0 rounded-lg"
                         style={{
                           background: cover
                             ? `url(${cover}) center/cover`
                             : 'var(--gradient-fallback)',
                         }}
                       />
+
                       <div className="min-w-0 flex-1 pr-2">
                         <div className="truncate font-display text-sm font-semibold text-ink-100 transition group-hover:text-accent">
                           {e.title}
