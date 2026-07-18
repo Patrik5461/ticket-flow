@@ -29,6 +29,12 @@ import {
 import type { EventDetail } from '../server/dashboard'
 import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
+import {
+  listSupportRequestsFn,
+  resolveSupportRequestFn
+  
+} from '../server/support-admin'
+import type {SupportRequestView} from '../server/support-admin';
 import type { BulkMessageLog } from '../server/bulk-messages'
 import { utcIsoToZonedLocal } from '../lib/datetime'
 import { formatEur } from '../lib/money'
@@ -143,7 +149,7 @@ function ActionCard({
   }
 
   return (
-    <Link to={to!} params={params} className={`${base} ${surface}`}>
+    <Link to={to} params={params} className={`${base} ${surface}`}>
       {content}
     </Link>
   )
@@ -246,6 +252,7 @@ function ManageEvent() {
         tz={tz}
         onChanged={reload}
       />
+      <SupportRequestsSection eventId={event.id} />
       <BulkMessageSection eventId={event.id} />
       <EmbedSnippetSection
         slug={event.slug}
@@ -301,6 +308,88 @@ function EmbedSnippetSection({
 }
 
 // --- Message participants -----------------------------------------------------
+
+function SupportRequestsSection({ eventId }: { eventId: string }) {
+  const [rows, setRows] = useState<SupportRequestView[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = async () => {
+    const res = await listSupportRequestsFn({ data: { eventId } })
+    if (!('error' in res)) setRows(res)
+  }
+  useEffect(() => {
+    void load()
+  }, [eventId])
+
+  const resolve = async (id: string, action: 'approve' | 'reject') => {
+    if (
+      action === 'approve' &&
+      !confirm('Schváliť zmenu e-mailu a preposlať vstupenky na novú adresu?')
+    )
+      return
+    setBusyId(id)
+    const res = await resolveSupportRequestFn({ data: { id, action } })
+    setBusyId(null)
+    if ('error' in res) alert(res.error)
+    else void load()
+  }
+
+  const pending = rows.filter((r) => r.status === 'pending')
+  const fmt = (iso: string) =>
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+      timeZone: 'Europe/Bratislava',
+    }).format(new Date(iso))
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <h2 className="mb-1 text-lg font-semibold">Support požiadavky</h2>
+      <p className="mb-4 text-sm text-gray-500">
+        Žiadosti o zmenu e-mailu od kupujúcich. Po schválení sa vstupenky
+        prepošlú na novú adresu.
+      </p>
+      {pending.length === 0 ? (
+        <p className="text-sm text-gray-500">Žiadne čakajúce požiadavky.</p>
+      ) : (
+        <ul className="space-y-3">
+          {pending.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm"
+            >
+              <div className="min-w-0">
+                <div className="font-medium">
+                  Objednávka {r.orderRef} · zmena e-mailu
+                </div>
+                <div className="mt-0.5 text-xs text-gray-500">
+                  {r.requestedEmail} → <strong>{r.newEmail}</strong> ·{' '}
+                  {fmt(r.createdAt)}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => resolve(r.id, 'approve')}
+                  disabled={busyId === r.id}
+                  className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  Schváliť + preposlať
+                </button>
+                <button
+                  onClick={() => resolve(r.id, 'reject')}
+                  disabled={busyId === r.id}
+                  className="rounded-md border px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Zamietnuť
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
 
 function BulkMessageSection({ eventId }: { eventId: string }) {
   const [subject, setSubject] = useState('')
