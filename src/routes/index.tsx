@@ -313,19 +313,20 @@ function Landing() {
                       />
 
                       <div className="min-w-0 flex-1 pr-2">
-                        <div className="truncate font-display text-sm font-semibold text-ink-100 transition group-hover:text-accent">
+                        <div className="truncate font-display text-base font-semibold text-ink-100 transition group-hover:text-accent">
                           {e.title}
                         </div>
-                        <div className="mt-0.5 truncate text-xs text-ink-400">
+                        <div className="mt-1 truncate text-sm text-ink-400">
                           {formatDateShort(e.starts_at, e.timezone)}
                           {e.venue_name ? ` · ${e.venue_name}` : ''}
                         </div>
                         {typeof fromPrice === 'number' && (
-                          <div className="mt-0.5 text-xs text-ink-300">
+                          <div className="mt-1 text-sm text-ink-300">
                             od <span className="text-accent">{(fromPrice / 100).toFixed(0)} €</span>
                           </div>
                         )}
                       </div>
+
                     </Link>
                   </li>
                 )
