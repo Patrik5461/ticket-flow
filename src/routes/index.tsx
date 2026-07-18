@@ -290,7 +290,7 @@ function Landing() {
 
       {/* MARQUEE */}
       {events.length > 0 && (
-        <section aria-label="Podujatia" className="border-y border-ink-800/60 bg-ink-900/30 py-8">
+        <section aria-label="Podujatia" className="border-y border-ink-800/60 bg-ink-900/30 py-10">
           <div className="marquee">
             <ul className="marquee-track" aria-hidden={events.length < 3 ? undefined : 'true'}>
               {[...events, ...events].map((e, idx) => {
@@ -301,10 +301,10 @@ function Landing() {
                     <Link
                       to="/e/$slug"
                       params={{ slug: e.slug }}
-                      className="card-surface group flex w-[380px] items-center gap-4 overflow-hidden p-3 transition hover:border-accent/40"
+                      className="card-surface group flex w-[440px] items-center gap-5 overflow-hidden p-4 transition hover:border-accent/40"
                     >
                       <div
-                        className="h-24 w-24 shrink-0 rounded-lg"
+                        className="h-28 w-28 shrink-0 rounded-xl"
                         style={{
                           background: cover
                             ? `url(${cover}) center/cover`
@@ -312,17 +312,17 @@ function Landing() {
                         }}
                       />
 
-                      <div className="min-w-0 flex-1 pr-2">
-                        <div className="truncate font-display text-base font-semibold text-ink-100 transition group-hover:text-accent">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-display text-lg font-semibold text-ink-100 transition group-hover:text-accent">
                           {e.title}
                         </div>
-                        <div className="mt-1 truncate text-sm text-ink-400">
+                        <div className="mt-1.5 truncate text-[15px] text-ink-400">
                           {formatDateShort(e.starts_at, e.timezone)}
                           {e.venue_name ? ` · ${e.venue_name}` : ''}
                         </div>
                         {typeof fromPrice === 'number' && (
-                          <div className="mt-1 text-sm text-ink-300">
-                            od <span className="text-accent">{(fromPrice / 100).toFixed(0)} €</span>
+                          <div className="mt-2 text-[15px] text-ink-300">
+                            od <span className="font-display text-lg font-semibold text-accent">{(fromPrice / 100).toFixed(0)} €</span>
                           </div>
                         )}
                       </div>
