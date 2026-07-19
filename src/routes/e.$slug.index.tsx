@@ -6,6 +6,8 @@ import {
 } from '@tanstack/react-router'
 import { useState } from 'react'
 import { getEventFn, joinWaitlistFn } from '../server/fns'
+import { getEventSeatMapFn } from '../server/seat-map'
+import { SeatPicker } from '../components/SeatPicker'
 import { formatEur } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { absoluteUrl } from '../lib/site'
@@ -13,9 +15,12 @@ import { eventJsonLd, metaDescription } from '../lib/seo'
 
 export const Route = createFileRoute('/e/$slug/')({
   loader: async ({ params }) => {
-    const data = await getEventFn({ data: { slug: params.slug } })
+    const [data, seatMap] = await Promise.all([
+      getEventFn({ data: { slug: params.slug } }),
+      getEventSeatMapFn({ data: { slug: params.slug } }),
+    ])
     if (!data) throw notFound()
-    return data
+    return { ...data, seatMap }
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {}
@@ -168,27 +173,48 @@ function WaitlistWatch({
 
 function EventPage() {
   const { slug } = Route.useParams()
-  const { event, ticketTypes } = Route.useLoaderData()
+  const { event, ticketTypes, seatMap } = Route.useLoaderData()
   const navigate = useNavigate()
   const [qty, setQty] = useState<Record<string, number>>({})
+  const [seats, setSeats] = useState<string[]>([])
 
-  const total = ticketTypes.reduce(
-    (sum, t) => sum + (qty[t.id] ?? 0) * t.price_cents,
+  const seated = seatMap.seated
+  const seatPriceById = new Map(
+    seatMap.seats.map((s) => [s.seatId, s.priceCents]),
+  )
+  const seatedTotal = seats.reduce(
+    (s, id) => s + (seatPriceById.get(id) ?? 0),
     0,
   )
+
+  const total = seated
+    ? seatedTotal
+    : ticketTypes.reduce((sum, t) => sum + (qty[t.id] ?? 0) * t.price_cents, 0)
   const totalItems = Object.values(qty).reduce((a, b) => a + b, 0)
-  const anySelected = totalItems > 0
+  const anySelected = seated ? seats.length > 0 : totalItems > 0
 
   const setQuantity = (id: string, value: number) => {
     setQty((prev) => ({ ...prev, [id]: value }))
   }
 
   const goToCheckout = () => {
+    if (seated) {
+      navigate({
+        to: '/e/$slug/checkout',
+        params: { slug },
+        search: { items: '', seats: seats.join(',') },
+      })
+      return
+    }
     const items = ticketTypes
       .filter((t) => (qty[t.id] ?? 0) > 0)
       .map((t) => `${t.id}:${qty[t.id]}`)
       .join(',')
-    navigate({ to: '/e/$slug/checkout', params: { slug }, search: { items } })
+    navigate({
+      to: '/e/$slug/checkout',
+      params: { slug },
+      search: { items, seats: '' },
+    })
   }
 
   const cover = (event as unknown as { cover_url?: string | null }).cover_url
@@ -302,8 +328,18 @@ function EventPage() {
           {/* RIGHT: sticky ticket panel */}
           <aside className="md:sticky md:top-24 md:self-start">
             <div className="card-surface p-6">
-              <h2 className="font-display text-xl font-bold">Vstupenky</h2>
-              {ticketTypes.length === 0 ? (
+              <h2 className="font-display text-xl font-bold">
+                {seated ? 'Výber sedadiel' : 'Vstupenky'}
+              </h2>
+              {seated ? (
+                <div className="mt-4">
+                  <SeatPicker
+                    map={seatMap}
+                    selected={seats}
+                    onChange={setSeats}
+                  />
+                </div>
+              ) : ticketTypes.length === 0 ? (
                 <p className="mt-4 text-sm text-ink-400">
                   Momentálne nie sú v predaji žiadne vstupenky.
                 </p>

@@ -6,6 +6,7 @@ import {
   createOrderFn,
   lookupCompanyFn,
 } from '../server/fns'
+import { getEventSeatMapFn } from '../server/seat-map'
 import { formatEur } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
 import type { CustomField } from '../lib/custom-fields'
@@ -34,8 +35,9 @@ function parseItems(raw: string): { ticketTypeId: string; quantity: number }[] {
 export const Route = createFileRoute('/e/$slug/checkout')({
   validateSearch: (search: Record<string, unknown>) => ({
     items: typeof search.items === 'string' ? search.items : '',
+    seats: typeof search.seats === 'string' ? search.seats : '',
   }),
-  loaderDeps: ({ search }) => ({ items: search.items }),
+  loaderDeps: ({ search }) => ({ items: search.items, seats: search.seats }),
   loader: async ({ params, deps }) => {
     const data = await getEventFn({ data: { slug: params.slug } })
     if (!data) throw notFound()
@@ -54,7 +56,30 @@ export const Route = createFileRoute('/e/$slug/checkout')({
           customFields: t.customFields,
         }
       })
-    return { event: data.event, cart }
+
+    const seatIds = deps.seats ? deps.seats.split(',').filter(Boolean) : []
+    let seatedSeats: {
+      seatId: string
+      label: string
+      priceCents: number
+    }[] = []
+    if (seatIds.length > 0) {
+      const map = await getEventSeatMapFn({ data: { slug: params.slug } })
+      const sById = new Map(map.seats.map((s) => [s.seatId, s]))
+      seatedSeats = seatIds.flatMap((id) => {
+        const s = sById.get(id)
+        return s
+          ? [
+              {
+                seatId: id,
+                label: `${s.sector} · rad ${s.rowLabel} · miesto ${s.seatNumber}`,
+                priceCents: s.priceCents,
+              },
+            ]
+          : []
+      })
+    }
+    return { event: data.event, cart, seatedSeats, seatIds }
   },
   component: Checkout,
 })
@@ -130,7 +155,7 @@ const inputCls =
 
 function Checkout() {
   const { slug } = Route.useParams()
-  const { event, cart } = Route.useLoaderData()
+  const { event, cart, seatedSeats, seatIds } = Route.useLoaderData()
 
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -165,7 +190,9 @@ function Checkout() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const subtotal = cart.reduce((s, i) => s + i.quantity * i.unitPriceCents, 0)
+  const seatsSubtotal = seatedSeats.reduce((s, x) => s + x.priceCents, 0)
+  const subtotal =
+    cart.reduce((s, i) => s + i.quantity * i.unitPriceCents, 0) + seatsSubtotal
   const total = Math.max(0, subtotal - discountCents)
 
   const cartPayload = cart.map((i) => ({
@@ -224,6 +251,7 @@ function Checkout() {
         data: {
           slug,
           items: cartPayload,
+          seatIds: seatIds.length > 0 ? seatIds : undefined,
           buyer: {
             email: email.trim(),
             name: name.trim() || undefined,
@@ -256,7 +284,7 @@ function Checkout() {
     }
   }
 
-  if (cart.length === 0) {
+  if (cart.length === 0 && seatedSeats.length === 0) {
     return (
       <div className="mx-auto max-w-md px-6 py-24 text-center">
         <div className="card-surface p-10">
@@ -292,6 +320,12 @@ function Checkout() {
             <span className="tabular-nums">
               {formatEur(i.quantity * i.unitPriceCents)}
             </span>
+          </li>
+        ))}
+        {seatedSeats.map((s) => (
+          <li key={s.seatId} className="flex justify-between text-ink-200">
+            <span className="text-ink-300">{s.label}</span>
+            <span className="tabular-nums">{formatEur(s.priceCents)}</span>
           </li>
         ))}
       </ul>
