@@ -26,11 +26,13 @@ function callRpc(
   name: string,
   args?: Record<string, unknown>,
 ): Promise<RpcResult> {
-  const rpc = db.rpc as unknown as (
-    n: string,
-    a?: Record<string, unknown>,
-  ) => Promise<RpcResult>
-  return rpc(name, args)
+  // Call .rpc as a METHOD on db so `this` stays bound — extracting it into a
+  // variable and calling it unbound throws inside supabase-js ("Cannot read
+  // properties of undefined (reading 'rest')").
+  const client = db as unknown as {
+    rpc: (n: string, a?: Record<string, unknown>) => Promise<RpcResult>
+  }
+  return client.rpc(name, args)
 }
 
 export interface AdminOverview {
