@@ -130,7 +130,7 @@ function SalesPage() {
         <h2 className="mb-3 text-sm font-semibold">
           Predané vstupenky podľa typu
         </h2>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <tbody>
             {data.perType.map((t) => (
               <tr key={t.name} className="border-t first:border-t-0">
@@ -184,7 +184,7 @@ function SalesPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="text-left text-xs uppercase text-gray-500">
                 <th className="py-2 pr-3">Číslo</th>

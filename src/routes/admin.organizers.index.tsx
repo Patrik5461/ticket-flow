@@ -31,7 +31,7 @@ function OrganizersList() {
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">Organizátori</h1>
       <section className="overflow-x-auto rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead>
             <tr className="border-b text-left text-xs uppercase text-gray-500">
               <th className="px-4 py-3">Názov</th>

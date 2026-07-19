@@ -55,8 +55,8 @@ function AdminLayout() {
           borderBottom: '1px solid var(--color-ink-700)',
         }}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-3.5">
-          <div className="flex min-w-0 items-center gap-5">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-6 sm:px-6 sm:py-3.5">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-5">
             <Link
               to="/admin"
               className="flex shrink-0 items-center gap-2 font-display text-lg font-bold"
@@ -64,7 +64,7 @@ function AdminLayout() {
               <span>
                 ticket<span style={{ color: 'var(--color-accent)' }}>io</span>
               </span>
-              <span className="badge-admin">
+              <span className="badge-admin hidden sm:inline-flex">
                 <svg
                   width="10"
                   height="10"
@@ -75,8 +75,15 @@ function AdminLayout() {
                 </svg>
                 Platform admin
               </span>
+              <span className="badge-admin sm:hidden" style={{ padding: '0.15rem 0.4rem' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z" />
+                </svg>
+                Admin
+              </span>
             </Link>
-            <nav className="flex items-center gap-1">
+            {/* Desktop nav */}
+            <nav className="hidden items-center gap-1 lg:flex">
               <Link
                 to="/admin"
                 activeOptions={{ exact: true }}
@@ -104,7 +111,8 @@ function AdminLayout() {
               </Link>
             </nav>
           </div>
-          <div className="flex shrink-0 items-center gap-2 text-sm">
+          {/* Desktop right side */}
+          <div className="hidden shrink-0 items-center gap-2 text-sm lg:flex">
             <form onSubmit={search} className="hidden md:block">
               <input
                 value={q}
@@ -123,11 +131,48 @@ function AdminLayout() {
             </button>
           </div>
 
+          {/* Mobile: theme + hamburger */}
+          <div className="flex items-center gap-1 lg:hidden">
+            <ThemeToggle />
+            <details className="mobile-nav">
+              <summary
+                aria-label="Menu"
+                className="grid h-11 w-11 place-items-center rounded-lg border border-ink-700 text-ink-100"
+              >
+                <svg className="mobile-nav-icon-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <svg className="mobile-nav-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </summary>
+              <div className="mobile-nav-panel">
+                <form onSubmit={search} className="mb-2 flex gap-2">
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Hľadať objednávku, e-mail…"
+                    className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
+                  />
+                </form>
+                <Link to="/admin" activeOptions={{ exact: true }}>Prehľad</Link>
+                <Link to="/admin/organizers">Organizátori</Link>
+                <Link to="/admin/events">Podujatia</Link>
+                <Link to="/admin/orders">Objednávky</Link>
+                <Link to="/admin/payouts">Vyplatenia</Link>
+                <Link to="/admin/admins">Admini</Link>
+                <Link to="/admin/health">Status</Link>
+                <div className="divider" />
+                <div className="px-2 py-1 text-xs text-ink-400 truncate">{admin.email}</div>
+                <button onClick={logout}>Odhlásiť sa</button>
+              </div>
+            </details>
+          </div>
         </div>
 
       </header>
       <HealthAlerts />
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
         <Outlet />
       </main>
     </div>

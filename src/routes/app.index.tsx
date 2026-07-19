@@ -59,7 +59,7 @@ function MetricsRow({ initial }: { initial: OrganizerOverview }) {
         </div>
       </div>
       <div
-        className={`grid grid-cols-2 gap-3 md:grid-cols-4 ${busy ? 'opacity-60' : ''}`}
+        className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 ${busy ? 'opacity-60' : ''}`}
       >
         {cards.map((c) => (
           <div key={c.label} className="card-surface p-4">

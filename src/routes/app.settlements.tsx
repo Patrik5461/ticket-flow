@@ -231,7 +231,7 @@ function PayoutSection({ payout }: { payout: PayoutInfo }) {
 
       {payout.requests.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="border-b text-left text-xs uppercase text-gray-500">
                 <th className="py-2 pr-3">Dátum</th>
@@ -295,7 +295,7 @@ function SettlementsPage() {
       <GenerateSettlementSection events={events} />
 
       <section className="overflow-x-auto rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead>
             <tr className="border-b text-left text-xs uppercase text-gray-500">
               <th className="px-4 py-3">Obdobie</th>

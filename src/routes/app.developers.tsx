@@ -125,7 +125,7 @@ function DevelopersPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="overflow-x-auto rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead>
             <tr className="border-b text-left text-xs uppercase text-gray-500">
               <th className="px-4 py-2">Názov</th>
@@ -272,7 +272,7 @@ function WebhooksSection({ webhooks }: { webhooks: WebhookSummary[] }) {
       </div>
 
       <div className="overflow-x-auto rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead>
             <tr className="border-b text-left text-xs uppercase text-gray-500">
               <th className="px-4 py-2">URL</th>
