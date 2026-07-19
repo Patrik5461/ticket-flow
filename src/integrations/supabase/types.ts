@@ -186,6 +186,33 @@ export type Database = {
           },
         ]
       }
+      content_blocks: {
+        Row: {
+          body: string
+          id: string
+          key: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body?: string
+          id?: string
+          key: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body?: string
+          id?: string
+          key?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       coupons: {
         Row: {
           code: string
@@ -601,8 +628,8 @@ export type Database = {
           created_at?: string
           dic?: string | null
           email?: string | null
-          fee_min_cents?: number
-          fee_percent?: number
+          fee_min_cents: number
+          fee_percent: number
           gopay_goid?: string | null
           iban?: string | null
           ic_dph?: string | null
@@ -730,6 +757,30 @@ export type Database = {
           created_at?: string
           note?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          default_fee_min_cents: number
+          default_fee_percent: number
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          default_fee_min_cents?: number
+          default_fee_percent?: number
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          default_fee_min_cents?: number
+          default_fee_percent?: number
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
