@@ -916,6 +916,87 @@ export type Database = {
           },
         ]
       }
+      support_requests: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          kind: string
+          new_email: string | null
+          note: string | null
+          order_id: string
+          requested_email: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          kind?: string
+          new_email?: string | null
+          note?: string | null
+          order_id: string
+          requested_email: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          kind?: string
+          new_email?: string | null
+          note?: string | null
+          order_id?: string
+          requested_email?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_requests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_usage: {
+        Row: {
+          api_calls: number
+          day: string
+          fallback_hits: number
+          tool_calls: number
+          updated_at: string
+        }
+        Insert: {
+          api_calls?: number
+          day: string
+          fallback_hits?: number
+          tool_calls?: number
+          updated_at?: string
+        }
+        Update: {
+          api_calls?: number
+          day?: string
+          fallback_hits?: number
+          tool_calls?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ticket_answers: {
         Row: {
           created_at: string
@@ -1257,6 +1338,10 @@ export type Database = {
           status: string
           total_cents: number
         }[]
+      }
+      bump_support_usage: {
+        Args: { p_api: number; p_fallback: number; p_tool: number }
+        Returns: undefined
       }
       generate_previous_month_settlements: { Args: never; Returns: number }
       generate_settlement_range: {
