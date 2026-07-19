@@ -60,7 +60,33 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - Lovable NESMIE pridávať auth logiku, tokeny ani Supabase auth volania v klientovi — len UI formuláre napojené na existujúce server functions.
 - Onboarding (vytvorenie `organizers` + `organizer_members` s rolou owner) rieši server fn.
 
-## Deploy (fáza 2, zatiaľ len lokálny dev)
+## Deploy (produkčná VM)
 
-- VM podľa vzoru ostatných projektov: webhook deploy, PM2, HAProxy SNI routing na ticketio.sk.
-- Pred buildom na VM zmazať stale build artefakty.
+**Prístup:** `ssh ticketio` → `patrik@192.168.1.15`, ProxyJump cez `pve` (`root@116.202.234.213`), rovnaký viac-hopový vzor ako preversi. Ak blok chýba v `~/.ssh/config`, pridaj:
+
+```
+Host ticketio
+    HostName 192.168.1.15
+    User patrik
+    ProxyJump pve
+```
+
+**Kde:** repo v `~/ticketio` (nie `/opt/...`), build v `.output/`, beží pod PM2 ako proces `ticketio` (fork mód), Nitro počúva na `127.0.0.1:3000` za HAProxy/OPNsense SNI routingom na ticketio.sk. Secrets v `~/ticketio-secrets.env`, PM2 ecosystem v `~/ecosystem.config.cjs` (obe NIE v repe).
+
+**Manuálny deploy (keď webhook nestačí):**
+```bash
+ssh ticketio 'cd ~/ticketio &&
+  git remote -v &&                                   # musí byť ticket-flow.git; ak nie, STOP
+  git fetch origin main && git checkout main && git pull origin main &&
+  git log --oneline -1 &&                            # over očakávaný commit
+  npm ci &&
+  rm -rf .output &&                                  # zmazať stale artefakty
+  NODE_OPTIONS="--max-old-space-size=4096" npm run build &&
+  npm run verify:polyfill &&                         # poistka mobilného polyfillu
+  pm2 restart ticketio --update-env && pm2 save'
+```
+
+**Over po deployi:**
+- `ssh ticketio 'curl -s http://127.0.0.1:3000/api/health'` → `{"status":"ok","db":true}` (localhost je spoľahlivejší než verejná URL zvnútra VM).
+- Zmenený entry asset hash: `curl -s https://ticketio.sk/ | grep -aoE '/assets/index-[^"]+\.js'` — po úspešnom builde sa musí líšiť od predošlého.
+- Migrácie Supabase aplikuj samostatne (nie sú súčasťou VM buildu) — DB je cloud Supabase; RPC/tabuľky over service-role probe, nie len z migračných súborov.
