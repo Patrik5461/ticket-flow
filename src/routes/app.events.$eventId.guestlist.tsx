@@ -142,7 +142,7 @@ function GuestlistPage() {
           </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="text-left text-xs uppercase text-gray-500">
                 <th className="py-2 pr-3">Meno</th>
