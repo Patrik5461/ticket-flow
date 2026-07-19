@@ -18,22 +18,40 @@ import type { PlatformSettings } from '../server/platform-settings'
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
 
+const DEFAULT_SETTINGS: PlatformSettings = {
+  defaultFeePercent: 4,
+  defaultFeeMinCents: 40,
+}
+
+// Resilient: each panel loads independently, so one slow/failing server fn
+// degrades that panel to null instead of failing the whole page ("Failed to
+// fetch"). Errors are swallowed to null; the component renders what it has.
+async function settle<T extends object>(
+  p: Promise<T | { error: string }>,
+): Promise<T | null> {
+  try {
+    const r = await p
+    return 'error' in r ? null : r
+  } catch {
+    return null
+  }
+}
+
 export const Route = createFileRoute('/admin/')({
   loader: async () => {
     const [overview, platform, ops, support, settings] = await Promise.all([
-      getAdminOverviewFn(),
-      getPlatformStatsFn(),
-      getAdminOpsFn(),
-      getSupportUsageFn(),
-      getPlatformSettingsFn(),
+      settle(getAdminOverviewFn()),
+      settle(getPlatformStatsFn()),
+      settle(getAdminOpsFn()),
+      settle(getSupportUsageFn()),
+      settle(getPlatformSettingsFn()),
     ])
-    if ('error' in overview) throw new Error(overview.error)
     return {
       overview,
-      platform: 'error' in platform ? null : platform,
-      ops: 'error' in ops ? null : ops,
-      support: 'error' in support ? null : support,
-      settings,
+      platform,
+      ops,
+      support,
+      settings: settings ?? DEFAULT_SETTINGS,
     }
   },
   component: AdminOverview,
@@ -80,24 +98,35 @@ function AdminOverview() {
 
       {platform && <RevenueBreakdown b={platform.breakdown} />}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <Stat
-          label="Hrubé tržby"
-          value={formatEur(o.grossCents)}
-          sub="všetky zaplatené objednávky"
-        />
-        <Stat label="Provízie platformy" value={formatEur(o.feeCents)} />
-        <Stat label="Netto pre organizátorov" value={formatEur(o.netCents)} />
-        <Stat label="Organizátori" value={String(o.organizerCount)} />
-        <Stat label="Podujatia" value={String(o.eventCount)} />
-        <Stat
-          label="Objednávky"
-          value={String(o.orderCount)}
-          sub={`z toho ${o.paidOrderCount} zaplatených`}
-        />
-      </div>
+      {o ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <Stat
+              label="Hrubé tržby"
+              value={formatEur(o.grossCents)}
+              sub="všetky zaplatené objednávky"
+            />
+            <Stat label="Provízie platformy" value={formatEur(o.feeCents)} />
+            <Stat
+              label="Netto pre organizátorov"
+              value={formatEur(o.netCents)}
+            />
+            <Stat label="Organizátori" value={String(o.organizerCount)} />
+            <Stat label="Podujatia" value={String(o.eventCount)} />
+            <Stat
+              label="Objednávky"
+              value={String(o.orderCount)}
+              sub={`z toho ${o.paidOrderCount} zaplatených`}
+            />
+          </div>
 
-      <SalesChart daily={o.daily} title="Predaj za posledných 30 dní" />
+          <SalesChart daily={o.daily} title="Predaj za posledných 30 dní" />
+        </>
+      ) : (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+          Súhrn tržieb sa práve nepodarilo načítať. Skúste stránku obnoviť.
+        </div>
+      )}
 
       {platform && (
         <>

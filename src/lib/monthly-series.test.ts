@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { buildMonthlySeries, monthKey } from './monthly-series'
+import {
+  buildMonthlySeries,
+  fillMonthlySeries,
+  monthKey,
+} from './monthly-series'
 
 // 2026-03-15T12:00:00Z → March 2026 in Bratislava.
 const NOW = Date.parse('2026-03-15T12:00:00.000Z')
@@ -65,5 +69,28 @@ describe('buildMonthlySeries', () => {
       2,
     )
     expect(s.find((p) => p.month === '2026-03')?.grossCents).toBe(300)
+  })
+})
+
+describe('fillMonthlySeries', () => {
+  it('zero-fills 6 months and places sparse buckets by month key', () => {
+    const series = fillMonthlySeries(
+      [{ month: '2026-03', grossCents: 7000, feeCents: 300, orders: 4 }],
+      NOW,
+      6,
+    )
+    expect(series).toHaveLength(6)
+    expect(series[5]).toEqual({
+      month: '2026-03',
+      grossCents: 7000,
+      feeCents: 300,
+      orders: 4,
+    })
+    expect(series[0]).toEqual({
+      month: '2025-10',
+      grossCents: 0,
+      feeCents: 0,
+      orders: 0,
+    })
   })
 })

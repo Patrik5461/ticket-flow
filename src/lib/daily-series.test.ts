@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildDailySeries, dayKey } from './daily-series'
+import { buildDailySeries, fillDailySeries, dayKey } from './daily-series'
 import type { DatedAmount } from './daily-series'
 
 // Reference "now": 2026-07-15 14:00 CEST (Europe/Bratislava is UTC+2 in July).
@@ -46,7 +46,10 @@ describe('buildDailySeries', () => {
       [order('2026-07-15T09:00:00Z', 1000), order('2026-07-15T20:00:00Z', 500)],
       NOW,
     )
-    expect(at(series, '2026-07-15')).toMatchObject({ grossCents: 1500, orders: 2 })
+    expect(at(series, '2026-07-15')).toMatchObject({
+      grossCents: 1500,
+      orders: 2,
+    })
   })
 
   it('falls back to created_at when paid_at is null', () => {
@@ -54,13 +57,19 @@ describe('buildDailySeries', () => {
       [order('2026-07-10T10:00:00Z', 300, { fallback: true })],
       NOW,
     )
-    expect(at(series, '2026-07-10')).toMatchObject({ grossCents: 300, orders: 1 })
+    expect(at(series, '2026-07-10')).toMatchObject({
+      grossCents: 300,
+      orders: 1,
+    })
   })
 
   it('buckets by the Bratislava date, not the UTC date', () => {
     // 22:30Z on the 12th is 00:30 on the 13th in CEST → belongs to the 13th.
     const series = buildDailySeries([order('2026-07-12T22:30:00Z', 700)], NOW)
-    expect(at(series, '2026-07-13')).toMatchObject({ grossCents: 700, orders: 1 })
+    expect(at(series, '2026-07-13')).toMatchObject({
+      grossCents: 700,
+      orders: 1,
+    })
     expect(at(series, '2026-07-12')).toMatchObject({ grossCents: 0, orders: 0 })
   })
 
@@ -82,5 +91,28 @@ describe('buildDailySeries', () => {
     // Late-evening UTC crosses into the next Bratislava day in summer.
     expect(dayKey(new Date('2026-07-12T22:30:00Z'))).toBe('2026-07-13')
     expect(dayKey(new Date('2026-07-12T21:30:00Z'))).toBe('2026-07-12')
+  })
+})
+
+describe('fillDailySeries', () => {
+  it('zero-fills the window and places sparse buckets on the right day', () => {
+    const today = dayKey(new Date(NOW))
+    const series = fillDailySeries(
+      [{ date: today, grossCents: 5000, orders: 3 }],
+      NOW,
+      30,
+    )
+    expect(series).toHaveLength(30)
+    expect(series[29]).toEqual({ date: today, grossCents: 5000, orders: 3 })
+    expect(series[0].grossCents).toBe(0)
+    expect(series[0].orders).toBe(0)
+  })
+  it('ignores buckets outside the window', () => {
+    const series = fillDailySeries(
+      [{ date: '2020-01-01', grossCents: 999, orders: 9 }],
+      NOW,
+      30,
+    )
+    expect(series.every((p) => p.grossCents === 0)).toBe(true)
   })
 })

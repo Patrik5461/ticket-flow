@@ -64,3 +64,23 @@ export function buildDailySeries(
     orders: buckets.get(date)!.orders,
   }))
 }
+
+/**
+ * Zero-fill a `days`-day window from pre-aggregated per-day buckets (as returned
+ * by the admin_overview_stats DB function). Same axis as buildDailySeries; days
+ * with no bucket render as zero.
+ */
+export function fillDailySeries(
+  buckets: DailyPoint[],
+  nowMs: number,
+  days = 30,
+): DailyPoint[] {
+  const map = new Map(buckets.map((b) => [b.date, b]))
+  const out: DailyPoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const date = dayKey(new Date(nowMs - i * DAY_MS))
+    const b = map.get(date)
+    out.push({ date, grossCents: b?.grossCents ?? 0, orders: b?.orders ?? 0 })
+  }
+  return out
+}

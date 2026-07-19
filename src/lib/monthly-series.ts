@@ -66,3 +66,32 @@ export function buildMonthlySeries(
   }
   return axis.map((k) => buckets.get(k)!)
 }
+
+/**
+ * Zero-fill the last `months` months from pre-aggregated per-month buckets (as
+ * returned by the admin_platform_stats DB function). Same axis as
+ * buildMonthlySeries; months with no bucket render as zero.
+ */
+export function fillMonthlySeries(
+  buckets: MonthlyPoint[],
+  nowMs: number,
+  months = 6,
+): MonthlyPoint[] {
+  const map = new Map(buckets.map((b) => [b.month, b]))
+  const [ny, nm] = monthKey(new Date(nowMs)).split('-').map(Number)
+  const out: MonthlyPoint[] = []
+  for (let i = months - 1; i >= 0; i--) {
+    const total = ny * 12 + (nm - 1) - i
+    const y = Math.floor(total / 12)
+    const m = (total % 12) + 1
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    const b = map.get(key)
+    out.push({
+      month: key,
+      grossCents: b?.grossCents ?? 0,
+      feeCents: b?.feeCents ?? 0,
+      orders: b?.orders ?? 0,
+    })
+  }
+  return out
+}
