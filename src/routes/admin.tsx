@@ -75,8 +75,16 @@ function AdminLayout() {
                 </svg>
                 Platform admin
               </span>
-              <span className="badge-admin sm:hidden" style={{ padding: '0.15rem 0.4rem' }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+              <span
+                className="badge-admin sm:hidden"
+                style={{ padding: '0.15rem 0.4rem' }}
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
                   <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z" />
                 </svg>
                 Admin
@@ -109,6 +117,9 @@ function AdminLayout() {
               <Link to="/admin/health" className={navCls}>
                 Status
               </Link>
+              <Link to="/admin/obsah" className={navCls}>
+                Obsah
+              </Link>
             </nav>
           </div>
           {/* Desktop right side */}
@@ -121,7 +132,9 @@ function AdminLayout() {
                 className="w-40 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent xl:w-56"
               />
             </form>
-            <span className="hidden max-w-[140px] truncate text-xs text-ink-400 xl:inline">{admin.email}</span>
+            <span className="hidden max-w-[140px] truncate text-xs text-ink-400 xl:inline">
+              {admin.email}
+            </span>
             <ThemeToggle />
             <button
               onClick={logout}
@@ -139,10 +152,28 @@ function AdminLayout() {
                 aria-label="Menu"
                 className="grid h-11 w-11 place-items-center rounded-lg border border-ink-700 text-ink-100"
               >
-                <svg className="mobile-nav-icon-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  className="mobile-nav-icon-closed"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <path d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <svg className="mobile-nav-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  className="mobile-nav-icon-open"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </summary>
@@ -155,21 +186,25 @@ function AdminLayout() {
                     className="flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 outline-none focus:border-accent"
                   />
                 </form>
-                <Link to="/admin" activeOptions={{ exact: true }}>Prehľad</Link>
+                <Link to="/admin" activeOptions={{ exact: true }}>
+                  Prehľad
+                </Link>
                 <Link to="/admin/organizers">Organizátori</Link>
                 <Link to="/admin/events">Podujatia</Link>
                 <Link to="/admin/orders">Objednávky</Link>
                 <Link to="/admin/payouts">Vyplatenia</Link>
                 <Link to="/admin/admins">Admini</Link>
                 <Link to="/admin/health">Status</Link>
+                <Link to="/admin/obsah">Obsah</Link>
                 <div className="divider" />
-                <div className="px-2 py-1 text-xs text-ink-400 truncate">{admin.email}</div>
+                <div className="px-2 py-1 text-xs text-ink-400 truncate">
+                  {admin.email}
+                </div>
                 <button onClick={logout}>Odhlásiť sa</button>
               </div>
             </details>
           </div>
         </div>
-
       </header>
       <HealthAlerts />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">

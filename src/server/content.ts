@@ -22,7 +22,7 @@ export interface ContentBlockMeta {
   key: string
   title: string
   updatedAt: string
-  updatedBy: string | null
+  updatedByEmail: string | null
 }
 
 // Small in-process cache for public reads. Content changes rarely; a short TTL
@@ -61,7 +61,8 @@ export const listContentFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<ContentBlockMeta[] | { error: string }> => {
     return runAdmin(async () => {
       await requirePlatformAdmin()
-      const { data: rows } = await serviceClient()
+      const db = serviceClient()
+      const { data: rows } = await db
         .from('content_blocks')
         .select('key, title, updated_at, updated_by')
         .order('key', { ascending: true })
@@ -73,11 +74,23 @@ export const listContentFn = createServerFn({ method: 'GET' }).handler(
             updated_by: string | null
           }[]
         >()
+
+      // Resolve editor emails once per distinct user id.
+      const emailById = new Map<string, string>()
+      for (const id of new Set(
+        (rows ?? []).map((r) => r.updated_by).filter(Boolean) as string[],
+      )) {
+        const { data } = await db.auth.admin.getUserById(id)
+        emailById.set(id, data.user?.email ?? '—')
+      }
+
       return (rows ?? []).map((r) => ({
         key: r.key,
         title: r.title,
         updatedAt: r.updated_at,
-        updatedBy: r.updated_by,
+        updatedByEmail: r.updated_by
+          ? (emailById.get(r.updated_by) ?? null)
+          : null,
       }))
     })
   },
