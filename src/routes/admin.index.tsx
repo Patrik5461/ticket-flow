@@ -10,16 +10,22 @@ import type { AdminOps } from '../server/admin-ops'
 import { getSupportUsageFn } from '../server/support-usage'
 import type { SupportUsage } from '../server/support-usage'
 import { generateSettlementsNowFn } from '../server/settlements'
+import {
+  getPlatformSettingsFn,
+  updatePlatformSettingsFn,
+} from '../server/platform-settings'
+import type { PlatformSettings } from '../server/platform-settings'
 import { formatEur } from '../lib/money'
 import { SalesChart } from '../components/SalesChart'
 
 export const Route = createFileRoute('/admin/')({
   loader: async () => {
-    const [overview, platform, ops, support] = await Promise.all([
+    const [overview, platform, ops, support, settings] = await Promise.all([
       getAdminOverviewFn(),
       getPlatformStatsFn(),
       getAdminOpsFn(),
       getSupportUsageFn(),
+      getPlatformSettingsFn(),
     ])
     if ('error' in overview) throw new Error(overview.error)
     return {
@@ -27,6 +33,7 @@ export const Route = createFileRoute('/admin/')({
       platform: 'error' in platform ? null : platform,
       ops: 'error' in ops ? null : ops,
       support: 'error' in support ? null : support,
+      settings,
     }
   },
   component: AdminOverview,
@@ -53,13 +60,21 @@ function Stat({
 }
 
 function AdminOverview() {
-  const { overview: o, platform, ops, support } = Route.useLoaderData()
+  const {
+    overview: o,
+    platform,
+    ops,
+    support,
+    settings,
+  } = Route.useLoaderData()
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Prehľad platformy</h1>
 
       {ops && <OpsPanel ops={ops} />}
+
+      <PlatformFeeSettings initial={settings} />
 
       {support && <SupportUsagePanel usage={support} />}
 
@@ -97,6 +112,85 @@ function AdminOverview() {
       <ExportData />
       <GenerateSettlements />
     </div>
+  )
+}
+
+function PlatformFeeSettings({ initial }: { initial: PlatformSettings }) {
+  const [percent, setPercent] = useState(String(initial.defaultFeePercent))
+  const [minEur, setMinEur] = useState(
+    (initial.defaultFeeMinCents / 100).toFixed(2),
+  )
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const save = async () => {
+    setMsg(null)
+    const p = parseFloat(percent.replace(',', '.'))
+    const minCents = Math.round(parseFloat(minEur.replace(',', '.')) * 100)
+    if (!Number.isFinite(p) || p < 0 || p > 100) {
+      setMsg('Percento musí byť 0–100.')
+      return
+    }
+    if (!Number.isFinite(minCents) || minCents < 0) {
+      setMsg('Minimum musí byť nezáporné.')
+      return
+    }
+    setSaving(true)
+    const res = await updatePlatformSettingsFn({
+      data: { defaultFeePercent: p, defaultFeeMinCents: minCents },
+    })
+    setSaving(false)
+    setMsg(
+      'error' in res
+        ? res.error
+        : 'Uložené. Cenník aj noví organizátori teraz používajú tieto hodnoty.',
+    )
+  }
+
+  return (
+    <section className="rounded-lg border bg-white p-5">
+      <h2 className="mb-1 text-sm font-semibold">
+        Provízia platformy (default)
+      </h2>
+      <p className="mb-3 text-xs text-gray-500">
+        Jeden zdroj pravdy: tieto hodnoty zobrazuje cenník na webe a dedia ich
+        všetci noví organizátori. Existujúcim organizátorom sa províza nemení
+        (upravuje sa per organizátor).
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Percento (%)</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={percent}
+            onChange={(e) => setPercent(e.target.value)}
+            className="w-28 rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Minimum (€)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={minEur}
+            onChange={(e) => setMinEur(e.target.value)}
+            className="w-28 rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+        >
+          {saving ? 'Ukladám…' : 'Uložiť'}
+        </button>
+      </div>
+      {msg && <p className="mt-3 text-sm text-gray-600">{msg}</p>}
+    </section>
   )
 }
 

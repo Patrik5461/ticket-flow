@@ -2,10 +2,14 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { computeFee } from '../lib/pricing'
 import { formatEur } from '../lib/money'
+import { getPlatformSettingsFn } from '../server/platform-settings'
 
-// Our default tariff (CLAUDE.md) vs Inviton's public pricing.
-const US = { percent: 4, minCents: 40, label: 'Ticketio' }
+// Inviton's public pricing, for comparison. Our own tariff is live data.
 const INVITON = { percent: 5, minCents: 60, label: 'Inviton' }
+
+function pctStr(p: number): string {
+  return String(p).replace('.', ',')
+}
 
 export const Route = createFileRoute('/cennik')({
   head: () => ({
@@ -14,14 +18,22 @@ export const Route = createFileRoute('/cennik')({
       {
         name: 'description',
         content:
-          'Transparentný cenník Ticketio: 4 % / min 0,40 € z predanej vstupenky. Spočítajte si, koľko dostanete z lístka za X €.',
+          'Transparentný cenník Ticketio: nízka provízia z predanej vstupenky. Spočítajte si, koľko dostanete z lístka za X €.',
       },
     ],
   }),
+  loader: async () => getPlatformSettingsFn(),
   component: PricingPage,
 })
 
 function PricingPage() {
+  const settings = Route.useLoaderData()
+  const us = {
+    percent: settings.defaultFeePercent,
+    minCents: settings.defaultFeeMinCents,
+  }
+  const feeLabel = `${pctStr(us.percent)} % / min ${formatEur(us.minCents)}`
+
   const [price, setPrice] = useState('20')
 
   const cents = Math.max(
@@ -30,7 +42,7 @@ function PricingPage() {
   )
   const valid = Number.isFinite(cents) && cents > 0
 
-  const ourFee = computeFee(cents, US.percent, US.minCents)
+  const ourFee = computeFee(cents, us.percent, us.minCents)
   const invFee = computeFee(cents, INVITON.percent, INVITON.minCents)
   const ourNet = cents - ourFee
   const invNet = cents - invFee
@@ -54,14 +66,15 @@ function PricingPage() {
         <div className="mt-8 rounded-2xl border border-accent/40 bg-accent/5 p-6">
           <div className="text-sm text-ink-300">Provízia platformy</div>
           <div className="mt-1 font-display text-4xl font-bold">
-            4 %{' '}
+            {pctStr(us.percent)} %{' '}
             <span className="text-lg font-medium text-ink-300">
-              / min 0,40 € za vstupenku
+              / min {formatEur(us.minCents)} za vstupenku
             </span>
           </div>
           <p className="mt-3 text-sm text-ink-400">
-            Zaplatené vstupenky sa účtujú províziou 4 % z ceny, minimálne 0,40
-            €. Bezplatné vstupenky sú bez poplatku.
+            Zaplatené vstupenky sa účtujú províziou {pctStr(us.percent)} % z
+            ceny, minimálne {formatEur(us.minCents)}. Bezplatné vstupenky sú bez
+            poplatku.
           </p>
         </div>
 
@@ -90,7 +103,7 @@ function PricingPage() {
               <div className="rounded-xl border border-ink-700 bg-ink-950 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink-300">
-                    Provízia Ticketio (4 % / min 0,40 €)
+                    Provízia Ticketio ({feeLabel})
                   </span>
                   <span className="font-medium text-ink-200">
                     −{formatEur(ourFee)}
