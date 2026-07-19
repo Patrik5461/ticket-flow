@@ -43,14 +43,22 @@ function VenuesPage() {
   const addVenue = async () => {
     const name = newVenue.trim()
     if (!name) return
-    const res = await createVenueFn({ data: { name } })
-    if ('error' in res) return alert(res.error)
-    const list = await listVenuesFn()
-    if (!('error' in list)) {
-      setVenues(list)
-      setVenueId(res.id)
+    try {
+      const res = await createVenueFn({ data: { name } })
+      if ('error' in res) return alert(res.error)
+      const list = await listVenuesFn()
+      if (!('error' in list)) {
+        setVenues(list)
+        setVenueId(res.id)
+      }
+      setNewVenue('')
+    } catch (e) {
+      alert(
+        `Miesto sa nepodarilo vytvoriť: ${
+          e instanceof Error ? e.message : 'neznáma chyba'
+        }`,
+      )
     }
-    setNewVenue('')
   }
 
   return (

@@ -60,6 +60,7 @@ async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
     return await fn()
   } catch (e) {
     if (e instanceof VenueError) return { error: e.message }
+    console.error('[venues] unexpected error:', e)
     throw e
   }
 }
