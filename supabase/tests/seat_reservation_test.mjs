@@ -18,6 +18,19 @@ if (!PGURL) {
 }
 
 const mk = () => new pg.Client({ connectionString: PGURL })
+// The Supabase pooler occasionally rejects the first (cold) auth; retry a few
+// times so a fresh run doesn't die on a transient 28P01.
+async function connectRetry(client, tries = 5) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      await client.connect()
+      return
+    } catch (e) {
+      if (i === tries - 1) throw e
+      await new Promise((r) => setTimeout(r, 300 * (i + 1)))
+    }
+  }
+}
 let pass = 0
 let fail = 0
 const ok = (name, cond, extra = '') => {
@@ -31,7 +44,7 @@ const ok = (name, cond, extra = '') => {
 }
 
 const db = mk()
-await db.connect()
+await connectRetry(db)
 
 // Track created ids for cleanup.
 const ids = {}
@@ -127,7 +140,8 @@ const seatStatus = async (seatId) =>
 async function run() {
   console.log('=== Test 1: concurrent claim of the SAME seat — exactly one wins ===')
   const a = mk(), b = mk()
-  await a.connect(); await b.connect()
+  await connectRetry(a);
+  await connectRetry(b)
   await q(a, 'begin'); await q(b, 'begin')
   // A claims seatA and holds the row lock (uncommitted)
   const aRes = (await one(a, `select claim_seats($1, array[$2]::uuid[], $3, 15) as ok`, [ids.event, ids.seatA, ids.orderA])).ok

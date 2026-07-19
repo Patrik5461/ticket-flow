@@ -19,6 +19,18 @@ if (!PGURL) {
 }
 
 const mk = () => new pg.Client({ connectionString: PGURL })
+// Retry the pooler's occasional cold-auth rejection (transient 28P01).
+async function connectRetry(client, tries = 5) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      await client.connect()
+      return
+    } catch (e) {
+      if (i === tries - 1) throw e
+      await new Promise((r) => setTimeout(r, 300 * (i + 1)))
+    }
+  }
+}
 let pass = 0
 let fail = 0
 const ok = (name, cond, extra = '') => {
@@ -32,7 +44,7 @@ const ok = (name, cond, extra = '') => {
 }
 
 const db = mk()
-await db.connect()
+await connectRetry(db)
 const one = async (sql, params) => (await db.query(sql, params)).rows[0]
 const ids = { seats: [], orders: [] }
 
@@ -65,7 +77,7 @@ async function newOrder() {
 // A claim in its own connection/transaction (so claims truly run concurrently).
 async function claimInTx(seatIds, orderId) {
   const c = mk()
-  await c.connect()
+  await connectRetry(c)
   try {
     await c.query('begin')
     const r = await c.query(`select claim_seats($1, $2::uuid[], $3, 15) as ok`, [ids.event, seatIds, orderId])
