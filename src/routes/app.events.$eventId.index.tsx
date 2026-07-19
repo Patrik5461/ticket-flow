@@ -31,11 +31,16 @@ import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
 import {
   listSupportRequestsFn,
-  resolveSupportRequestFn
-  
+  resolveSupportRequestFn,
 } from '../server/support-admin'
-import type {SupportRequestView} from '../server/support-admin';
+import type { SupportRequestView } from '../server/support-admin'
 import type { BulkMessageLog } from '../server/bulk-messages'
+import {
+  getEventSeatingFn,
+  assignSeatMapToEventFn,
+} from '../server/event-seating'
+import type { EventSeatingView } from '../server/event-seating'
+import { listVenuesFn, listSeatMapsFn, getSeatMapFn } from '../server/venues'
 import { utcIsoToZonedLocal } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
@@ -252,6 +257,7 @@ function ManageEvent() {
         tz={tz}
         onChanged={reload}
       />
+      <SeatingSection eventId={event.id} ticketTypes={ticketTypes} />
       <SupportRequestsSection eventId={event.id} />
       <BulkMessageSection eventId={event.id} />
       <EmbedSnippetSection
@@ -308,6 +314,263 @@ function EmbedSnippetSection({
 }
 
 // --- Message participants -----------------------------------------------------
+
+function SeatingSection({
+  eventId,
+  ticketTypes,
+}: {
+  eventId: string
+  ticketTypes: TicketTypeRow[]
+}) {
+  const [state, setState] = useState<EventSeatingView | null>(null)
+  const [picking, setPicking] = useState(false)
+
+  const load = async () => {
+    const res = await getEventSeatingFn({ data: { eventId } })
+    if (!('error' in res)) setState(res)
+  }
+  useEffect(() => {
+    void load()
+  }, [eventId])
+
+  const ttName = (id: string | null) =>
+    ticketTypes.find((t) => t.id === id)?.name ?? '—'
+
+  const assigned = state?.seatMapId
+  const c = state?.statusCounts
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Mapa sedadiel</h2>
+        {assigned && !state.locked && !picking && (
+          <button
+            onClick={() => setPicking(true)}
+            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
+          >
+            Zmeniť mapu
+          </button>
+        )}
+      </div>
+      <p className="mb-4 text-sm text-gray-500">
+        Priraďte hale mapu a namapujte sektory na cenové kategórie. Po prvej
+        rezervácii/predaji sa mapa uzamkne.
+      </p>
+
+      {assigned && !picking ? (
+        <div className="space-y-3">
+          <div className="text-sm">
+            Mapa: <strong>{state.mapName}</strong>{' '}
+            {state.locked && (
+              <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                uzamknuté (predaj prebieha)
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center text-sm">
+            <Cnt label="Voľné" n={c?.available ?? 0} />
+            <Cnt label="Držané" n={c?.held ?? 0} />
+            <Cnt label="Predané" n={c?.sold ?? 0} />
+            <Cnt label="Blokované" n={c?.blocked ?? 0} />
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase text-gray-500">
+                <th className="py-1">Sektor</th>
+                <th className="py-1">Sedadiel</th>
+                <th className="py-1">Cenová kategória</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.sectors.map((s) => (
+                <tr key={s.sector} className="border-t">
+                  <td className="py-1 font-medium">{s.sector}</td>
+                  <td className="py-1">{s.seatCount}</td>
+                  <td className="py-1">{ttName(s.ticketTypeId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <SeatMapPicker
+          eventId={eventId}
+          ticketTypes={ticketTypes}
+          onCancel={assigned ? () => setPicking(false) : undefined}
+          onAssigned={() => {
+            setPicking(false)
+            void load()
+          }}
+        />
+      )}
+    </section>
+  )
+}
+
+function Cnt({ label, n }: { label: string; n: number }) {
+  return (
+    <div className="rounded-md border bg-gray-50 p-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-lg font-bold tabular-nums">{n}</div>
+    </div>
+  )
+}
+
+function SeatMapPicker({
+  eventId,
+  ticketTypes,
+  onCancel,
+  onAssigned,
+}: {
+  eventId: string
+  ticketTypes: TicketTypeRow[]
+  onCancel?: () => void
+  onAssigned: () => void
+}) {
+  const [venues, setVenues] = useState<{ id: string; name: string }[]>([])
+  const [venueId, setVenueId] = useState('')
+  const [maps, setMaps] = useState<{ id: string; name: string }[]>([])
+  const [mapId, setMapId] = useState('')
+  const [sectors, setSectors] = useState<string[]>([])
+  const [pricing, setPricing] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void listVenuesFn().then((r) => {
+      if (!('error' in r)) setVenues(r.map((v) => ({ id: v.id, name: v.name })))
+    })
+  }, [])
+  useEffect(() => {
+    setMaps([])
+    setMapId('')
+    setSectors([])
+    if (!venueId) return
+    void listSeatMapsFn({ data: { venueId } }).then((r) => {
+      if (!('error' in r)) setMaps(r.map((m) => ({ id: m.id, name: m.name })))
+    })
+  }, [venueId])
+  useEffect(() => {
+    setSectors([])
+    setPricing({})
+    if (!mapId) return
+    void getSeatMapFn({ data: { seatMapId: mapId } }).then((r) => {
+      if ('error' in r) return
+      setSectors([...new Set(r.seats.map((s) => s.sector))].sort())
+    })
+  }, [mapId])
+
+  const canAssign =
+    mapId && sectors.length > 0 && sectors.every((s) => pricing[s])
+
+  const assign = async () => {
+    setBusy(true)
+    const res = await assignSeatMapToEventFn({
+      data: {
+        eventId,
+        seatMapId: mapId,
+        sectorPricing: sectors.map((s) => ({
+          sector: s,
+          ticketTypeId: pricing[s],
+        })),
+      },
+    })
+    setBusy(false)
+    if ('error' in res) return alert(res.error)
+    onAssigned()
+  }
+
+  return (
+    <div className="space-y-3">
+      {venues.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          Zatiaľ nemáte žiadne miesta konania. Vytvorte mapu v sekcii „Mapy
+          sedadiel".
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          <label className="text-sm">
+            <span className="mb-1 block text-gray-600">Miesto</span>
+            <select
+              value={venueId}
+              onChange={(e) => setVenueId(e.target.value)}
+              className="rounded-md border px-3 py-2 text-sm"
+            >
+              <option value="">— vyberte —</option>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-gray-600">Mapa</span>
+            <select
+              value={mapId}
+              onChange={(e) => setMapId(e.target.value)}
+              disabled={!venueId}
+              className="rounded-md border px-3 py-2 text-sm disabled:bg-gray-100"
+            >
+              <option value="">— vyberte —</option>
+              {maps.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {sectors.length > 0 && (
+        <div>
+          <div className="mb-1 text-sm font-medium">
+            Sektory → cenové kategórie
+          </div>
+          <div className="space-y-2">
+            {sectors.map((s) => (
+              <div key={s} className="flex items-center gap-3 text-sm">
+                <span className="w-24 font-medium">{s}</span>
+                <select
+                  value={pricing[s] ?? ''}
+                  onChange={(e) =>
+                    setPricing((p) => ({ ...p, [s]: e.target.value }))
+                  }
+                  className="rounded-md border px-3 py-1.5"
+                >
+                  <option value="">— cenová kategória —</option>
+                  {ticketTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({formatEur(t.price_cents)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={assign}
+          disabled={!canAssign || busy}
+          className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {busy ? 'Priraďujem…' : 'Priradiť mapu'}
+        </button>
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            Zrušiť
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function SupportRequestsSection({ eventId }: { eventId: string }) {
   const [rows, setRows] = useState<SupportRequestView[]>([])
