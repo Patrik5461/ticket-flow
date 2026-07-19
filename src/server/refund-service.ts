@@ -108,7 +108,7 @@ async function activeTickets(
 ): Promise<TicketRow[]> {
   const { data } = await deps.db
     .from('tickets')
-    .select('id, ticket_type_id, status')
+    .select('id, ticket_type_id, status, event_id, seat_id')
     .eq('order_id', orderId)
     .neq('status', 'cancelled')
   return (data as TicketRow[] | null) ?? []
@@ -116,18 +116,33 @@ async function activeTickets(
 
 async function cancelTicketReleaseCapacity(
   deps: RefundDeps,
-  ticketId: string,
-  ticketTypeId: string,
+  ticket: {
+    id: string
+    ticket_type_id: string
+    event_id: string
+    seat_id: string | null
+  },
 ): Promise<void> {
   await deps.db
     .from('tickets')
     .update({ status: 'cancelled' })
-    .eq('id', ticketId)
-  // Give the seat back so it can be resold. Best-effort — accounting must not
-  // block the refund that already went through the gateway.
+    .eq('id', ticket.id)
+  // Numbered seat: free the specific event_seat so it can be resold. The
+  // sold_count decrement below (release_ticket_capacity) is correct for both
+  // seated and unseated, since a seated claim incremented sold_count by 1.
+  if (ticket.seat_id) {
+    await deps.db
+      .from('event_seats')
+      .update({ status: 'available', held_until: null, order_id: null })
+      .eq('event_id', ticket.event_id)
+      .eq('seat_id', ticket.seat_id)
+      .in('status', ['held', 'sold'])
+  }
+  // Give capacity back. Best-effort — accounting must not block the refund that
+  // already went through the gateway.
   await deps.db
     .rpc('release_ticket_capacity', {
-      p_ticket_type_id: ticketTypeId,
+      p_ticket_type_id: ticket.ticket_type_id,
       p_qty: 1,
     })
     .then(
@@ -216,7 +231,12 @@ export async function refundWholeOrder(
   }
 
   for (const t of tickets) {
-    await cancelTicketReleaseCapacity(deps, t.id, t.ticket_type_id)
+    await cancelTicketReleaseCapacity(deps, {
+      id: t.id,
+      ticket_type_id: t.ticket_type_id,
+      event_id: order.event_id,
+      seat_id: (t as TicketRow & { seat_id: string | null }).seat_id ?? null,
+    })
   }
 
   await deps.db.from('orders').update({ status: 'refunded' }).eq('id', order.id)
@@ -251,11 +271,15 @@ export async function refundSingleTicket(
 ): Promise<RefundResult> {
   const { data: ticket } = await deps.db
     .from('tickets')
-    .select('id, order_id, ticket_type_id, status')
+    .select('id, order_id, ticket_type_id, status, event_id, seat_id')
     .eq('id', args.ticketId)
     .maybeSingle()
   if (!ticket) throw new RefundError('Vstupenka sa nenašla.')
-  const tk = ticket as TicketRow & { order_id: string }
+  const tk = ticket as TicketRow & {
+    order_id: string
+    event_id: string
+    seat_id: string | null
+  }
   if (tk.status === 'cancelled') {
     throw new RefundError('Vstupenka je už zrušená.')
   }
@@ -305,7 +329,12 @@ export async function refundSingleTicket(
     })
   }
 
-  await cancelTicketReleaseCapacity(deps, tk.id, tk.ticket_type_id)
+  await cancelTicketReleaseCapacity(deps, {
+    id: tk.id,
+    ticket_type_id: tk.ticket_type_id,
+    event_id: tk.event_id,
+    seat_id: tk.seat_id,
+  })
 
   const remainingActive = (await activeTickets(deps, order.id)).length
   const newStatus = orderStatusAfterRefund(remainingActive)
