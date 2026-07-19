@@ -47,6 +47,25 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="sk">
       <head>
+        {/* Capture early client errors so hydration failures are diagnosable
+            on mobile via remote Safari inspector (window.__ticketioErr). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){function r(m){try{window.__ticketioErr=(window.__ticketioErr||[]).concat(String(m)).slice(-5);console.error('[ticketio:client]',m);}catch(e){}}window.addEventListener('error',function(e){r((e&&e.message)||'error');});window.addEventListener('unhandledrejection',function(e){r((e&&e.reason&&(e.reason.message||e.reason))||'rejection');});})();",
+          }}
+        />
+        {/* Runtime polyfills for older mobile Safari (iOS 13–15). These APIs are
+            emitted by vendor chunks (TanStack server-fn runtime uses Object.hasOwn;
+            main chunk uses String.prototype.replaceAll) and would throw before
+            hydration. Must run before the module bundle — hence a classic inline
+            script, not a module import. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(!Object.hasOwn){Object.defineProperty(Object,'hasOwn',{value:function(o,p){return Object.prototype.hasOwnProperty.call(o,p);},configurable:true,writable:true});}if(!String.prototype.replaceAll){String.prototype.replaceAll=function(s,r){return Object.prototype.toString.call(s)==='[object RegExp]'?this.replace(s,r):this.split(s).join(r);};}if(!Array.prototype.at){Object.defineProperty(Array.prototype,'at',{value:function(n){n=Math.trunc(n)||0;if(n<0)n+=this.length;return n<0||n>=this.length?undefined:this[n];},configurable:true,writable:true});}}catch(e){}})();",
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html:

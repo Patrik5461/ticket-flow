@@ -37,6 +37,15 @@ const securityHeaders: Record<string, string> = {
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  // Vite 8's default target ('baseline-widely-available') assumes Safari 16+,
+  // which drops older mobile Safari — the bundle then ships syntax those
+  // engines can't parse, so SSR renders but hydration silently dies. Pin an
+  // explicit, older target so esbuild down-levels syntax for iOS 14+. (Runtime
+  // API gaps like Object.hasOwn / String.prototype.replaceAll aren't syntax and
+  // are handled by the pre-hydration polyfill in __root.tsx.)
+  build: {
+    target: ['safari14', 'chrome87', 'firefox78', 'edge88'],
+  },
   plugins: [
     devtools(),
     nitro({
