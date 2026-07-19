@@ -346,6 +346,146 @@ export type Database = {
           },
         ]
       }
+      event_seat_maps: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          seat_map_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          seat_map_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          seat_map_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_seat_maps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seat_maps_seat_map_id_fkey"
+            columns: ["seat_map_id"]
+            isOneToOne: false
+            referencedRelation: "seat_maps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_seats: {
+        Row: {
+          created_at: string
+          event_id: string
+          held_until: string | null
+          id: string
+          order_id: string | null
+          seat_id: string
+          status: string
+          ticket_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          held_until?: string | null
+          id?: string
+          order_id?: string | null
+          seat_id: string
+          status?: string
+          ticket_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          held_until?: string | null
+          id?: string
+          order_id?: string | null
+          seat_id?: string
+          status?: string
+          ticket_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_seats_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "seats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sector_pricing: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          sector: string
+          ticket_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          sector: string
+          ticket_type_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          sector?: string
+          ticket_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sector_pricing_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_sector_pricing_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           cover_url: string | null
@@ -886,6 +1026,97 @@ export type Database = {
           },
         ]
       }
+      seat_maps: {
+        Row: {
+          created_at: string
+          external_ref: string | null
+          id: string
+          layout: Json
+          name: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          layout?: Json
+          name: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          layout?: Json
+          name?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seat_maps_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seats: {
+        Row: {
+          created_at: string
+          external_ref: string | null
+          id: string
+          level: string
+          level_order: number
+          row_label: string
+          seat_map_id: string
+          seat_number: string
+          seat_type: string
+          sector: string
+          x: number
+          y: number
+        }
+        Insert: {
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          level?: string
+          level_order?: number
+          row_label: string
+          seat_map_id: string
+          seat_number: string
+          seat_type?: string
+          sector: string
+          x?: number
+          y?: number
+        }
+        Update: {
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          level?: string
+          level_order?: number
+          row_label?: string
+          seat_map_id?: string
+          seat_number?: string
+          seat_type?: string
+          sector?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seats_seat_map_id_fkey"
+            columns: ["seat_map_id"]
+            isOneToOne: false
+            referencedRelation: "seat_maps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settlements: {
         Row: {
           created_by: string | null
@@ -1118,6 +1349,7 @@ export type Database = {
           price_cents: number
           sale_ends_at: string | null
           sale_starts_at: string | null
+          seated: boolean
           sold_count: number
           sort_order: number
         }
@@ -1135,6 +1367,7 @@ export type Database = {
           price_cents: number
           sale_ends_at?: string | null
           sale_starts_at?: string | null
+          seated?: boolean
           sold_count?: number
           sort_order?: number
         }
@@ -1152,6 +1385,7 @@ export type Database = {
           price_cents?: number
           sale_ends_at?: string | null
           sale_starts_at?: string | null
+          seated?: boolean
           sold_count?: number
           sort_order?: number
         }
@@ -1174,6 +1408,7 @@ export type Database = {
           holder_name: string | null
           id: string
           order_id: string | null
+          seat_id: string | null
           source: string
           status: string
           ticket_type_id: string
@@ -1187,6 +1422,7 @@ export type Database = {
           holder_name?: string | null
           id?: string
           order_id?: string | null
+          seat_id?: string | null
           source?: string
           status?: string
           ticket_type_id: string
@@ -1200,6 +1436,7 @@ export type Database = {
           holder_name?: string | null
           id?: string
           order_id?: string | null
+          seat_id?: string | null
           source?: string
           status?: string
           ticket_type_id?: string
@@ -1221,10 +1458,55 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tickets_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "seats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tickets_ticket_type_id_fkey"
             columns: ["ticket_type_id"]
             isOneToOne: false
             referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          address: string | null
+          created_at: string
+          external_ref: string | null
+          id: string
+          name: string
+          organizer_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          name: string
+          organizer_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          name?: string
+          organizer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venues_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
             referencedColumns: ["id"]
           },
         ]
@@ -1373,6 +1655,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_overview_stats: { Args: { p_days?: number }; Returns: Json }
+      admin_platform_stats: { Args: never; Returns: Json }
       admin_search_orders: {
         Args: { p_q: string }
         Returns: {
@@ -1393,6 +1677,15 @@ export type Database = {
       bump_support_usage: {
         Args: { p_api: number; p_fallback: number; p_tool: number }
         Returns: undefined
+      }
+      claim_seats: {
+        Args: {
+          p_event_id: string
+          p_order_id: string
+          p_seat_ids: string[]
+          p_ttl_minutes?: number
+        }
+        Returns: boolean
       }
       generate_previous_month_settlements: { Args: never; Returns: number }
       generate_settlement_range: {
@@ -1416,9 +1709,11 @@ export type Database = {
       }
       is_org_member: { Args: { p_org: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      mark_seats_sold: { Args: { p_order_id: string }; Returns: number }
       organizer_is_active: { Args: { p_org: string }; Returns: boolean }
       recompute_settlement: { Args: { p_id: string }; Returns: number }
       release_expired_orders: { Args: never; Returns: number }
+      release_seats_for_order: { Args: { p_order_id: string }; Returns: number }
       release_ticket_capacity: {
         Args: { p_qty: number; p_ticket_type_id: string }
         Returns: undefined
