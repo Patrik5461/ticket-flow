@@ -85,6 +85,7 @@ export const createOrderFn = createServerFn({ method: 'POST' })
         acceptTerms: z.boolean().refine((v) => v === true, {
           message: 'Musíte súhlasiť s obchodnými podmienkami.',
         }),
+        seatIds: z.array(z.string().uuid()).max(50).optional(),
       })
       .parse(d),
   )
@@ -102,6 +103,7 @@ export const createOrderFn = createServerFn({ method: 'POST' })
         billing: data.billing,
         answers: data.answers,
         acceptTerms: data.acceptTerms,
+        seatIds: data.seatIds,
       })
     } catch (e) {
       if (e instanceof OrderError) {

@@ -195,6 +195,60 @@ async function loadPurchasableTypes(
   return map
 }
 
+interface SeatedGroup {
+  ticketTypeId: string
+  seatIds: string[]
+  priceCents: number
+  name: string
+}
+
+/**
+ * Load the buyer's selected seats and group them by ticket type. Throws if any
+ * seat is no longer available. The actual atomic hold happens later via
+ * claim_seats (once the order id exists).
+ */
+async function loadSelectedSeats(
+  eventId: string,
+  seatIds: string[],
+): Promise<SeatedGroup[]> {
+  if (seatIds.length === 0) return []
+  const db = serviceClient()
+  const { data } = await db
+    .from('event_seats')
+    .select('seat_id, ticket_type_id, status, ticket_types(name, price_cents)')
+    .eq('event_id', eventId)
+    .in('seat_id', seatIds)
+    .returns<
+      {
+        seat_id: string
+        ticket_type_id: string
+        status: string
+        ticket_types: { name: string; price_cents: number } | null
+      }[]
+    >()
+  const rows = data ?? []
+  if (
+    rows.length !== seatIds.length ||
+    rows.some((r) => r.status !== 'available')
+  ) {
+    throw new OrderError(
+      'Niektoré vybrané sedadlá už nie sú dostupné. Obnovte mapu a skúste znova.',
+    )
+  }
+  const groups = new Map<string, SeatedGroup>()
+  for (const r of rows) {
+    const g = groups.get(r.ticket_type_id) ?? {
+      ticketTypeId: r.ticket_type_id,
+      seatIds: [],
+      priceCents: r.ticket_types?.price_cents ?? 0,
+      name: r.ticket_types?.name ?? '',
+    }
+    g.seatIds.push(r.seat_id)
+    groups.set(r.ticket_type_id, g)
+  }
+  return [...groups.values()]
+}
+
 export async function previewPricing(
   slug: string,
   items: CartItemInput[],
@@ -305,6 +359,9 @@ export interface CreateOrderInput {
   answers?: Record<string, Array<Record<string, string>>> | null
   /** Buyer accepted the terms — records the consent time on the order. */
   acceptTerms?: boolean
+  /** Selected event seats (seated ticket types). Priced per seat by their type;
+   *  held atomically via claim_seats. `items` covers only unseated types. */
+  seatIds?: string[]
 }
 
 export interface CreateOrderResult {
@@ -346,7 +403,7 @@ export async function createOrder(
   const cleanItems = input.items.filter(
     (i) => i.quantity > 0 && types.has(i.ticketTypeId),
   )
-  if (cleanItems.length === 0) {
+  if (cleanItems.length === 0 && (input.seatIds ?? []).length === 0) {
     throw new OrderError(
       'Košík je prázdny alebo vybrané vstupenky nie sú v predaji.',
     )
@@ -371,6 +428,23 @@ export async function createOrder(
     }
   }
 
+  // 3b. Seated ticket types are bought by selecting specific seats, never by
+  // quantity. Reject quantity items for seated types, then load + validate the
+  // selected seats (priced per seat by their type).
+  for (const item of cleanItems) {
+    const seated = (types.get(item.ticketTypeId) as { seated?: boolean }).seated
+    if (seated) {
+      throw new OrderError(
+        `Pre "${types.get(item.ticketTypeId)!.name}" vyberte konkrétne sedadlá na mape.`,
+      )
+    }
+  }
+  const seatIds = input.seatIds ?? []
+  const seatGroups = await loadSelectedSeats(event.id, seatIds)
+  if (cleanItems.length === 0 && seatGroups.length === 0) {
+    throw new OrderError('Košík je prázdny.')
+  }
+
   // 4. Coupon.
   let coupon: CouponRow | null = null
   if (input.couponCode) {
@@ -386,12 +460,18 @@ export async function createOrder(
     coupon = data
   }
 
-  // 5. Server-side pricing.
+  // 5. Server-side pricing (unseated quantity items + seated seats per type).
   const pricing = computePricing({
-    items: cleanItems.map((i) => ({
-      quantity: i.quantity,
-      unitPriceCents: types.get(i.ticketTypeId)!.price_cents,
-    })),
+    items: [
+      ...cleanItems.map((i) => ({
+        quantity: i.quantity,
+        unitPriceCents: types.get(i.ticketTypeId)!.price_cents,
+      })),
+      ...seatGroups.map((g) => ({
+        quantity: g.seatIds.length,
+        unitPriceCents: g.priceCents,
+      })),
+    ],
     coupon: coupon ? { type: coupon.type, value: coupon.value } : null,
     feePercent: organizer?.fee_percent ?? 4.0,
     feeMinCents: organizer?.fee_min_cents ?? 40,
@@ -444,21 +524,47 @@ export async function createOrder(
     })
     .select('*')
     .single<OrderRow>()
-  if (orderErr || !order) {
+  if (orderErr) {
     await releaseAll(reserved)
     throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
   }
 
-  const { error: itemsErr } = await db.from('order_items').insert(
-    cleanItems.map((i) => ({
+  // 7b. Atomically hold the selected seats for this order (all-or-nothing).
+  if (seatIds.length > 0) {
+    const { data: claimed, error: claimErr } = await db.rpc('claim_seats', {
+      p_event_id: event.id,
+      p_seat_ids: seatIds,
+      p_order_id: order.id,
+      p_ttl_minutes: RESERVATION_MINUTES,
+    })
+    if (claimErr || !claimed) {
+      await releaseAll(reserved)
+      await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+      throw new OrderError(
+        'Niektoré vybrané sedadlá práve obsadil iný kupujúci. Vyberte iné.',
+      )
+    }
+  }
+
+  const { error: itemsErr } = await db.from('order_items').insert([
+    ...cleanItems.map((i) => ({
       order_id: order.id,
       ticket_type_id: i.ticketTypeId,
       quantity: i.quantity,
       unit_price_cents: types.get(i.ticketTypeId)!.price_cents,
     })),
-  )
+    ...seatGroups.map((g) => ({
+      order_id: order.id,
+      ticket_type_id: g.ticketTypeId,
+      quantity: g.seatIds.length,
+      unit_price_cents: g.priceCents,
+    })),
+  ])
   if (itemsErr) {
     await releaseAll(reserved)
+    if (seatIds.length > 0) {
+      await db.rpc('release_seats_for_order', { p_order_id: order.id })
+    }
     await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
     throw new OrderError('Objednávku sa nepodarilo vytvoriť.')
   }
@@ -519,10 +625,17 @@ export async function createOrder(
         name: input.buyer.name,
         phone: input.buyer.phone,
       },
-      items: cleanItems.map((i) => {
-        const t = types.get(i.ticketTypeId)!
-        return { name: t.name, amountCents: t.price_cents, count: i.quantity }
-      }),
+      items: [
+        ...cleanItems.map((i) => {
+          const t = types.get(i.ticketTypeId)!
+          return { name: t.name, amountCents: t.price_cents, count: i.quantity }
+        }),
+        ...seatGroups.map((g) => ({
+          name: `${g.name} (sedadlo)`,
+          amountCents: g.priceCents,
+          count: g.seatIds.length,
+        })),
+      ],
       returnUrl: orderPageUrl,
       notificationUrl: `${getEnv().APP_URL}/api/gopay/notify`,
     })
@@ -544,6 +657,9 @@ export async function createOrder(
     }
   } catch (e) {
     await releaseAll(reserved)
+    if (seatIds.length > 0) {
+      await db.rpc('release_seats_for_order', { p_order_id: order.id })
+    }
     await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
     throw new OrderError(
       e instanceof Error ? e.message : 'Platbu sa nepodarilo vytvoriť.',
@@ -959,6 +1075,12 @@ async function markPaidAndFulfill(
     return
   }
 
+  // Seated orders: flip held seats to sold (no-op for unseated orders).
+  await db.rpc('mark_seats_sold', { p_order_id: order.id }).then(
+    () => undefined,
+    () => undefined,
+  )
+
   if (order.coupon_id) {
     await db.rpc('increment_coupon_use', { p_coupon_id: order.coupon_id }).then(
       () => undefined,
@@ -1010,11 +1132,26 @@ async function ensureTickets(
     (items ?? []).map((i) => i.ticket_type_id),
   )
 
+  // Seated orders: one seat_id per ticket, drawn from this order's held/sold
+  // event_seats grouped by ticket type (unseated types have no seats → null).
+  const { data: orderSeats } = await db
+    .from('event_seats')
+    .select('seat_id, ticket_type_id')
+    .eq('order_id', order.id)
+    .returns<{ seat_id: string; ticket_type_id: string }[]>()
+  const seatQueue = new Map<string, string[]>()
+  for (const s of orderSeats ?? []) {
+    const q = seatQueue.get(s.ticket_type_id) ?? []
+    q.push(s.seat_id)
+    seatQueue.set(s.ticket_type_id, q)
+  }
+
   const created: TicketRow[] = []
   for (const item of items ?? []) {
     const fields = fieldsByType.get(item.ticket_type_id) ?? []
     const sets = answers[item.ticket_type_id] ?? []
     for (let n = 0; n < item.quantity; n++) {
+      const seatId = seatQueue.get(item.ticket_type_id)?.shift() ?? null
       const { data: ticket } = await db
         .from('tickets')
         .insert({
@@ -1023,6 +1160,7 @@ async function ensureTickets(
           event_id: order.event_id,
           status: 'valid',
           source,
+          seat_id: seatId,
         })
         .select('*')
         .maybeSingle<TicketRow>()
