@@ -78,6 +78,12 @@ function AppLayout() {
           {/* Desktop nav */}
           <div className="hidden items-center gap-1 text-sm md:flex">
             <Link
+              to="/app/venues"
+              className="rounded-lg px-3 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+            >
+              Mapy sedadiel
+            </Link>
+            <Link
               to="/app/settlements"
               className="rounded-lg px-3 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
             >
@@ -122,10 +128,28 @@ function AppLayout() {
                 aria-label="Menu"
                 className="grid h-11 w-11 place-items-center rounded-lg border border-ink-700 text-ink-100"
               >
-                <svg className="mobile-nav-icon-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  className="mobile-nav-icon-closed"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <path d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                <svg className="mobile-nav-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  className="mobile-nav-icon-open"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </summary>
@@ -134,6 +158,7 @@ function AppLayout() {
                   {session.organizer?.name ?? session.user.email}
                 </div>
                 <Link to="/app">Moje podujatia</Link>
+                <Link to="/app/venues">Mapy sedadiel</Link>
                 <Link to="/app/settlements">Vyúčtovania</Link>
                 <Link to="/app/developers">API</Link>
                 <Link to="/app/settings">Nastavenia</Link>

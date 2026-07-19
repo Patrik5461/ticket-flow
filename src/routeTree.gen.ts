@@ -27,6 +27,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as PosReceiptOrderIdRouteImport } from './routes/pos-receipt.$orderId'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as AppVenuesRouteImport } from './routes/app.venues'
 import { Route as AppSettlementsRouteImport } from './routes/app.settlements'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppDevelopersRouteImport } from './routes/app.developers'
@@ -165,6 +166,11 @@ const OrderIdRoute = OrderIdRouteImport.update({
   id: '/order/$id',
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppVenuesRoute = AppVenuesRouteImport.update({
+  id: '/venues',
+  path: '/venues',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppSettlementsRoute = AppSettlementsRouteImport.update({
   id: '/settlements',
@@ -445,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
+  '/app/venues': typeof AppVenuesRoute
   '/order/$id': typeof OrderIdRoute
   '/pos-receipt/$orderId': typeof PosReceiptOrderIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -511,6 +518,7 @@ export interface FileRoutesByTo {
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
+  '/app/venues': typeof AppVenuesRoute
   '/order/$id': typeof OrderIdRoute
   '/pos-receipt/$orderId': typeof PosReceiptOrderIdRoute
   '/admin': typeof AdminIndexRoute
@@ -579,6 +587,7 @@ export interface FileRoutesById {
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
+  '/app/venues': typeof AppVenuesRoute
   '/order/$id': typeof OrderIdRoute
   '/pos-receipt/$orderId': typeof PosReceiptOrderIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -649,6 +658,7 @@ export interface FileRouteTypes {
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
+    | '/app/venues'
     | '/order/$id'
     | '/pos-receipt/$orderId'
     | '/admin/'
@@ -715,6 +725,7 @@ export interface FileRouteTypes {
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
+    | '/app/venues'
     | '/order/$id'
     | '/pos-receipt/$orderId'
     | '/admin'
@@ -782,6 +793,7 @@ export interface FileRouteTypes {
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
+    | '/app/venues'
     | '/order/$id'
     | '/pos-receipt/$orderId'
     | '/admin/'
@@ -993,6 +1005,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/order/$id'
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/app/venues': {
+      id: '/app/venues'
+      path: '/venues'
+      fullPath: '/app/venues'
+      preLoaderRoute: typeof AppVenuesRouteImport
+      parentRoute: typeof AppRoute
     }
     '/app/settlements': {
       id: '/app/settlements'
@@ -1392,6 +1411,7 @@ interface AppRouteChildren {
   AppDevelopersRoute: typeof AppDevelopersRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
+  AppVenuesRoute: typeof AppVenuesRoute
   AppIndexRoute: typeof AppIndexRoute
   AppEventsEventIdRoute: typeof AppEventsEventIdRouteWithChildren
   AppEventsNewRoute: typeof AppEventsNewRoute
@@ -1401,6 +1421,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDevelopersRoute: AppDevelopersRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSettlementsRoute: AppSettlementsRoute,
+  AppVenuesRoute: AppVenuesRoute,
   AppIndexRoute: AppIndexRoute,
   AppEventsEventIdRoute: AppEventsEventIdRouteWithChildren,
   AppEventsNewRoute: AppEventsNewRoute,
