@@ -26,11 +26,11 @@ export function SalesChart({
         {daily.map((d) => (
           <div
             key={d.date}
-            className="group relative flex-1"
+            className="group relative h-full flex-1"
             title={`${fmtDay(d.date)} — ${formatEur(d.grossCents)} · ${d.orders} obj.`}
           >
             <div
-              className="w-full rounded-t bg-indigo-500/80 transition-colors group-hover:bg-indigo-600"
+              className="absolute bottom-0 left-0 w-full rounded-t bg-indigo-500/80 transition-colors group-hover:bg-indigo-600"
               style={{
                 height: `${Math.max(2, Math.round((d.grossCents / max) * 100))}%`,
               }}

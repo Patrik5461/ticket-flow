@@ -559,7 +559,7 @@ function MonthlyFeeChart({ monthly }: { monthly: MonthlyPoint[] }) {
         {monthly.map((m) => (
           <div
             key={m.month}
-            className="flex flex-1 flex-col items-center gap-1"
+            className="flex h-full flex-1 flex-col items-center gap-1"
           >
             <div className="flex w-full flex-1 items-end">
               <div
