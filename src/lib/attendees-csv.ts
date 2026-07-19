@@ -8,6 +8,7 @@ import { toCsv } from './csv'
 export interface AttendeeRow {
   ref: string
   typeName: string
+  seat: string | null
   holderName: string | null
   holderEmail: string | null
   /** field label -> answer value */
@@ -22,10 +23,11 @@ export function buildAttendeesCsv(attendees: AttendeeRow[]): string {
       if (!labels.includes(l)) labels.push(l)
     }
   }
-  const header = ['Číslo', 'Typ', 'Meno', 'E-mail', ...labels]
+  const header = ['Číslo', 'Typ', 'Sedadlo', 'Meno', 'E-mail', ...labels]
   const rows = attendees.map((a) => [
     a.ref,
     a.typeName,
+    a.seat ?? '',
     a.holderName ?? '',
     a.holderEmail ?? '',
     ...labels.map((l) => a.answers[l] ?? ''),

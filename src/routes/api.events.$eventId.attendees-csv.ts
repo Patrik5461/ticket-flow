@@ -4,8 +4,8 @@ import {
   organizerIdForUser,
 } from '../lib/supabase/auth-request'
 import { serviceClient } from '../lib/supabase/server'
-import { buildAttendeesCsv  } from '../lib/attendees-csv'
-import type {AttendeeRow} from '../lib/attendees-csv';
+import { buildAttendeesCsv } from '../lib/attendees-csv'
+import type { AttendeeRow } from '../lib/attendees-csv'
 
 /**
  * Attendees CSV: one row per (non-cancelled) ticket with its custom-field answers
@@ -33,7 +33,7 @@ export const Route = createFileRoute('/api/events/$eventId/attendees-csv')({
         const { data: tickets } = await db
           .from('tickets')
           .select(
-            'id, holder_name, holder_email, ticket_types(name), orders(buyer_email)',
+            'id, holder_name, holder_email, ticket_types(name), orders(buyer_email), seats(sector, row_label, seat_number)',
           )
           .eq('event_id', params.eventId)
           .neq('status', 'cancelled')
@@ -45,6 +45,11 @@ export const Route = createFileRoute('/api/events/$eventId/attendees-csv')({
               holder_email: string | null
               ticket_types: { name: string } | null
               orders: { buyer_email: string } | null
+              seats: {
+                sector: string
+                row_label: string
+                seat_number: string
+              } | null
             }[]
           >()
         const rows = tickets ?? []
@@ -72,6 +77,9 @@ export const Route = createFileRoute('/api/events/$eventId/attendees-csv')({
         const attendees: AttendeeRow[] = rows.map((t) => ({
           ref: t.id.slice(0, 8).toUpperCase(),
           typeName: t.ticket_types?.name ?? '—',
+          seat: t.seats
+            ? `${t.seats.sector} · rad ${t.seats.row_label} · miesto ${t.seats.seat_number}`
+            : null,
           holderName: t.holder_name,
           holderEmail: t.holder_email ?? t.orders?.buyer_email ?? null,
           answers: byTicket.get(t.id) ?? {},
