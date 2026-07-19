@@ -71,7 +71,13 @@ export const getAdminOverviewFn = createServerFn({ method: 'GET' }).handler(
         db.from('orders').select('*', { count: 'exact', head: true }),
         callRpc(db, 'admin_overview_stats', { p_days: 30 }),
       ])
-      if (statsRes.error) return { error: 'Súhrn sa nepodarilo načítať.' }
+      if (statsRes.error) {
+        console.error(
+          '[admin-overview] admin_overview_stats rpc failed:',
+          statsRes.error,
+        )
+        return { error: 'Súhrn sa nepodarilo načítať.' }
+      }
 
       const s = (statsRes.data as OverviewStatsRpc | null) ?? {
         grossCents: 0,
@@ -141,6 +147,10 @@ export const getPlatformStatsFn = createServerFn({ method: 'GET' }).handler(
       // series, and top lists — no full orders scan in the server process.
       const res = await callRpc(serviceClient(), 'admin_platform_stats')
       if (res.error || !res.data) {
+        console.error(
+          '[admin-overview] admin_platform_stats rpc failed:',
+          res.error,
+        )
         return { error: 'Štatistiky sa nepodarilo načítať.' }
       }
       const data = res.data as PlatformStatsRpc
