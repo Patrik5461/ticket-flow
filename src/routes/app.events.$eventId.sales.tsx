@@ -5,15 +5,15 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { useState } from 'react'
-import { getEventSalesFn, type SalesData } from '../server/dashboard'
+import { getEventSalesFn } from '../server/dashboard'
 import { formatEur } from '../lib/money'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
 
 export const Route = createFileRoute('/app/events/$eventId/sales')({
   loader: async ({ params }) => {
     const res = await getEventSalesFn({ data: { eventId: params.eventId } })
-    if (!res || 'error' in res) throw notFound()
-    return res as SalesData
+    if ('error' in res) throw notFound()
+    return res
   },
   component: SalesPage,
 })

@@ -15,6 +15,13 @@ export default [
     },
   },
   {
-    ignores: ['eslint.config.js', 'prettier.config.js'],
+    // src/integrations/supabase/types.ts is Supabase codegen ("automatically
+    // generated. Do not edit it directly.") — its type-parameter names violate
+    // our naming-convention rule and must not be hand-edited.
+    ignores: [
+      'eslint.config.js',
+      'prettier.config.js',
+      'src/integrations/supabase/types.ts',
+    ],
   },
 ]
