@@ -1,10 +1,9 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import appCss from '../styles.css?url'
 import { CookieConsent } from '../components/CookieConsent'
 import { SupportChat } from '../components/SupportChat'
+import { Devtools } from '../components/Devtools'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -78,15 +77,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         {children}
         <SupportChat />
         <CookieConsent />
-        <TanStackDevtools
-          config={{ position: 'bottom-right' }}
-          plugins={[
-            {
-              name: 'Tanstack Router',
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        <Devtools />
         <Scripts />
       </body>
     </html>

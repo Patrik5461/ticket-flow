@@ -20,7 +20,8 @@
     "db:push": "supabase db push",
     "db:diff": "supabase db diff",
     "db:new": "supabase migration new",
-    "db:seed": "node --env-file=.env scripts/seed.ts"
+    "db:seed": "node --env-file=.env scripts/seed.ts",
+    "verify:polyfill": "node scripts/verify-polyfill.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
