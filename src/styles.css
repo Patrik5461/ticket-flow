@@ -294,6 +294,96 @@ body {
   border: 1px solid var(--color-ink-700);
 }
 
+/* ============================================================================
+ * Responsive tables — apply class `table-cards` (or wrap a table in
+ * `.table-cards-wrap`) to auto-collapse the table into stacked cards on
+ * screens < 768px. Each <td data-label="..."> renders its label above the
+ * value. Works with all existing tables without touching business logic.
+ * ============================================================================ */
+@media (max-width: 767px) {
+  .table-cards,
+  .table-cards-wrap table {
+    display: block;
+    width: 100%;
+    border-collapse: separate;
+  }
+  .table-cards thead,
+  .table-cards-wrap table thead { display: none; }
+  .table-cards tbody,
+  .table-cards-wrap table tbody { display: block; width: 100%; }
+  .table-cards tr,
+  .table-cards-wrap table tbody tr {
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--color-ink-700) !important;
+    background: var(--gradient-card);
+  }
+  .table-cards td,
+  .table-cards-wrap table tbody td {
+    display: block;
+    width: 100%;
+    padding: 4px 0 !important;
+    border: none !important;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+  .table-cards td[data-label]::before,
+  .table-cards-wrap table tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-ink-400);
+    margin-bottom: 2px;
+  }
+  .table-cards td:empty,
+  .table-cards-wrap table tbody td:empty { display: none; }
+}
+
+/* ============================================================================
+ * Mobile nav — hamburger disclosure used by /app and /admin shells.
+ * The <details> element gives us zero-JS open/close.
+ * ============================================================================ */
+.mobile-nav[open] .mobile-nav-icon-closed { display: none; }
+.mobile-nav:not([open]) .mobile-nav-icon-open { display: none; }
+.mobile-nav > summary { list-style: none; cursor: pointer; }
+.mobile-nav > summary::-webkit-details-marker { display: none; }
+.mobile-nav-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  padding: 8px 16px 14px;
+  background: color-mix(in oklab, var(--color-ink-950) 96%, transparent);
+  border-bottom: 1px solid var(--color-ink-700);
+  backdrop-filter: blur(12px);
+}
+.mobile-nav-panel a,
+.mobile-nav-panel button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--color-ink-200);
+  transition: background 0.15s;
+}
+.mobile-nav-panel a:hover,
+.mobile-nav-panel a.active,
+.mobile-nav-panel button:hover { background: var(--color-ink-800); color: var(--color-ink-100); }
+.mobile-nav-panel .divider {
+  height: 1px;
+  background: var(--color-ink-700);
+  margin: 6px 4px;
+}
+
 @utility badge-admin {
   display: inline-flex;
   align-items: center;
