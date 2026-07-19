@@ -39,7 +39,13 @@ export const Route = createFileRoute('/admin')({
   component: AdminLayout,
 })
 
-const navItems = [
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  exact?: boolean
+}
+const navItems: NavItem[] = [
   { to: '/admin', label: 'Prehľad', icon: LayoutDashboard, exact: true },
   { to: '/admin/organizers', label: 'Organizátori', icon: Building2 },
   { to: '/admin/events', label: 'Podujatia', icon: CalendarDays },
@@ -48,7 +54,7 @@ const navItems = [
   { to: '/admin/obsah', label: 'Obsah', icon: FileText },
   { to: '/admin/admins', label: 'Admini', icon: ShieldCheck },
   { to: '/admin/health', label: 'Zdravie systému', icon: Activity },
-] as const
+]
 
 const navLinkCls =
   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 [&.active]:bg-accent/15 [&.active]:text-accent [&.active]:ring-1 [&.active]:ring-accent/30'
