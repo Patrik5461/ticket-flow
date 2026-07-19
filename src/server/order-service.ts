@@ -1244,6 +1244,7 @@ async function sendTicketEmail(
   tickets: TicketRow[],
 ): Promise<void> {
   const typeNames = await ticketTypeNames(tickets.map((t) => t.ticket_type_id))
+  const seatLabels = await seatLabelsByTicket(tickets)
   const startsLabel = formatEventDate(event.starts_at, event.timezone)
   const orderToken = signOrderToken(order.id, event.qr_secret)
   const appleAvailable = appleWalletConfigured()
@@ -1255,12 +1256,14 @@ async function sendTicketEmail(
   for (const t of tickets) {
     const qrToken = signTicket(t.id, event.qr_secret)
     const typeName = typeNames.get(t.ticket_type_id) ?? 'Vstupenka'
+    const seatLabel = seatLabels.get(t.id) ?? null
     const pdf = await renderTicketPdf({
       eventTitle: event.title,
       venue: event.venue_name,
       startsAtLabel: startsLabel,
       ticketTypeName: typeName,
       holderName: t.holder_name,
+      seatLabel,
       brandColor: brand.color,
       logo: brand.logo,
       ticketRef: t.id.slice(0, 8).toUpperCase(),
@@ -1272,23 +1275,28 @@ async function sendTicketEmail(
       contentType: 'application/pdf',
     })
     qrBlocks.push(
-      ticketBlockHtml(typeName, await qrDataUrl(qrToken), {
-        appleUrl: appleAvailable
-          ? `${appUrl}/api/orders/${order.id}/tickets/${t.id}/pass?t=${encodeURIComponent(orderToken)}`
-          : null,
-        googleUrl: googleWalletSaveUrl({
-          ticketId: t.id,
-          eventId: event.id,
-          ref: t.id.slice(0, 8).toUpperCase(),
-          eventTitle: event.title,
-          whenLabel: startsLabel,
-          startsAtIso: event.starts_at,
-          venue: event.venue_name,
-          ticketTypeName: typeName,
-          holderName: t.holder_name,
-          qrToken,
-        }),
-      }),
+      ticketBlockHtml(
+        typeName,
+        await qrDataUrl(qrToken),
+        {
+          appleUrl: appleAvailable
+            ? `${appUrl}/api/orders/${order.id}/tickets/${t.id}/pass?t=${encodeURIComponent(orderToken)}`
+            : null,
+          googleUrl: googleWalletSaveUrl({
+            ticketId: t.id,
+            eventId: event.id,
+            ref: t.id.slice(0, 8).toUpperCase(),
+            eventTitle: event.title,
+            whenLabel: startsLabel,
+            startsAtIso: event.starts_at,
+            venue: event.venue_name,
+            ticketTypeName: typeName,
+            holderName: t.holder_name,
+            qrToken,
+          }),
+        },
+        seatLabel,
+      ),
     )
   }
 
@@ -1319,6 +1327,37 @@ async function ticketTypeNames(ids: string[]): Promise<Map<string, string>> {
   return new Map((data ?? []).map((t) => [t.id, t.name]))
 }
 
+/** Map ticket id → human seat label for tickets that have a numbered seat. */
+async function seatLabelsByTicket(
+  tickets: { id: string; seat_id?: string | null }[],
+): Promise<Map<string, string>> {
+  const withSeat = tickets.filter((t) => t.seat_id)
+  const out = new Map<string, string>()
+  if (withSeat.length === 0) return out
+  const db = serviceClient()
+  const { data } = await db
+    .from('seats')
+    .select('id, sector, row_label, seat_number')
+    .in(
+      'id',
+      withSeat.map((t) => t.seat_id as string),
+    )
+    .returns<
+      { id: string; sector: string; row_label: string; seat_number: string }[]
+    >()
+  const byId = new Map(
+    (data ?? []).map((s) => [
+      s.id,
+      `${s.sector} · rad ${s.row_label} · miesto ${s.seat_number}`,
+    ]),
+  )
+  for (const t of withSeat) {
+    const lbl = byId.get(t.seat_id as string)
+    if (lbl) out.set(t.id, lbl)
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------
 // Order page + reconciliation
 // ---------------------------------------------------------------------------
@@ -1339,6 +1378,7 @@ export interface OrderView {
   tickets: Array<{
     id: string
     typeName: string
+    seat: string | null
     status: TicketRow['status']
     qrDataUrl: string
     qrToken: string
@@ -1400,6 +1440,7 @@ export async function getOrderView(
   const names = await ticketTypeNames(
     (ticketRows ?? []).map((t) => t.ticket_type_id),
   )
+  const seatLabels = await seatLabelsByTicket(ticketRows ?? [])
 
   const appleAvailable = appleWalletConfigured()
   const whenLabel = formatEventDate(event.starts_at, event.timezone)
@@ -1410,6 +1451,7 @@ export async function getOrderView(
       return {
         id: t.id,
         typeName,
+        seat: seatLabels.get(t.id) ?? null,
         status: t.status,
         qrToken,
         qrDataUrl: await qrDataUrl(qrToken),

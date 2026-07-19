@@ -6,8 +6,8 @@
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { qrPngBytes } from './qr-image'
-import { parseHexColor  } from './branding'
-import type {ImageKind} from './branding';
+import { parseHexColor } from './branding'
+import type { ImageKind } from './branding'
 
 export interface TicketPdfData {
   eventTitle: string
@@ -15,6 +15,8 @@ export interface TicketPdfData {
   startsAtLabel: string
   ticketTypeName: string
   holderName?: string | null
+  /** Numbered seat label, e.g. "Sektor A · rad 3 · miesto 12". */
+  seatLabel?: string | null
   /** Short human ref, e.g. ticket id prefix. */
   ticketRef: string
   /** The signed QR token (TIK.{id}.{sig}). */
@@ -93,6 +95,7 @@ export async function renderTicketPdf(
   line(data.startsAtLabel, 10, font, muted, 14)
 
   line(data.ticketTypeName, 13, bold, dark, 2)
+  if (data.seatLabel) line(`Sedadlo: ${data.seatLabel}`, 11, bold, dark, 2)
   if (data.holderName) line(data.holderName, 11, font, dark, 2)
 
   // QR centered below.

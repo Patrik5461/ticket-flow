@@ -28,6 +28,7 @@ interface ScanResult {
   ticketType: string | null
   usedAt: string | null
   ref: string | null
+  seat: string | null
 }
 
 // How long the big result banner stays up (and scanning pauses) after a decode.
@@ -90,6 +91,7 @@ function CheckinPage() {
             ticketType: null,
             usedAt: null,
             ref: null,
+            seat: null,
           })
           return
         }
@@ -103,6 +105,7 @@ function CheckinPage() {
           ticketType: null,
           usedAt: null,
           ref: null,
+          seat: null,
         })
       } finally {
         inFlightRef.current = false
@@ -237,13 +240,23 @@ function CheckinPage() {
               {result.ticketType}
             </div>
           )}
+          {result?.seat && (
+            <div
+              className="mt-1 font-semibold"
+              style={{ fontSize: 'clamp(1.1rem, 3.5vw, 1.75rem)' }}
+            >
+              🪑 {result.seat}
+            </div>
+          )}
           {result?.result === 'already_used' && result.usedAt && (
             <div className="mt-4 text-lg opacity-90">
               Prvý sken: {fmtTime(result.usedAt)}
             </div>
           )}
           {result?.ref && (
-            <div className="mt-4 font-mono text-sm opacity-75">{result.ref}</div>
+            <div className="mt-4 font-mono text-sm opacity-75">
+              {result.ref}
+            </div>
           )}
         </div>
       )}

@@ -210,6 +210,11 @@ function OrderPage() {
                         <div className="mt-1 font-display text-xl font-bold">
                           {ticket.typeName}
                         </div>
+                        {ticket.seat && (
+                          <div className="mt-1 text-sm font-medium text-ink-200">
+                            🪑 {ticket.seat}
+                          </div>
+                        )}
                         <div className="mt-2 font-mono text-xs text-ink-500">
                           {ticket.id.slice(0, 8).toUpperCase()}
                         </div>

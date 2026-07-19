@@ -84,6 +84,7 @@ export function ticketBlockHtml(
   typeName: string,
   qrDataUrl: string,
   wallet?: { appleUrl?: string | null; googleUrl?: string | null },
+  seatLabel?: string | null,
 ): string {
   const walletBtns: string[] = []
   if (wallet?.appleUrl) {
@@ -98,6 +99,7 @@ export function ticketBlockHtml(
   }
   return `<div style="margin:0 0 16px;text-align:center">
     <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml(typeName)}</div>
+    ${seatLabel ? `<div style="font-size:12px;color:#555;margin-bottom:6px">Sedadlo: ${escapeHtml(seatLabel)}</div>` : ''}
     <img src="${qrDataUrl}" width="180" height="180" alt="QR" style="border-radius:8px"/>
     ${walletBtns.length ? `<div style="margin-top:8px">${walletBtns.join('')}</div>` : ''}
   </div>`

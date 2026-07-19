@@ -33,6 +33,8 @@ export interface CheckinResponse {
   usedAt: string | null
   /** Short human-facing ticket reference (first 8 of the id), when known. */
   ref: string | null
+  /** Numbered seat label ("Sektor A · rad 3 · miesto 12"), when seated. */
+  seat: string | null
 }
 
 export interface CheckinSummary {
@@ -56,7 +58,19 @@ function invalidResponse(): CheckinResponse {
     ticketType: null,
     usedAt: null,
     ref: null,
+    seat: null,
   }
+}
+
+type SeatEmbed =
+  | { sector: string; row_label: string; seat_number: string }
+  | { sector: string; row_label: string; seat_number: string }[]
+  | null
+
+function seatLabelOf(row: unknown): string | null {
+  const embed = (row as { seats?: SeatEmbed }).seats
+  const s = Array.isArray(embed) ? embed[0] : embed
+  return s ? `${s.sector} · rad ${s.row_label} · miesto ${s.seat_number}` : null
 }
 
 interface TicketRow {
@@ -122,7 +136,9 @@ export async function checkInTicket(args: {
   //    to a different event, is treated as invalid (defensive — should not happen).
   const { data: ticket } = (await db
     .from('tickets')
-    .select('id, status, used_at, holder_name, event_id, ticket_types(name)')
+    .select(
+      'id, status, used_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
+    )
     .eq('id', ticketId)
     .maybeSingle()) as { data: TicketRow | null }
   if (!ticket || ticket.event_id !== args.eventId) {
@@ -133,6 +149,7 @@ export async function checkInTicket(args: {
   const holderName = ticket.holder_name ?? null
   const ticketType = typeName(ticket)
   const ref = ticket.id.slice(0, 8).toUpperCase()
+  const seat = seatLabelOf(ticket)
 
   if (ticket.status === 'cancelled') {
     await log(ticket.id, 'cancelled')
@@ -142,6 +159,7 @@ export async function checkInTicket(args: {
       ticketType,
       usedAt: ticket.used_at ?? null,
       ref,
+      seat,
     }
   }
 
@@ -175,6 +193,7 @@ export async function checkInTicket(args: {
       ticketType,
       usedAt: claimed.used_at,
       ref,
+      seat,
     }
   }
 
@@ -196,6 +215,7 @@ export async function checkInTicket(args: {
       ticketType,
       usedAt: fresh.used_at ?? null,
       ref,
+      seat,
     }
   }
   await log(ticket.id, 'already_used')
@@ -205,6 +225,7 @@ export async function checkInTicket(args: {
     ticketType,
     usedAt: fresh?.used_at ?? ticket.used_at ?? null,
     ref,
+    seat,
   }
 }
 
