@@ -17,7 +17,7 @@ export function createAuthClient(): SupabaseClient {
         const header = getRequest().headers.get('cookie') ?? ''
         return parseCookieHeader(header).map((c) => ({
           name: c.name,
-          value: c.value ?? '',
+          value: c.value,
         }))
       },
       setAll(cookies) {

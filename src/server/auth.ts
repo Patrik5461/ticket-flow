@@ -60,7 +60,7 @@ async function ensureOrganizerForUser(
     .insert({ name: organizerName, slug })
     .select('id')
     .single<{ id: string }>()
-  if (error || !org) {
+  if (error) {
     throw new Error('Nepodarilo sa vytvoriť organizátora.')
   }
 

@@ -15,15 +15,22 @@ export default [
     },
   },
   {
-    // src/integrations/supabase/types.ts is Supabase codegen ("automatically
-    // generated. Do not edit it directly.") — its type-parameter names violate
-    // our naming-convention rule and must not be hand-edited.
+    // src/integrations/supabase/{types,auth-middleware}.ts are Supabase codegen
+    // ("automatically generated. Do not edit it directly.") — hand-editing them
+    // is forbidden, and auth-middleware.ts is unused generated boilerplate.
     ignores: [
       'eslint.config.js',
       'prettier.config.js',
       'src/integrations/supabase/types.ts',
+      'src/integrations/supabase/auth-middleware.ts',
       // Capacitor sub-projects lint with their own config.
       'apps/**',
+      // Build artifacts — never lint generated output.
+      '.output/**',
+      'dist/**',
+      'dist-ssr/**',
+      // Static assets served as-is (not part of the TS project).
+      'public/**',
     ],
   },
 ]

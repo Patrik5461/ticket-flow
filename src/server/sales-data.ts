@@ -95,7 +95,7 @@ export async function buildSalesData(
     status: o.status,
     total_cents: o.total_cents,
     paymentMethod: o.payment_method,
-    itemsLabel: (o.order_items ?? [])
+    itemsLabel: o.order_items
       .map((i) => `${i.quantity}× ${i.ticket_types?.name ?? '—'}`)
       .join(', '),
   }))
@@ -109,7 +109,7 @@ export async function buildSalesData(
     paidOrderCount++
     grossCents += o.total_cents
     feeCents += o.fee_cents
-    for (const i of o.order_items ?? []) {
+    for (const i of o.order_items) {
       soldByType.set(
         i.ticket_type_id,
         (soldByType.get(i.ticket_type_id) ?? 0) + i.quantity,

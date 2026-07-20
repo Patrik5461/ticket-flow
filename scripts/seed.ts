@@ -77,8 +77,8 @@ async function ensureTestOrganizerUser(): Promise<string> {
       password: TEST_PASSWORD,
       email_confirm: true,
     })
-    if (error || !data.user) {
-      console.error(`✗ test user (create): ${error?.message ?? 'unknown'}`)
+    if (error) {
+      console.error(`✗ test user (create): ${error.message}`)
       process.exit(1)
     }
     assertOk('test user (created, confirmed)', null)

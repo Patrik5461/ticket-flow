@@ -25,7 +25,7 @@ export async function getUserIdFromRequest(
       getAll() {
         return parseCookieHeader(cookieHeader).map((c) => ({
           name: c.name,
-          value: c.value ?? '',
+          value: c.value,
         }))
       },
       setAll() {
