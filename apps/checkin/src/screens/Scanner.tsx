@@ -12,6 +12,7 @@ const RESULT_HOLD_MS = 3000
 
 const OUTCOME: Record<Outcome, { label: string; color: string; icon: string }> = {
   ok: { label: 'Vstup povolený', color: 'var(--ok)', icon: '✓' },
+  reentry: { label: 'Opätovný vstup', color: 'var(--ok)', icon: '✓' },
   already_used: { label: 'Už použitá', color: 'var(--warn)', icon: '!' },
   cancelled: { label: 'Zrušená vstupenka', color: 'var(--bad)', icon: '✕' },
   invalid: { label: 'Neplatný kód', color: 'var(--bad)', icon: '✕' },
@@ -223,6 +224,14 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
             {result.result === 'already_used' && result.usedAt && (
               <div className="result-sub">
                 Prvý sken: {formatTime(result.usedAt, event.timezone)}
+              </div>
+            )}
+            {result.result === 'reentry' && (
+              <div className="result-sub">
+                {result.entryCount ? `${result.entryCount}. vstup` : 'Opätovný vstup'}
+                {result.usedAt
+                  ? ` · naposledy o ${formatTime(result.usedAt, event.timezone)}`
+                  : ''}
               </div>
             )}
             {result.ref && <div className="result-ref">{result.ref}</div>}

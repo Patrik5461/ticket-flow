@@ -71,6 +71,7 @@ export interface EventRow {
   qr_secret: string
   ga4_measurement_id: string | null
   meta_pixel_id: string | null
+  allow_reentry: boolean
 }
 
 export type WaitlistStatus = 'waiting' | 'notified' | 'cancelled'

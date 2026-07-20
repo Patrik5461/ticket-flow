@@ -21,7 +21,7 @@ type JsQRFn = (
   options?: { inversionAttempts?: 'dontInvert' | 'onlyInvert' | 'attemptBoth' },
 ) => { data: string } | null
 
-type Outcome = 'ok' | 'already_used' | 'cancelled' | 'invalid'
+type Outcome = 'ok' | 'already_used' | 'cancelled' | 'invalid' | 'reentry'
 
 interface ScanResult {
   result: Outcome
@@ -30,6 +30,8 @@ interface ScanResult {
   usedAt: string | null
   ref: string | null
   seat: string | null
+  /** For `reentry`: how many times admitted (this entry included). */
+  entryCount?: number
 }
 
 // How long the result banner stays up before auto-returning to scanning — the
@@ -42,6 +44,7 @@ const OUTCOME_UI: Record<
   { label: string; color: string; icon: string }
 > = {
   ok: { label: 'Vstup povolený', color: '#16a34a', icon: '✓' },
+  reentry: { label: 'Opätovný vstup', color: '#16a34a', icon: '✓' },
   already_used: { label: 'Už použitá', color: '#ea580c', icon: '!' },
   cancelled: { label: 'Zrušená vstupenka', color: '#dc2626', icon: '✕' },
   invalid: { label: 'Neplatný kód', color: '#dc2626', icon: '✕' },
@@ -298,6 +301,12 @@ function CheckinPage() {
           {result?.result === 'already_used' && result.usedAt && (
             <div className="mt-4 text-lg opacity-90">
               Prvý sken: {fmtTime(result.usedAt)}
+            </div>
+          )}
+          {result?.result === 'reentry' && (
+            <div className="mt-4 text-lg opacity-90">
+              {result.entryCount ? `${result.entryCount}. vstup` : 'Opätovný vstup'}
+              {result.usedAt ? ` · naposledy o ${fmtTime(result.usedAt)}` : ''}
             </div>
           )}
           {result?.ref && (

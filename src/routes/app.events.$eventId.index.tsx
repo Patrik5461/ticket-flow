@@ -18,6 +18,7 @@ import {
   updateEventFn,
   publishEventFn,
   unpublishEventFn,
+  setEventReentryFn,
   createTicketTypeFn,
   updateTicketTypeFn,
   deleteTicketTypeFn,
@@ -258,6 +259,7 @@ function ManageEvent() {
         onChanged={reload}
       />
       <SeatingSection eventId={event.id} ticketTypes={ticketTypes} />
+      <ReentrySection event={event} />
       <SupportRequestsSection eventId={event.id} />
       <BulkMessageSection eventId={event.id} />
       <EmbedSnippetSection
@@ -266,6 +268,64 @@ function ManageEvent() {
       />
       <CancelEventSection event={event} onChanged={reload} />
     </div>
+  )
+}
+
+// --- Re-entry toggle ----------------------------------------------------------
+
+function ReentrySection({ event }: { event: EventDetail['event'] }) {
+  const [on, setOn] = useState(event.allow_reentry)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const toggle = async () => {
+    if (busy) return
+    setBusy(true)
+    setErr(null)
+    const next = !on
+    const res = await setEventReentryFn({
+      data: { eventId: event.id, allowReentry: next },
+    })
+    setBusy(false)
+    if ('error' in res) {
+      setErr(res.error)
+      return
+    }
+    setOn(next)
+  }
+
+  return (
+    <section className="rounded-lg border bg-white p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Opätovný vstup</h2>
+          <p className="mt-1 max-w-prose text-sm text-gray-500">
+            Ak je zapnuté, skener pustí už použitú vstupenku znova (zelená
+            „Opätovný vstup") namiesto blokovania — vhodné, keď návštevníci
+            odchádzajú a vracajú sa. Každý vstup sa zaznamená do histórie a počet
+            odbavených sa opätovným vstupom nezvyšuje.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Povoliť opätovný vstup"
+          onClick={toggle}
+          disabled={busy}
+          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-50 ${
+            on ? 'bg-green-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+              on ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+      {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
+    </section>
   )
 }
 

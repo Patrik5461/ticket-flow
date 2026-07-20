@@ -318,6 +318,27 @@ export const updateEventFn = createServerFn({ method: 'POST' })
     })
   })
 
+/** Toggle per-event re-entry (owner/admin only). */
+export const setEventReentryFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z
+      .object({ eventId: z.string().uuid(), allowReentry: z.boolean() })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      assertCanEdit(actor)
+      const event = await assertEventOwned(actor.organizerId, data.eventId)
+      const { error } = await serviceClient()
+        .from('events')
+        .update({ allow_reentry: data.allowReentry })
+        .eq('id', event.id)
+      if (error) throw new DashboardError('Nastavenie sa nepodarilo uložiť.')
+      return { ok: true, allowReentry: data.allowReentry }
+    })
+  })
+
 async function setEventStatus(eventId: string, status: EventStatus) {
   return run(async () => {
     const actor = await requireOrganizer()

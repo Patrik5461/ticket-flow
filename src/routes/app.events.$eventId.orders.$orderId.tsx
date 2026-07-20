@@ -4,7 +4,10 @@ import {
   notFound,
   useRouter,
 } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { getOrderRefundDetailFn } from '../server/refunds'
+import { getOrderCheckinFn, undoCheckinFn } from '../server/reentry'
+import type { OrderCheckinView } from '../server/reentry'
 import { OrderRefundPanel } from '../components/OrderRefundPanel'
 import { formatEur } from '../lib/money'
 import { formatSk } from '../lib/datetime'
@@ -79,7 +82,135 @@ function OrgOrderDetail() {
         </div>
       </section>
 
+      <OrderCheckinSection
+        eventId={eventId}
+        orderId={order.id}
+        tz={event.timezone}
+      />
+
       <OrderRefundPanel detail={detail} onChanged={() => router.invalidate()} />
     </div>
+  )
+}
+
+const ENTRY_LABEL: Record<string, string> = {
+  ok: 'Vstup',
+  reentry: 'Opätovný vstup',
+  undo: 'Odčítané',
+  already_used: 'Zablokované (už použitá)',
+  cancelled: 'Zrušená vstupenka',
+  invalid: 'Neplatný kód',
+}
+
+const TICKET_STATUS: Record<string, [string, string]> = {
+  valid: ['Platná', 'bg-gray-100 text-gray-600'],
+  used: ['Odbavená', 'bg-green-100 text-green-700'],
+  cancelled: ['Zrušená', 'bg-red-100 text-red-700'],
+}
+
+/** Check-in history per ticket + owner/admin-only manual undo. */
+function OrderCheckinSection({
+  eventId,
+  orderId,
+  tz,
+}: {
+  eventId: string
+  orderId: string
+  tz: string
+}) {
+  const [view, setView] = useState<OrderCheckinView | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    void getOrderCheckinFn({ data: { orderId } }).then((res) => {
+      if (!alive) return
+      if ('error' in res) setErr(res.error)
+      else setView(res)
+    })
+    return () => {
+      alive = false
+    }
+  }, [orderId, tick])
+
+  const undo = async (ticketId: string) => {
+    if (busyId) return
+    if (
+      !window.confirm(
+        'Odčítať check-in tejto vstupenky? Vstupenka sa vráti na platnú a návštevník bude môcť vstúpiť znova.',
+      )
+    )
+      return
+    setBusyId(ticketId)
+    setErr(null)
+    const res = await undoCheckinFn({ data: { ticketId, eventId } })
+    setBusyId(null)
+    if (!res.ok) {
+      setErr(res.error)
+      return
+    }
+    setTick((t) => t + 1)
+  }
+
+  if (!view) return null
+
+  return (
+    <section className="rounded-lg border bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">
+        Check-in
+      </h2>
+      {err && <p className="mb-3 text-sm text-red-600">{err}</p>}
+      <div className="space-y-3">
+        {view.tickets.map((t) => {
+          const [label, cls] = TICKET_STATUS[t.status] ?? [t.status, '']
+          return (
+            <div key={t.ticketId} className="rounded border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">
+                    {t.holderName ?? '—'}{' '}
+                    <span className="font-mono text-xs text-gray-400">
+                      {t.ref}
+                    </span>
+                  </div>
+                  <span
+                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+                  >
+                    {label}
+                  </span>
+                </div>
+                {view.canUndo && t.status === 'used' && (
+                  <button
+                    type="button"
+                    onClick={() => void undo(t.ticketId)}
+                    disabled={busyId === t.ticketId}
+                    className="shrink-0 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {busyId === t.ticketId ? 'Odčítavam…' : 'Odčítať check-in'}
+                  </button>
+                )}
+              </div>
+              {t.entries.length > 0 && (
+                <ul className="mt-2 space-y-1 border-t pt-2 text-sm">
+                  {t.entries.map((e, i) => (
+                    <li key={i} className="flex justify-between gap-3">
+                      <span className="text-gray-700">
+                        {ENTRY_LABEL[e.result] ?? e.result}
+                      </span>
+                      <span className="text-right text-gray-400">
+                        {formatSk(e.at, 'dateTime', tz)}
+                        {e.deviceLabel ? ` · ${e.deviceLabel}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
