@@ -35,6 +35,20 @@ const securityHeaders: Record<string, string> = {
   'Content-Security-Policy': csp("'self'"),
 }
 
+// HTML documents must never be cached: they reference content-hashed asset
+// chunks that change every deploy, and a stale cached HTML pointing at deleted
+// chunk hashes 404s the JS → the page renders (SSR) but never hydrates ("Failed
+// to fetch" on any interaction). Force revalidation on HTML; keep the hashed
+// assets immutable.
+const htmlHeaders: Record<string, string> = {
+  ...securityHeaders,
+  'Cache-Control': 'no-cache, must-revalidate',
+}
+const assetHeaders: Record<string, string> = {
+  ...securityHeaders,
+  'Cache-Control': 'public, max-age=31536000, immutable',
+}
+
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
   // Vite 8's default target ('baseline-widely-available') assumes Safari 16+,
@@ -51,10 +65,13 @@ const config = defineConfig({
     nitro({
       rollupConfig: { external: [/^@sentry\//] },
       routeRules: {
-        '/**': { headers: securityHeaders },
+        '/**': { headers: htmlHeaders },
+        // Content-hashed build assets: cache forever (override the HTML no-cache).
+        '/assets/**': { headers: assetHeaders },
+        '/_build/**': { headers: assetHeaders },
         // The embed widget must be iframeable on organizers' sites.
         '/e/*/embed': {
-          headers: { ...securityHeaders, 'Content-Security-Policy': csp('*') },
+          headers: { ...htmlHeaders, 'Content-Security-Policy': csp('*') },
         },
       },
     }),
