@@ -22,6 +22,10 @@ class Builder {
   private values: Record<string, unknown> = {}
   private eqs: [string, unknown][] = []
   private neqs: [string, unknown][] = []
+  private ins: [string, unknown[]][] = []
+  private orderBy: { col: string; asc: boolean } | null = null
+  private limitN: number | null = null
+  private countMode = false
 
   constructor(
     private store: Store,
@@ -30,7 +34,8 @@ class Builder {
 
   // A post-mutation .select() means "return representation" — it must not undo an
   // update/insert already staged on this builder.
-  select() {
+  select(_cols?: unknown, opts?: { count?: string; head?: boolean }) {
+    if (opts?.count) this.countMode = true
     if (!this.mutated) this.op = 'select'
     return this
   }
@@ -54,13 +59,40 @@ class Builder {
     this.neqs.push([col, val])
     return this
   }
+  in(col: string, arr: unknown[]) {
+    this.ins.push([col, arr])
+    return this
+  }
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderBy = { col, asc: opts?.ascending ?? true }
+    return this
+  }
+  limit(n: number) {
+    this.limitN = n
+    return this
+  }
+  returns() {
+    return this
+  }
 
   private matched() {
-    return this.store[this.table].filter(
+    let rows = this.store[this.table].filter(
       (row) =>
         this.eqs.every(([c, v]) => row[c] === v) &&
-        this.neqs.every(([c, v]) => row[c] !== v),
+        this.neqs.every(([c, v]) => row[c] !== v) &&
+        this.ins.every(([c, arr]) => arr.includes(row[c])),
     )
+    if (this.orderBy) {
+      const { col, asc } = this.orderBy
+      rows = [...rows].sort((a, b) => {
+        const av = a[col] as string | number
+        const bv = b[col] as string | number
+        const d = av < bv ? -1 : av > bv ? 1 : 0
+        return asc ? d : -d
+      })
+    }
+    if (this.limitN != null) rows = rows.slice(0, this.limitN)
+    return rows
   }
 
   private run(single: boolean) {
@@ -76,6 +108,7 @@ class Builder {
         : { data: rows, error: null }
     }
     const rows = this.matched()
+    if (this.countMode) return { data: null, count: rows.length, error: null }
     return single
       ? { data: rows[0] ?? null, error: null }
       : { data: rows, error: null }
@@ -102,7 +135,9 @@ const FIXED_NOW = '2026-07-15T18:00:00.000Z'
 
 function baseStore(): Store {
   return {
-    events: [{ id: EVENT_ID, organizer_id: ORG, qr_secret: SECRET }],
+    events: [
+      { id: EVENT_ID, organizer_id: ORG, qr_secret: SECRET, allow_reentry: false },
+    ],
     tickets: [
       {
         id: 'aaaaaaaa-0000-0000-0000-000000000001',
@@ -216,6 +251,90 @@ describe('checkInTicket', () => {
     expect(res).toBeNull()
     // No log written for an unauthorized event.
     expect(store.checkin_log).toHaveLength(0)
+  })
+
+  it('records performed_by on the scan log (audit)', async () => {
+    await scan(signTicket(TICKET_ID, SECRET))
+    expect(store.checkin_log.at(-1)).toMatchObject({
+      result: 'ok',
+      performed_by: USER,
+    })
+  })
+
+  it('re-entry OFF: an already-used ticket is blocked with already_used', async () => {
+    store.tickets[0].status = 'used'
+    store.tickets[0].used_at = FIXED_NOW
+    const res = await scan(
+      signTicket(TICKET_ID, SECRET),
+      () => '2026-07-15T22:00:00.000Z',
+    )
+    expect(res?.result).toBe('already_used')
+    expect(store.checkin_log.at(-1)).toMatchObject({ result: 'already_used' })
+    expect(store.tickets[0].status).toBe('used')
+  })
+
+  it('re-entry ON: admits an already-used ticket again as reentry — with count + previous time, and never double-counts', async () => {
+    store.events[0].allow_reentry = true
+    store.tickets[0].status = 'used'
+    store.tickets[0].used_at = FIXED_NOW
+    // The first admission is already in the log.
+    store.checkin_log.push({
+      ticket_id: TICKET_ID,
+      event_id: EVENT_ID,
+      result: 'ok',
+      performed_by: USER,
+      created_at: FIXED_NOW,
+    })
+
+    const LATER = '2026-07-15T21:34:00.000Z'
+    const res = await scan(signTicket(TICKET_ID, SECRET), () => LATER)
+
+    expect(res).toMatchObject({
+      result: 'reentry',
+      entryCount: 2, // first admission + this re-entry
+      usedAt: FIXED_NOW, // previous entry time ("naposledy o …")
+      holderName: 'Jana Nováková',
+    })
+    // Ticket stays 'used' → getCheckinSummary still counts it once (no double).
+    expect(store.tickets[0].status).toBe('used')
+    // The re-entry is logged with the actor for the audit trail.
+    expect(store.checkin_log.at(-1)).toMatchObject({
+      ticket_id: TICKET_ID,
+      result: 'reentry',
+      performed_by: USER,
+    })
+    // Summary is unchanged by a re-entry.
+    const summary = await getCheckinSummary(EVENT_ID, ORG, db)
+    expect(summary).toEqual({ total: 1, checkedIn: 1 })
+  })
+
+  it('re-entry ON: third scan reports entryCount 3 and the second entry as "last"', async () => {
+    store.events[0].allow_reentry = true
+    store.tickets[0].status = 'used'
+    store.tickets[0].used_at = FIXED_NOW
+    store.checkin_log.push(
+      {
+        ticket_id: TICKET_ID,
+        event_id: EVENT_ID,
+        result: 'ok',
+        created_at: FIXED_NOW,
+      },
+      {
+        ticket_id: TICKET_ID,
+        event_id: EVENT_ID,
+        result: 'reentry',
+        created_at: '2026-07-15T20:00:00.000Z',
+      },
+    )
+    const res = await scan(
+      signTicket(TICKET_ID, SECRET),
+      () => '2026-07-15T21:00:00.000Z',
+    )
+    expect(res).toMatchObject({
+      result: 'reentry',
+      entryCount: 3,
+      usedAt: '2026-07-15T20:00:00.000Z', // most recent prior entry
+    })
   })
 })
 
