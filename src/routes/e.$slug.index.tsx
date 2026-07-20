@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { getEventFn, joinWaitlistFn } from '../server/fns'
 import { getEventSeatMapFn } from '../server/seat-map'
 import { SeatPicker } from '../components/SeatPicker'
-import { formatEur } from '../lib/money'
+import { formatEur, normIntlSpaces } from '../lib/money'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { absoluteUrl } from '../lib/site'
 import { eventJsonLd, metaDescription } from '../lib/seo'
@@ -20,7 +20,12 @@ export const Route = createFileRoute('/e/$slug/')({
       getEventSeatMapFn({ data: { slug: params.slug } }),
     ])
     if (!data) throw notFound()
-    return { ...data, seatMap }
+    // Format the date here (once, server-side for SSR) and pass the string down.
+    // Intl.DateTimeFormat's sk-SK output differs between Node's ICU (server) and
+    // the browser's ICU (Safari uses commas, Node uses "o"), which is a React
+    // hydration text mismatch (#418) that breaks the page on mobile Safari.
+    const whenLabel = formatDate(data.event.starts_at, data.event.timezone)
+    return { ...data, seatMap, whenLabel }
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {}
@@ -53,11 +58,13 @@ export const Route = createFileRoute('/e/$slug/')({
 })
 
 function formatDate(iso: string, tz: string) {
-  return new Intl.DateTimeFormat('sk-SK', {
-    dateStyle: 'full',
-    timeStyle: 'short',
-    timeZone: tz,
-  }).format(new Date(iso))
+  return normIntlSpaces(
+    new Intl.DateTimeFormat('sk-SK', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+      timeZone: tz,
+    }).format(new Date(iso)),
+  )
 }
 
 function Stepper({
@@ -173,7 +180,7 @@ function WaitlistWatch({
 
 function EventPage() {
   const { slug } = Route.useParams()
-  const { event, ticketTypes, seatMap } = Route.useLoaderData()
+  const { event, ticketTypes, seatMap, whenLabel } = Route.useLoaderData()
   const navigate = useNavigate()
   const [qty, setQty] = useState<Record<string, number>>({})
   const [seats, setSeats] = useState<string[]>([])
@@ -284,7 +291,7 @@ function EventPage() {
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <path d="M16 2v4M8 2v4M3 10h18" />
                 </svg>
-                {formatDate(event.starts_at, event.timezone)}
+                {whenLabel}
               </span>
               {event.venue_name && (
                 <span className="inline-flex items-center gap-2">
