@@ -54,6 +54,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               "(function(){function r(m){try{window.__ticketioErr=(window.__ticketioErr||[]).concat(String(m)).slice(-5);console.error('[ticketio:client]',m);}catch(e){}}window.addEventListener('error',function(e){r((e&&e.message)||'error');});window.addEventListener('unhandledrejection',function(e){r((e&&e.reason&&(e.reason.message||e.reason))||'rejection');});})();",
           }}
         />
+        {/* Self-heal a failed lazy-chunk load. A dynamic import can fail with
+            ERR_CONNECTION_CLOSED if the reused HTTP/2 connection was closed by
+            the edge mid-session (idle-timeout), or if the chunk hash changed
+            after a deploy. Reload ONCE to fetch fresh HTML + a new connection;
+            a sessionStorage stamp prevents a reload loop if it keeps failing
+            (then we let the error surface instead). Registers before the module
+            bundle so it catches the very first preload failure. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{window.addEventListener('vite:preloadError',function(e){try{var K='__ticketio_preload_reload';var last=Number(sessionStorage.getItem(K)||'0');if(Date.now()-last<15000){return;}sessionStorage.setItem(K,String(Date.now()));e.preventDefault();window.location.reload();}catch(_){}});}catch(_){}})();",
+          }}
+        />
         {/* Runtime polyfills for older mobile Safari (iOS 13–15). These APIs are
             emitted by vendor chunks (TanStack server-fn runtime uses Object.hasOwn;
             main chunk uses String.prototype.replaceAll) and would throw before
