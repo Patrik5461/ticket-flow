@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
-import { StatusBar, Style } from '@capacitor/status-bar'
+import { ensureDarkStatusBar } from './lib/chrome'
 import { supabase } from './lib/supabase'
 import { Login } from './screens/Login'
 import { EventList } from './screens/EventList'
@@ -20,19 +21,29 @@ export function App() {
   const [event, setEvent] = useState<EventRow | null>(null)
 
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      // Light text on our dark background; dark bar on Android.
-      // (Style.Dark = "light text for dark backgrounds".)
-      void StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
-      void StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {})
-    }
+    void ensureDarkStatusBar()
     void SplashScreen.hide().catch(() => {})
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s)
       if (!s) setEvent(null)
     })
-    return () => sub.subscription.unsubscribe()
+
+    // iOS resets the status bar on resume — re-assert it. (StatusBar only, so we
+    // don't disturb the scanner if the app resumes onto it.)
+    let removeResume: (() => void) | undefined
+    if (Capacitor.isNativePlatform()) {
+      void CapApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) void ensureDarkStatusBar()
+      }).then((handle) => {
+        removeResume = () => void handle.remove()
+      })
+    }
+
+    return () => {
+      sub.subscription.unsubscribe()
+      removeResume?.()
+    }
   }, [])
 
   if (session === undefined) {

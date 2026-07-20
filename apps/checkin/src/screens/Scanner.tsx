@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import { checkinScan, AuthError } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { restoreDarkChrome } from '../lib/chrome'
 import { formatTime } from '../lib/format'
 import type { EventRow, Outcome, ScanResult } from '../lib/types'
 
@@ -137,10 +138,18 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
       }
     }
     void start()
+    // Exit cleanup runs on every path that unmounts the scanner — Back button,
+    // system back gesture, sign-out. Stop the native scan, then fully restore
+    // the dark chrome (remove transparency classes, repaint dark background,
+    // re-assert the status bar) so the event list never shows white safe-area
+    // bars. restoreDarkChrome() runs immediately (sync) to avoid a flash, and
+    // again after stopScan settles the native view.
     return () => {
-      document.documentElement.classList.remove('scanning')
       listenerRemove?.()
-      void BarcodeScanner.stopScan().catch(() => {})
+      restoreDarkChrome()
+      void BarcodeScanner.stopScan()
+        .catch(() => {})
+        .finally(() => restoreDarkChrome())
     }
   }, [submit])
 
