@@ -32,8 +32,11 @@ interface ScanResult {
   seat: string | null
 }
 
-// How long the big result banner stays up (and scanning pauses) after a decode.
-const RESULT_HOLD_MS = 2500
+// How long the result banner stays up before auto-returning to scanning.
+// Success clears fast to keep the queue moving; warnings/errors linger so the
+// operator can read them (and challenge the visitor if needed).
+const OK_HOLD_MS = 2000
+const WARN_HOLD_MS = 4000
 
 const OUTCOME_UI: Record<
   Outcome,
@@ -52,6 +55,8 @@ function CheckinPage() {
   const [checkedIn, setCheckedIn] = useState(board.summary.checkedIn)
   const [total] = useState(board.summary.total)
   const [result, setResult] = useState<ScanResult | null>(null)
+  const [remainingMs, setRemainingMs] = useState(0)
+  const [paused, setPaused] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [camError, setCamError] = useState<string | null>(null)
   const [manual, setManual] = useState('')
@@ -59,21 +64,63 @@ function CheckinPage() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const pausedUntilRef = useRef(0)
+  // While a result banner is up we halt *decoding* — but never the camera
+  // stream itself, so scanning resumes instantly on dismiss and can't freeze
+  // across repeated scan → result → scan cycles.
+  const haltRef = useRef(false)
+  const pausedRef = useRef(false)
+  const remRef = useRef(0)
   const inFlightRef = useRef(false)
   const frameRef = useRef(0)
-  const tickRef = useRef(0)
 
   const fmtTime = useCallback(
     (iso: string) => formatSk(iso, 'dateTimeSec', board.event.timezone),
     [board.event.timezone],
   )
 
+  // Return to scanning: clear the banner and re-enable decoding. The camera
+  // stream was never stopped, so it's ready immediately.
+  const dismiss = useCallback(() => {
+    haltRef.current = false
+    pausedRef.current = false
+    setPaused(false)
+    setResult(null)
+    setRemainingMs(0)
+    // Defensive nudge in case the browser paused playback while occluded.
+    void videoRef.current?.play().catch(() => {})
+  }, [])
+
+  // Freeze / unfreeze the auto-return countdown (operator needs longer to read
+  // or is handling a dispute). Paused stays until "Skenovať ďalší".
+  const togglePause = useCallback(() => {
+    pausedRef.current = !pausedRef.current
+    setPaused(pausedRef.current)
+  }, [])
+
+  const showResult = useCallback((data: ScanResult) => {
+    haltRef.current = true
+    pausedRef.current = false
+    setPaused(false)
+    const hold = data.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
+    remRef.current = hold
+    setRemainingMs(hold)
+    setResult(data)
+    if (data.result === 'ok') setCheckedIn((n) => n + 1)
+  }, [])
+
   const submit = useCallback(
     async (qr: string) => {
       if (inFlightRef.current) return
       inFlightRef.current = true
       setBusy(true)
+      const invalid: ScanResult = {
+        result: 'invalid',
+        holderName: null,
+        ticketType: null,
+        usedAt: null,
+        ref: null,
+        seat: null,
+      }
       try {
         const res = await fetch('/api/checkin', {
           method: 'POST',
@@ -81,36 +128,42 @@ function CheckinPage() {
           body: JSON.stringify({ eventId, qr, deviceLabel: 'Webový skener' }),
         })
         if (!res.ok) {
-          setResult({
-            result: 'invalid',
-            holderName: null,
-            ticketType: null,
-            usedAt: null,
-            ref: null,
-            seat: null,
-          })
+          showResult(invalid)
           return
         }
-        const data = (await res.json()) as ScanResult
-        setResult(data)
-        if (data.result === 'ok') setCheckedIn((n) => n + 1)
+        showResult((await res.json()) as ScanResult)
       } catch {
-        setResult({
-          result: 'invalid',
-          holderName: null,
-          ticketType: null,
-          usedAt: null,
-          ref: null,
-          seat: null,
-        })
+        showResult(invalid)
       } finally {
         inFlightRef.current = false
         setBusy(false)
-        pausedUntilRef.current = tickRef.current + RESULT_HOLD_MS
       }
     },
-    [eventId],
+    [eventId, showResult],
   )
+
+  // Auto-return countdown. rAF-driven for a smooth progress bar; only advances
+  // while not paused, so "Zostať" freezes it and dismiss() cancels it.
+  useEffect(() => {
+    if (!result) return
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = now - last
+      last = now
+      if (!pausedRef.current) {
+        remRef.current = Math.max(0, remRef.current - dt)
+        setRemainingMs(remRef.current)
+        if (remRef.current <= 0) {
+          dismiss()
+          return
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [result, dismiss])
 
   const submitManual = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -123,7 +176,6 @@ function CheckinPage() {
   useEffect(() => {
     let stream: MediaStream | null = null
     let cancelled = false
-    let lastTs = 0
 
     async function start() {
       if (
@@ -164,12 +216,11 @@ function CheckinPage() {
       const canvas = canvasRef.current!
       const ctx = canvas.getContext('2d', { willReadFrequently: true })!
 
-      const loop = (ts: number) => {
+      const loop = () => {
         frameRef.current = requestAnimationFrame(loop)
-        if (lastTs) tickRef.current += ts - lastTs
-        lastTs = ts
-
-        if (tickRef.current < pausedUntilRef.current) return
+        // Halted while a result banner is up; the stream keeps running so we
+        // resume decoding the instant it's dismissed.
+        if (haltRef.current) return
         if (inFlightRef.current) return
         if (video.readyState !== video.HAVE_ENOUGH_DATA) return
 
@@ -198,6 +249,7 @@ function CheckinPage() {
   }, [submit])
 
   const banner = result ? OUTCOME_UI[result.result] : null
+  const holdTotalMs = result?.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
 
   return (
     <>
@@ -205,7 +257,7 @@ function CheckinPage() {
           so the operator can read it in direct sunlight without looking closely. */}
       {banner && (
         <div
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 text-center text-white animate-fade-up"
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center px-6 pb-56 text-center text-white animate-fade-up"
           style={{ background: banner.color }}
         >
           <div
@@ -254,6 +306,47 @@ function CheckinPage() {
               {result.ref}
             </div>
           )}
+
+          {/* Auto-return countdown + controls, pinned to the bottom for thumb
+              reach. "Skenovať ďalší" continues instantly; "Zostať" freezes the
+              countdown so the result stays until dismissed. */}
+          <div
+            className="absolute inset-x-0 bottom-0 flex flex-col gap-3 px-5 pt-4"
+            style={{
+              paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))',
+            }}
+          >
+            <div className="text-center text-sm font-medium text-white/90">
+              {paused
+                ? 'Pozastavené — výsledok zostáva na obrazovke'
+                : `Automaticky pokračujem o ${Math.ceil(remainingMs / 1000)} s`}
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/25">
+              <div
+                className="h-full rounded-full bg-white"
+                style={{
+                  width: `${(remainingMs / holdTotalMs) * 100}%`,
+                  opacity: paused ? 0.4 : 1,
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={dismiss}
+              className="w-full rounded-xl bg-white font-display text-lg font-bold shadow-lg transition active:scale-[0.99]"
+              style={{ minHeight: 56, color: banner.color }}
+            >
+              Skenovať ďalší
+            </button>
+            <button
+              type="button"
+              onClick={togglePause}
+              className="w-full rounded-xl border-2 border-white/70 font-display text-base font-semibold text-white transition active:scale-[0.99]"
+              style={{ minHeight: 56 }}
+            >
+              {paused ? '▶ Pokračovať v odpočte' : '⏸ Zostať'}
+            </button>
+          </div>
         </div>
       )}
 

@@ -30,7 +30,11 @@ function csp(frameAncestors: string): string {
 const securityHeaders: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+  // camera=(self): the check-in scanner (/app/events/*/checkin) needs
+  // getUserMedia. "()" (deny-all) blocks it even same-origin — Chrome enforces
+  // this strictly, so the scanner camera fails. (self) allows only our own
+  // origin; third-party iframes still can't access the camera.
+  'Permissions-Policy': 'geolocation=(), microphone=(), camera=(self)',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'Content-Security-Policy': csp("'self'"),
 }
