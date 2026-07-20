@@ -147,63 +147,186 @@ body {
 }
 
 /* ============================================================================
- * Decorative ticket preview (landing hero)
+ * Decorative phone mockup (landing hero)
  * ============================================================================ */
-@keyframes ticket-float {
+@keyframes phone-float {
   0%, 100% { transform: translateY(0) rotate(5deg); }
   50% { transform: translateY(-14px) rotate(5deg); }
 }
 
-.ticket-preview {
+.phone-mockup {
   position: relative;
   perspective: 1200px;
   transform-style: preserve-3d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.ticket-card {
-  position: relative;
-  transform-style: preserve-3d;
-  animation: ticket-float 5.5s ease-in-out infinite;
-  background: linear-gradient(145deg, rgba(30, 30, 36, 0.95) 0%, rgba(16, 16, 20, 0.98) 100%);
-  border: 1px solid color-mix(in oklab, var(--color-accent) 28%, transparent);
-  border-radius: 22px;
-  box-shadow:
-    0 25px 70px -20px rgba(0, 0, 0, 0.55),
-    0 0 40px -10px var(--color-accent-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(24px) saturate(140%);
-}
-
-.ticket-card::before {
-  content: '';
+.phone-glow {
   position: absolute;
-  inset: 0;
-  border-radius: 22px;
-  padding: 1px;
-  background: linear-gradient(135deg, color-mix(in oklab, var(--color-accent) 45%, transparent), transparent 60%);
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+  inset: -2.5rem;
+  background: radial-gradient(circle at center, var(--color-accent-glow), transparent 60%);
+  filter: blur(44px);
+  opacity: 0.65;
+  z-index: 0;
   pointer-events: none;
 }
 
-.ticket-checkin-card {
+.phone-frame {
+  position: relative;
+  z-index: 1;
+  border-radius: 2.5rem;
+  border: 8px solid #27272a;
+  background: #09090b;
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.6),
+    0 0 50px -20px var(--color-accent-glow),
+    inset 0 2px 4px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  animation: phone-float 5.5s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+.phone-notch {
   position: absolute;
-  right: -1.5rem;
-  bottom: -1rem;
-  z-index: 0;
-  padding: 1rem 1.25rem;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(28, 28, 34, 0.92), rgba(16, 16, 20, 0.96));
-  border: 1px solid var(--color-ink-700);
-  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.5);
-  transform: rotate(-8deg) translateZ(-40px);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 22px;
+  background: #27272a;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+  z-index: 10;
+}
+
+.phone-screen {
+  position: relative;
+  aspect-ratio: 9 / 19;
+  background: linear-gradient(180deg, #0c0c0f 0%, #101014 50%, #0a0a0c 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  padding-top: 2rem;
+}
+
+.phone-scanner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0.08;
+  color: var(--color-accent);
+  pointer-events: none;
+}
+
+.phone-header {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.phone-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-ink-100);
+}
+
+.phone-counter {
+  font-size: 0.75rem;
+  color: var(--color-ink-400);
+  margin-top: 0.25rem;
+}
+
+.phone-confirm {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.35rem;
+}
+
+.phone-check {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-ink-950);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 30px -8px var(--color-accent-glow);
+}
+
+.phone-status {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-ink-100);
+  margin-top: 0.5rem;
+}
+
+.phone-guest {
+  font-size: 0.95rem;
+  color: var(--color-ink-200);
+}
+
+.phone-ticket-type {
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.phone-caption {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-ink-400);
+  max-width: 260px;
+}
+
+@media (max-width: 767px) {
+  .phone-mockup.compact .phone-frame {
+    border-radius: 1.75rem;
+    border-width: 6px;
+  }
+  .phone-mockup.compact .phone-screen {
+    padding: 0.875rem;
+    padding-top: 1.5rem;
+  }
+  .phone-mockup.compact .phone-title {
+    font-size: 0.9rem;
+  }
+  .phone-mockup.compact .phone-status {
+    font-size: 1rem;
+  }
+  .phone-mockup.compact .phone-guest {
+    font-size: 0.8rem;
+  }
+  .phone-mockup.compact .phone-ticket-type {
+    font-size: 0.7rem;
+  }
+  .phone-mockup.compact .phone-check {
+    width: 56px;
+    height: 56px;
+  }
+  .phone-caption {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    max-width: 220px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ticket-card { animation: none; }
+  .phone-frame { animation: none; }
 }
 
 /* ============================================================================
