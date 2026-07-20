@@ -35,8 +35,8 @@ správe eventov.
 |------|-------|------|
 | 1 | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové** |
 | 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
-| 3 | Offline režim (lokálna DB, lokálne overenie HMAC, sync) | — |
-| 4 | Build a distribúcia (TestFlight, APK / Play Console) | — |
+| 3 | Offline režim (lokálna DB, lokálne overenie HMAC, sync) | odložené na v2 |
+| 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
 
@@ -98,4 +98,5 @@ npm run open:ios       # Xcode
 npm run open:android   # Android Studio
 ```
 
-Kompletné inštrukcie na build a vydanie (TestFlight / Play Console) sú v **Bloku 4**.
+Kompletné inštrukcie na build a vydanie (TestFlight / Play Console), povolenia
+kamery, verziovanie a riešenie problémov sú v **[BUILD.md](./BUILD.md)**.
