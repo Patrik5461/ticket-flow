@@ -22,6 +22,8 @@ export default [
       'eslint.config.js',
       'prettier.config.js',
       'src/integrations/supabase/types.ts',
+      // Capacitor sub-projects lint with their own config.
+      'apps/**',
     ],
   },
 ]

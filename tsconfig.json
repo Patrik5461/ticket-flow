@@ -1,6 +1,9 @@
 {
   "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.js"],
-  
+  // apps/* are self-contained Capacitor sub-projects with their own tsconfig,
+  // deps and build — never part of the main web app's typecheck.
+  "exclude": ["apps", "node_modules", ".output", "dist"],
+
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
