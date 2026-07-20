@@ -1,71 +1,39 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { z } from 'zod'
 import {
-  getUserIdFromRequest,
+  getUserIdFromBearerOrCookie,
   organizerIdForUser,
 } from '../lib/supabase/auth-request'
 import { checkInTicket } from '../server/checkin-service'
+import { handleCheckin } from '../server/checkin-endpoint'
 import { clientIpFromHeaders } from '../lib/client-ip'
 import { checkinLimiter } from '../server/rate-guards'
 
 /**
  * POST /api/checkin — process one scanned ticket QR.
  *
- * Body: { eventId, qr, deviceLabel? }. Authorized by session cookie: the caller
- * must be a member of the organizer that owns the event (any role, including the
- * dedicated `checkin` role). Returns the scan outcome as JSON — 200 for every
- * recognized attempt (ok / already_used / cancelled / invalid), non-200 only for
- * auth or malformed-body failures. The handler is idempotent (see checkInTicket).
+ * Body: { eventId, qr, deviceLabel? }. Authorized by session cookie (web) OR a
+ * Supabase Bearer token (native Ticketio Scan app) — either way the caller must
+ * be a member of the organizer that owns the event (any role, including the
+ * dedicated `checkin` role). Bearer is only a different transport for the same
+ * credential; the membership check is identical, and it is accepted ONLY here,
+ * not on the admin/revenue/export endpoints. Returns the scan outcome as JSON —
+ * 200 for every recognized attempt (ok / already_used / cancelled / invalid),
+ * non-200 only for auth or malformed-body failures. Idempotent (checkInTicket).
+ *
+ * Core logic lives in server/checkin-endpoint.ts (unit tested with injected
+ * deps); this route only wires the real implementations.
  */
-const bodySchema = z.object({
-  eventId: z.string().uuid(),
-  qr: z.string().min(1).max(512),
-  deviceLabel: z.string().max(120).optional(),
-})
-
 export const Route = createFileRoute('/api/checkin')({
   server: {
     handlers: {
-      POST: async ({ request }) => {
-        if (!checkinLimiter.check(clientIpFromHeaders(request.headers)).ok) {
-          return Response.json(
-            { error: 'Príliš veľa pokusov.' },
-            { status: 429 },
-          )
-        }
-        const userId = await getUserIdFromRequest(request)
-        if (!userId) {
-          return Response.json({ error: 'Neprihlásený.' }, { status: 401 })
-        }
-        const organizerId = await organizerIdForUser(userId)
-        if (!organizerId) {
-          return Response.json({ error: 'Bez organizátora.' }, { status: 403 })
-        }
-
-        let body: z.infer<typeof bodySchema>
-        try {
-          body = bodySchema.parse(await request.json())
-        } catch {
-          return Response.json({ error: 'Neplatný vstup.' }, { status: 400 })
-        }
-
-        const result = await checkInTicket({
-          eventId: body.eventId,
-          organizerId,
-          qr: body.qr,
-          userId,
-          deviceLabel: body.deviceLabel ?? null,
-        })
-        if (!result) {
-          // Event does not belong to this organizer.
-          return Response.json({ error: 'Bez oprávnenia.' }, { status: 403 })
-        }
-
-        return Response.json(result, {
-          status: 200,
-          headers: { 'Cache-Control': 'no-store' },
-        })
-      },
+      POST: ({ request }) =>
+        handleCheckin(request, {
+          checkRate: (req) =>
+            checkinLimiter.check(clientIpFromHeaders(req.headers)).ok,
+          resolveUserId: getUserIdFromBearerOrCookie,
+          organizerIdForUser,
+          checkInTicket: (input) => checkInTicket(input),
+        }),
     },
   },
 })

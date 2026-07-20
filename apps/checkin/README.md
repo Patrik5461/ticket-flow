@@ -34,9 +34,26 @@ správe eventov.
 | Blok | Obsah | Stav |
 |------|-------|------|
 | 1 | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové** |
-| 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | — |
+| 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
 | 3 | Offline režim (lokálna DB, lokálne overenie HMAC, sync) | — |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | — |
+
+### Blok 2 — ako to funguje
+
+- **Prihlásenie:** `supabase.auth.signInWithPassword`, session uložená v natívnych
+  Preferences (`src/lib/supabase.ts`) → drží natrvalo, token sa auto-obnovuje.
+- **Zoznam podujatí:** čisto klientsky cez Supabase RLS (`events_member_read` +
+  `tickets_member_read`) — žiadny serverový endpoint. Ktorákoľvek rola člena
+  (owner/admin/checkin) vidí svoje eventy + počet odbavených/celkom.
+- **Skener:** natívny MLKit (`@capacitor-mlkit/barcode-scanning`) beží za
+  priehľadným webview; fullscreen farebná odozva + odpočet (2 s ok / 4 s chyba)
+  + „Skenovať ďalší" / „Zostať" navrchu. Kamera sa medzi skenmi nezastavuje.
+- **Check-in:** volá existujúce `POST /api/checkin` s hlavičkou
+  `Authorization: Bearer <supabase access token>` cez `CapacitorHttp` (natívne
+  HTTP obchádza CORS; Supabase klient používa bežný fetch). Endpoint teraz
+  akceptuje Bearer token **len tu** (spätne kompatibilné s cookie); admin/tržby/
+  exporty ostávajú cookie-only. Autorizácia je identická — kontrola členstva v
+  `organizer_members` prebehne rovnako ako pri webe.
 
 ## Prvé spustenie (Blok 1)
 

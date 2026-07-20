@@ -80,3 +80,323 @@ button {
 .brand-mark .accent {
   color: var(--accent);
 }
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.screen {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.brand-sub-inline {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.h1 {
+  margin: 8px 0 16px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 6px 2px;
+}
+.notice {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: #fcd34d;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+/* ── Form fields ────────────────────────────────────────────────────────── */
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+  border-radius: 12px;
+  padding: 14px 14px;
+  color: var(--text);
+  font-size: 16px; /* ≥16px avoids iOS input zoom */
+  outline: none;
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+}
+.form-error {
+  margin-top: 14px;
+  color: #fca5a5;
+  font-size: 14px;
+}
+
+/* ── Event list ─────────────────────────────────────────────────────────── */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.event-card {
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  color: var(--text);
+  transition: transform 0.08s ease;
+}
+.event-card:active {
+  transform: scale(0.99);
+}
+.event-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.event-meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.event-counts {
+  margin-top: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.count-num {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.count-total {
+  font-size: 13px;
+  color: var(--faint);
+}
+.count-pct {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--faint);
+}
+.progress {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition: width 0.4s ease;
+}
+
+/* ── Scanner ────────────────────────────────────────────────────────────── */
+/* While native scanning is active the webview is transparent so the camera
+   shows through; the scanner chrome + result overlay draw on top. */
+html.scanning,
+html.scanning body,
+html.scanning #root,
+html.scanning .scanner {
+  background: transparent !important;
+}
+.scanner {
+  position: relative;
+  min-height: 100%;
+}
+.scan-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  gap: 10px;
+}
+.chip {
+  background: rgba(9, 9, 11, 0.72);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+}
+.chip.counter b {
+  color: var(--accent);
+  font-size: 16px;
+}
+.scan-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.viewfinder {
+  width: min(70vw, 300px);
+  aspect-ratio: 1;
+  border-radius: 24px;
+  border: 3px solid var(--accent);
+  box-shadow:
+    0 0 0 4000px rgba(0, 0, 0, 0.28),
+    inset 0 0 30px rgba(74, 222, 128, 0.3);
+}
+.manual {
+  width: 100%;
+  max-width: 360px;
+}
+.scan-hint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px 16px 16px;
+}
+
+/* ── Fullscreen result ──────────────────────────────────────────────────── */
+.result {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 20px
+    calc(20px + env(safe-area-inset-bottom));
+  animation: fade 0.12s ease;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.result-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+}
+.result-icon {
+  font-weight: 900;
+  line-height: 1;
+  font-size: clamp(7rem, 28vw, 15rem);
+}
+.result-label {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  font-size: clamp(2rem, 8vw, 3.5rem);
+}
+.result-name {
+  font-weight: 700;
+  font-size: clamp(1.2rem, 5vw, 2rem);
+}
+.result-type {
+  opacity: 0.9;
+  font-size: clamp(1rem, 3.5vw, 1.4rem);
+}
+.result-seat {
+  font-weight: 700;
+  font-size: clamp(1.1rem, 4vw, 1.6rem);
+}
+.result-sub {
+  margin-top: 8px;
+  opacity: 0.9;
+  font-size: 1.1rem;
+}
+.result-ref {
+  margin-top: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+.result-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.result-countdown {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.95;
+}
+.countbar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.countbar-fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 999px;
+}
+.result-btn {
+  width: 100%;
+  min-height: 56px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 17px;
+  transition: transform 0.08s ease;
+}
+.result-btn:active {
+  transform: scale(0.99);
+}
+.result-btn.primary {
+  background: #fff;
+  border: none;
+}
+.result-btn.ghost {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  color: #fff;
+  font-size: 16px;
+}
