@@ -202,7 +202,7 @@ function Landing() {
 
               {/* Mobile product preview */}
               <div className="mt-8 md:hidden">
-                <TicketPreview compact />
+                <PhoneMockup compact />
               </div>
 
               {/* stats */}
@@ -228,8 +228,8 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative hidden md:block">
-              <TicketPreview />
+            <div className="relative hidden md:flex md:justify-center">
+              <PhoneMockup />
             </div>
           </div>
         </div>
