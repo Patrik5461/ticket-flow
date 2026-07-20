@@ -554,20 +554,7 @@ body {
   --gradient-fallback: linear-gradient(135deg, #dcfce7 0%, #f4f4f7 55%, #d1fae5 100%);
 }
 
-/* Ticket preview card uses hardcoded dark rgba; give it a light counterpart. */
-:root.light .ticket-card {
-  background: linear-gradient(145deg, #ffffff 0%, #f5f5f8 100%);
-  border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
-  box-shadow:
-    0 25px 60px -25px rgba(0, 0, 0, 0.18),
-    0 0 40px -14px var(--color-accent-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-:root.light .ticket-checkin-card {
-  background: linear-gradient(135deg, #ffffff, #f4f4f7);
-  border: 1px solid var(--color-ink-700);
-  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.15);
-}
+/* Phone mockup keeps a dark screen in both modes; caption inherits theme text color. */
 
 /* Admin impersonation banner + admin badge stay themed intentionally
  * (purple / amber accents work in both modes). No override needed. */
