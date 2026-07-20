@@ -2,6 +2,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { getEventFn } from '../server/fns'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 
 /**
  * Embeddable storefront for one event — a light, chrome-free version of the event
@@ -39,11 +40,7 @@ function EmbedPage() {
     return () => ro.disconnect()
   }, [qty])
 
-  const when = new Intl.DateTimeFormat('sk-SK', {
-    dateStyle: 'long',
-    timeStyle: 'short',
-    timeZone: event.timezone,
-  }).format(new Date(event.starts_at))
+  const when = formatSk(event.starts_at, 'long', event.timezone)
 
   const total = ticketTypes.reduce(
     (s, t) => s + (qty[t.id] ?? 0) * t.price_cents,

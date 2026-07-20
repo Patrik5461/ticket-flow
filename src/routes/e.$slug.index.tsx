@@ -8,7 +8,8 @@ import { useState } from 'react'
 import { getEventFn, joinWaitlistFn } from '../server/fns'
 import { getEventSeatMapFn } from '../server/seat-map'
 import { SeatPicker } from '../components/SeatPicker'
-import { formatEur, normIntlSpaces } from '../lib/money'
+import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { absoluteUrl } from '../lib/site'
 import { eventJsonLd, metaDescription } from '../lib/seo'
@@ -32,11 +33,7 @@ export const Route = createFileRoute('/e/$slug/')({
     const { event } = loaderData
     const url = absoluteUrl(`/e/${event.slug}`)
     const image = event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`)
-    const whenLabel = new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'long',
-      timeStyle: 'short',
-      timeZone: event.timezone,
-    }).format(new Date(event.starts_at))
+    const whenLabel = formatSk(event.starts_at, 'long', event.timezone)
     const title = `${event.title} — Ticketio`
     const description = metaDescription(event, whenLabel)
     return {
@@ -58,13 +55,7 @@ export const Route = createFileRoute('/e/$slug/')({
 })
 
 function formatDate(iso: string, tz: string) {
-  return normIntlSpaces(
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'full',
-      timeStyle: 'short',
-      timeZone: tz,
-    }).format(new Date(iso)),
-  )
+  return formatSk(iso, 'full', tz)
 }
 
 function Stepper({

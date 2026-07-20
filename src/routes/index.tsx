@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { listEventsFn } from '../server/fns'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/')({
   loader: async () => ({ events: await listEventsFn() }),
@@ -8,18 +9,10 @@ export const Route = createFileRoute('/')({
 })
 
 function formatDateShort(iso: string, tz: string) {
-  return new Intl.DateTimeFormat('sk-SK', {
-    day: '2-digit',
-    month: 'short',
-    timeZone: tz,
-  }).format(new Date(iso))
+  return formatSk(iso, 'dayMonth', tz)
 }
 function formatTime(iso: string, tz: string) {
-  return new Intl.DateTimeFormat('sk-SK', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: tz,
-  }).format(new Date(iso))
+  return formatSk(iso, 'time', tz)
 }
 
 function Nav() {

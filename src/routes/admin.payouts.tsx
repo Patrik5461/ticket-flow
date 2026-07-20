@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { listPayoutRequestsFn, resolvePayoutFn } from '../server/admin-payouts'
 import type { AdminPayoutRow } from '../server/admin-payouts'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/admin/payouts')({
   loader: async (): Promise<AdminPayoutRow[]> => {
@@ -26,11 +27,7 @@ function Row({ r }: { r: AdminPayoutRow }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const fmtDate = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmtDate = (iso: string) => formatSk(iso, 'date', 'Europe/Bratislava')
 
   const act = async (action: 'approve' | 'reject' | 'mark_paid') => {
     setBusy(true)

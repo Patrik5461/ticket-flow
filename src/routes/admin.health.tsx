@@ -7,6 +7,7 @@ import type {
   ServiceCheck,
   QueueStat,
 } from '../server/health'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/admin/health')({
   loader: async (): Promise<SystemHealth | null> => {
@@ -46,10 +47,7 @@ const STATUS_META: Record<
 }
 
 function fmtTime(iso: string) {
-  return new Intl.DateTimeFormat('sk-SK', {
-    timeStyle: 'medium',
-    timeZone: 'Europe/Bratislava',
-  }).format(new Date(iso))
+  return formatSk(iso, 'timeSec', 'Europe/Bratislava')
 }
 
 function fmtUptime(sec: number) {

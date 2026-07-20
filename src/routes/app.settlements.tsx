@@ -15,6 +15,7 @@ import type {
   MyEventSummary,
 } from '../server/dashboard'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/app/settlements')({
   loader: async () => ({
@@ -149,11 +150,7 @@ function PayoutSection({ payout }: { payout: PayoutInfo }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const fmtDate = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmtDate = (iso: string) => formatSk(iso, 'date', 'Europe/Bratislava')
 
   const submit = async () => {
     const cents = Math.round(parseFloat(amount.replace(',', '.')) * 100)
@@ -271,11 +268,7 @@ function SettlementsPage() {
   const { settlements, payout, events } = Route.useLoaderData()
 
   const monthLabel = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+    formatSk(iso, 'monthYear', 'Europe/Bratislava')
 
   return (
     <div className="space-y-5">

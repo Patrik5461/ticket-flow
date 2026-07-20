@@ -9,6 +9,7 @@ import {
   regenerateTicketFn,
 } from '../server/ticket-admin'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import type { TicketStatus } from '../lib/db-types'
 
 /**
@@ -40,11 +41,7 @@ export function OrderRefundPanel({
 
   const canRefund = detail.refundableCents > 0
   const fmtTime = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: detail.event.timezone,
-    }).format(new Date(iso))
+    formatSk(iso, 'dateTime', detail.event.timezone)
 
   const refundOrder = async () => {
     if (

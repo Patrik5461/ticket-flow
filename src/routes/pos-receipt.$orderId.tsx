@@ -2,6 +2,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useState } from 'react'
 import { getPosReceiptFn } from '../server/pos'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import type { PaymentMethod } from '../lib/db-types'
 
 export const Route = createFileRoute('/pos-receipt/$orderId')({
@@ -53,11 +54,7 @@ function PosReceiptPage() {
   const [format, setFormat] = useState<'thermal' | 'a4'>('thermal')
 
   const fmtDateTime = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: data.event.timezone,
-    }).format(new Date(iso))
+    formatSk(iso, 'dateTime', data.event.timezone)
 
   const { event, order, lines, tickets } = data
 

@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { getPosSummaryFn } from '../server/pos'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/app/events/$eventId/pos-summary')({
   loader: async ({ params }) => {
@@ -52,12 +53,7 @@ function PosSummaryPage() {
   const data = Route.useLoaderData()
   const router = useRouter()
 
-  const fmtTime = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: data.event.timezone,
-    }).format(new Date(iso))
+  const fmtTime = (iso: string) => formatSk(iso, 'dateTime', data.event.timezone)
 
   const { totals, sellers, sales } = data
 

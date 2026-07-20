@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCheckinBoardFn } from '../server/dashboard'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/app/events/$eventId/checkin')({
   loader: async ({ params }) => {
@@ -64,12 +65,7 @@ function CheckinPage() {
   const tickRef = useRef(0)
 
   const fmtTime = useCallback(
-    (iso: string) =>
-      new Intl.DateTimeFormat('sk-SK', {
-        dateStyle: 'short',
-        timeStyle: 'medium',
-        timeZone: board.event.timezone,
-      }).format(new Date(iso)),
+    (iso: string) => formatSk(iso, 'dateTimeSec', board.event.timezone),
     [board.event.timezone],
   )
 

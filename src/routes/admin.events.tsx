@@ -4,6 +4,7 @@ import { listAllEventsFn, adminUnpublishEventFn } from '../server/admin-events'
 import type { AdminEventItem } from '../server/admin-events'
 import { cancelEventFn } from '../server/cancel-event'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import type { EventStatus } from '../lib/db-types'
 
 export const Route = createFileRoute('/admin/events')({
@@ -78,12 +79,7 @@ function AdminEvents() {
     }
   }
 
-  const fmtDate = (iso: string, tz: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: tz,
-    }).format(new Date(iso))
+  const fmtDate = (iso: string, tz: string) => formatSk(iso, 'dateTime', tz)
 
   return (
     <div className="space-y-5">

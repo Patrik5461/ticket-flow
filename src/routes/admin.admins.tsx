@@ -6,6 +6,7 @@ import {
   removePlatformAdminFn,
 } from '../server/admin-admins'
 import type { PlatformAdminView } from '../server/admin-admins'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/admin/admins')({
   loader: async (): Promise<PlatformAdminView[]> => {
@@ -23,12 +24,7 @@ function AdminsPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const fmt = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmt = (iso: string) => formatSk(iso, 'dateTime', 'Europe/Bratislava')
 
   const add = async () => {
     setBusy(true)

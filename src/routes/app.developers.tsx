@@ -10,6 +10,7 @@ import {
   WEBHOOK_EVENTS,
 } from '../server/dashboard'
 import type { ApiKeySummary, WebhookSummary } from '../server/dashboard'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/app/developers')({
   loader: async (): Promise<{
@@ -27,11 +28,7 @@ export const Route = createFileRoute('/app/developers')({
 
 function fmt(iso: string | null): string {
   if (!iso) return '—'
-  return new Intl.DateTimeFormat('sk-SK', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: 'Europe/Bratislava',
-  }).format(new Date(iso))
+  return formatSk(iso, 'dateTime', 'Europe/Bratislava')
 }
 
 function DevelopersPage() {

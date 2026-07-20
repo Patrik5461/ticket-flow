@@ -41,7 +41,7 @@ import {
 } from '../server/event-seating'
 import type { EventSeatingView } from '../server/event-seating'
 import { listVenuesFn, listSeatMapsFn, getSeatMapFn } from '../server/venues'
-import { utcIsoToZonedLocal } from '../lib/datetime'
+import { utcIsoToZonedLocal, formatSk } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
 import type { CustomField } from '../lib/custom-fields'
@@ -598,12 +598,7 @@ function SupportRequestsSection({ eventId }: { eventId: string }) {
   }
 
   const pending = rows.filter((r) => r.status === 'pending')
-  const fmt = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmt = (iso: string) => formatSk(iso, 'dateTime', 'Europe/Bratislava')
 
   return (
     <section className="rounded-lg border bg-white p-6">
@@ -691,12 +686,7 @@ function BulkMessageSection({ eventId }: { eventId: string }) {
     void loadLog()
   }
 
-  const fmt = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmt = (iso: string) => formatSk(iso, 'dateTime', 'Europe/Bratislava')
 
   return (
     <section className="rounded-lg border bg-white p-6">

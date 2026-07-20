@@ -7,6 +7,7 @@ import {
 import { useState } from 'react'
 import { getEventSalesFn } from '../server/dashboard'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
 
 export const Route = createFileRoute('/app/events/$eventId/sales')({
@@ -65,12 +66,7 @@ function SalesPage() {
       ? data.orders
       : data.orders.filter((o) => o.status === filter)
 
-  const fmtDate = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: data.event.timezone,
-    }).format(new Date(iso))
+  const fmtDate = (iso: string) => formatSk(iso, 'dateTime', data.event.timezone)
 
   const csvHref =
     `/api/events/${eventId}/sales-csv` +

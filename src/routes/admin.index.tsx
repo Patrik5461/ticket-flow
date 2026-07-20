@@ -16,6 +16,7 @@ import {
 } from '../server/platform-settings'
 import type { PlatformSettings } from '../server/platform-settings'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import { SalesChart } from '../components/SalesChart'
 
 const DEFAULT_SETTINGS: PlatformSettings = {
@@ -359,17 +360,9 @@ function ExportData() {
 }
 
 function OpsPanel({ ops }: { ops: AdminOps }) {
-  const fmtDate = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmtDate = (iso: string) => formatSk(iso, 'date', 'Europe/Bratislava')
   const fmtDateTime = (iso: string, tz: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: tz,
-    }).format(new Date(iso))
+    formatSk(iso, 'dateTime', tz)
 
   const es = ops.health.eventsByStatus
 

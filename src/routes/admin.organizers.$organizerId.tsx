@@ -19,6 +19,7 @@ import type {
   OrganizerStatsDetail,
 } from '../server/admin-organizers'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import { SalesChart } from '../components/SalesChart'
 import { startImpersonationFn } from '../server/impersonation'
 import { adminGenerateSettlementFn } from '../server/settlements'
@@ -146,11 +147,7 @@ function StatsSection({
     }
   }
 
-  const fmtDate = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeZone: 'Europe/Bratislava',
-    }).format(new Date(iso))
+  const fmtDate = (iso: string) => formatSk(iso, 'date', 'Europe/Bratislava')
 
   const upcoming = data.events.filter((e) => !e.isPast)
   const past = data.events.filter((e) => e.isPast)
@@ -511,12 +508,7 @@ const ACTION_SK: Record<string, string> = {
 }
 
 function AuditSection({ audit, tz }: { audit: AuditEntryView[]; tz: string }) {
-  const fmt = (iso: string) =>
-    new Intl.DateTimeFormat('sk-SK', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: tz,
-    }).format(new Date(iso))
+  const fmt = (iso: string) => formatSk(iso, 'dateTime', tz)
 
   return (
     <section className="rounded-lg border bg-white p-6">

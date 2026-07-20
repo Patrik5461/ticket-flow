@@ -8,6 +8,7 @@ import { getOrderAdminFn } from '../server/admin-orders'
 import { getOrderRefundDetailFn } from '../server/refunds'
 import { OrderRefundPanel } from '../components/OrderRefundPanel'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 import type { OrderStatus } from '../lib/db-types'
 
 export const Route = createFileRoute('/admin/orders/$orderId')({
@@ -46,13 +47,7 @@ function OrderDetail() {
   const router = useRouter()
 
   const fmt = (iso: string | null) =>
-    iso
-      ? new Intl.DateTimeFormat('sk-SK', {
-          dateStyle: 'short',
-          timeStyle: 'medium',
-          timeZone: event.timezone,
-        }).format(new Date(iso))
-      : '—'
+    iso ? formatSk(iso, 'dateTimeSec', event.timezone) : '—'
 
   return (
     <div className="max-w-3xl space-y-6">

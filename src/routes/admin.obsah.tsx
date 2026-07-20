@@ -8,6 +8,7 @@ import {
 } from '../server/content'
 import type { ContentBlockMeta } from '../server/content'
 import { Markdown } from '../components/Markdown'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/admin/obsah')({
   loader: async (): Promise<ContentBlockMeta[]> => {
@@ -20,11 +21,7 @@ export const Route = createFileRoute('/admin/obsah')({
 const KEY_RE = /^[a-z0-9-]+$/
 
 function fmt(iso: string): string {
-  return new Intl.DateTimeFormat('sk-SK', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: 'Europe/Bratislava',
-  }).format(new Date(iso))
+  return formatSk(iso, 'dateTime', 'Europe/Bratislava')
 }
 
 interface EditorState {

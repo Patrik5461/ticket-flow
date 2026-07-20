@@ -4,6 +4,7 @@ import { listMyEventsFn, getOrganizerOverviewFn } from '../server/dashboard'
 import type { MyEventSummary, OrganizerOverview } from '../server/dashboard'
 import type { EventStatus } from '../lib/db-types'
 import { formatEur } from '../lib/money'
+import { formatSk } from '../lib/datetime'
 
 export const Route = createFileRoute('/app/')({
   loader: async () => ({
@@ -105,11 +106,7 @@ const STATUS: Record<
 }
 
 function fmtDate(iso: string, tz: string) {
-  return new Intl.DateTimeFormat('sk-SK', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: tz,
-  }).format(new Date(iso))
+  return formatSk(iso, 'dateTime', tz)
 }
 
 function Dashboard() {
