@@ -17,8 +17,13 @@ import { serviceClient } from '../lib/supabase/server'
 import { verifyTicket } from '../lib/qr'
 import { enqueueWebhookEvent } from './webhooks'
 
-/** Mirrors the checkin_log.result enum. */
-export type CheckinOutcome = 'ok' | 'already_used' | 'cancelled' | 'invalid'
+/** Scan outcomes (subset of the checkin_log.result enum; 'undo' is not a scan). */
+export type CheckinOutcome =
+  | 'ok'
+  | 'already_used'
+  | 'cancelled'
+  | 'invalid'
+  | 'reentry'
 
 export interface CheckinResponse {
   result: CheckinOutcome
@@ -35,6 +40,12 @@ export interface CheckinResponse {
   ref: string | null
   /** Numbered seat label ("Sektor A · rad 3 · miesto 12"), when seated. */
   seat: string | null
+  /**
+   * For `reentry`: how many times this ticket has now been admitted (this entry
+   * included). Absent for other outcomes. Pairs with `usedAt`, which for a
+   * re-entry holds the time of the PREVIOUS entry ("naposledy o …").
+   */
+  entryCount?: number
 }
 
 export interface CheckinSummary {
@@ -109,12 +120,14 @@ export async function checkInTicket(args: {
   // 1. Authorize + fetch the event secret in one query: the event must belong to
   //    the caller's organizer. verifyTicket below is keyed by this secret, so a
   //    code signed for any other event cannot validate here.
-  const { data: event } = await db
+  const { data: event } = (await db
     .from('events')
-    .select('id, qr_secret')
+    .select('id, qr_secret, allow_reentry')
     .eq('id', args.eventId)
     .eq('organizer_id', args.organizerId)
-    .maybeSingle()
+    .maybeSingle()) as {
+    data: { id: string; qr_secret: string; allow_reentry: boolean } | null
+  }
   if (!event) return null
 
   const log = (ticketId: string | null, result: CheckinOutcome) =>
@@ -219,6 +232,40 @@ export async function checkInTicket(args: {
       seat,
     }
   }
+  // Already used. If this event allows re-entry, admit again (green) instead of
+  // blocking — the ticket stays 'used' (so the admitted counter is unaffected),
+  // but we record another entry so the organizer sees every pass.
+  if (event.allow_reentry) {
+    const { data: prevEntry } = (await db
+      .from('checkin_log')
+      .select('created_at')
+      .eq('ticket_id', ticket.id)
+      .in('result', ['ok', 'reentry'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()) as { data: { created_at: string } | null }
+    const lastEntryAt =
+      prevEntry?.created_at ?? fresh?.used_at ?? ticket.used_at ?? null
+
+    await log(ticket.id, 'reentry')
+
+    const { count } = (await db
+      .from('checkin_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('ticket_id', ticket.id)
+      .in('result', ['ok', 'reentry'])) as { count: number | null }
+
+    return {
+      result: 'reentry',
+      holderName,
+      ticketType,
+      usedAt: lastEntryAt,
+      ref,
+      seat,
+      entryCount: count ?? 2,
+    }
+  }
+
   await log(ticket.id, 'already_used')
   return {
     result: 'already_used',
