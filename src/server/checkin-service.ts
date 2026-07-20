@@ -123,6 +123,7 @@ export async function checkInTicket(args: {
       event_id: args.eventId,
       result,
       device_label: deviceLabel,
+      performed_by: args.userId,
     })
 
   // 2. Verify the HMAC signature against this event's secret.
