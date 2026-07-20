@@ -32,11 +32,10 @@ interface ScanResult {
   seat: string | null
 }
 
-// How long the result banner stays up before auto-returning to scanning.
-// Success clears fast to keep the queue moving; warnings/errors linger so the
-// operator can read them (and challenge the visitor if needed).
-const OK_HOLD_MS = 2000
-const WARN_HOLD_MS = 4000
+// How long the result banner stays up before auto-returning to scanning — the
+// same for every outcome so the web and native (Ticketio Scan) scanners behave
+// identically.
+const RESULT_HOLD_MS = 3000
 
 const OUTCOME_UI: Record<
   Outcome,
@@ -101,7 +100,7 @@ function CheckinPage() {
     haltRef.current = true
     pausedRef.current = false
     setPaused(false)
-    const hold = data.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
+    const hold = RESULT_HOLD_MS
     remRef.current = hold
     setRemainingMs(hold)
     setResult(data)
@@ -249,7 +248,7 @@ function CheckinPage() {
   }, [submit])
 
   const banner = result ? OUTCOME_UI[result.result] : null
-  const holdTotalMs = result?.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
+  const holdTotalMs = RESULT_HOLD_MS
 
   return (
     <>

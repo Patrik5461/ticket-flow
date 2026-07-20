@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase'
 import { formatTime } from '../lib/format'
 import type { EventRow, Outcome, ScanResult } from '../lib/types'
 
-const OK_HOLD_MS = 2000
-const WARN_HOLD_MS = 4000
+// Same hold for every outcome (success and error) — matches the web scanner.
+const RESULT_HOLD_MS = 3000
 
 const OUTCOME: Record<Outcome, { label: string; color: string; icon: string }> = {
   ok: { label: 'Vstup povolený', color: 'var(--ok)', icon: '✓' },
@@ -37,9 +37,8 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
     haltRef.current = true
     pausedRef.current = false
     setPaused(false)
-    const hold = data.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
-    remRef.current = hold
-    setRemainingMs(hold)
+    remRef.current = RESULT_HOLD_MS
+    setRemainingMs(RESULT_HOLD_MS)
     setResult(data)
     if (data.result === 'ok') setCheckedIn((n) => n + 1)
   }, [])
@@ -154,10 +153,10 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
   }
 
   const banner = result ? OUTCOME[result.result] : null
-  const holdTotal = result?.result === 'ok' ? OK_HOLD_MS : WARN_HOLD_MS
+  const holdTotal = RESULT_HOLD_MS
 
   return (
-    <div className="screen scanner safe">
+    <div className="screen scanner">
       {/* Top chrome: counter + back. Sits over the live camera on device. */}
       <header className="scan-top">
         <button className="chip" onClick={onBack}>

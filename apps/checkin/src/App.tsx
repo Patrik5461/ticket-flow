@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
 import { SplashScreen } from '@capacitor/splash-screen'
+import { StatusBar, Style } from '@capacitor/status-bar'
 import { supabase } from './lib/supabase'
 import { Login } from './screens/Login'
 import { EventList } from './screens/EventList'
@@ -18,6 +20,12 @@ export function App() {
   const [event, setEvent] = useState<EventRow | null>(null)
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      // Light text on our dark background; dark bar on Android.
+      // (Style.Dark = "light text for dark backgrounds".)
+      void StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
+      void StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {})
+    }
     void SplashScreen.hide().catch(() => {})
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {

@@ -22,7 +22,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
     <div className="screen safe">
       <header className="topbar">
         <span className="brand-mark" style={{ fontSize: 18 }}>
-          ticket<span className="accent">io</span>{' '}
+          ticket<span className="accent">io</span>
           <span className="brand-sub-inline">Scan</span>
         </span>
         <button className="linkbtn" onClick={() => void supabase.auth.signOut()}>

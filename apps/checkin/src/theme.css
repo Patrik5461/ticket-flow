@@ -29,6 +29,12 @@ body,
   height: 100%;
 }
 
+/* Dark on the root element too, so the safe-area regions (under the Dynamic
+   Island / home indicator) never flash white behind the webview. */
+html {
+  background: var(--bg);
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -70,15 +76,25 @@ button {
   opacity: 0.5;
 }
 
+/* Plain inline text so "ticket" + "io" render as one word ("ticketio").
+   (Was inline-flex with gap, which spaced every child apart → "ticket io".) */
 .brand-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .brand-mark .accent {
   color: var(--accent);
+}
+/* Small "SCAN" suffix next to the wordmark. */
+.brand-sub-inline {
+  margin-left: 8px;
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  vertical-align: 2px;
 }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
@@ -97,13 +113,6 @@ button {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.brand-sub-inline {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--accent);
 }
@@ -252,7 +261,10 @@ html.scanning .scanner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  /* Camera fills the whole display; the chrome clears the Dynamic Island. */
+  padding: calc(10px + env(safe-area-inset-top))
+    calc(14px + env(safe-area-inset-right)) 10px
+    calc(14px + env(safe-area-inset-left));
   gap: 10px;
 }
 .chip {
@@ -293,7 +305,7 @@ html.scanning .scanner {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
-  padding: 8px 16px 16px;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
 }
 
 /* ── Fullscreen result ──────────────────────────────────────────────────── */
