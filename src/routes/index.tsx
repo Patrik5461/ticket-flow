@@ -390,6 +390,9 @@ function Landing() {
         )}
       </section>
 
+      {/* DASHBOARD PREVIEW */}
+      <DashboardPreview />
+
       {/* HOW IT WORKS */}
       <section id="how" className="border-t border-ink-800 bg-ink-900/40">
         <div className="mx-auto max-w-7xl px-6 py-24">
