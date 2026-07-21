@@ -36,7 +36,8 @@ správe eventov.
 | 1 | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové** |
 | 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
 | 3a | Offline režim — stiahnutie dát na zariadenie | **hotové** |
-| 3b–3d | Offline skenovanie, synchronizácia, testy | pripravuje sa |
+| 3b | Offline skenovanie (lokálne overenie + fronta) | **hotové** |
+| 3c–3d | Synchronizácia a testy | pripravuje sa |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
@@ -90,6 +91,37 @@ Stiahnuté dáta obsahujú mená návštevníkov, takže sa mažú:
 Sťahovať smie len člen organizátora daného eventu — endpoint má rovnakú
 autorizáciu ako `/api/checkin` (Bearer token → členstvo v `organizer_members` →
 vlastníctvo eventu).
+
+### Blok 3b — offline skenovanie
+
+Skener skúša **najprv server**. Ak požiadavka zlyhá (alebo je zariadenie
+offline), vyhodnotí sken **lokálne** z bundlu (`src/lib/offline-scan.ts`) —
+zahashuje naskenovaný string a nájde odtlačok. Vypršaná session (401) sa na
+lokálne dáta **neprepína**, tá vedie na prihlásenie.
+
+Rozhodovacia tabuľka je zámerne rovnaká ako na serveri, vrátane Fázy 23:
+
+| Stav v lokálnych dátach | `allow_reentry` | Výsledok |
+|---|---|---|
+| nie je v bundli | – | **Neznáma vstupenka** (oranžová, „over online") |
+| `cancelled` | – | Zrušená vstupenka |
+| `valid` | – | Vstup povolený → lokálne označená ako použitá + do fronty |
+| `used` | vypnuté | Už použitá (čas prvého vstupu) |
+| `used` | zapnuté | **Opätovný vstup** (N. vstup, čas predošlého) + do fronty |
+
+Pri opätovnom vstupe zostáva vstupenka `used` a rastie len počítadlo vstupov —
+počet odbavených sa nemôže započítať dvakrát, rovnako ako na serveri.
+
+Ďalšie správanie:
+
+- **Bez siete a bez stiahnutých dát** → celoobrazovkové „Chýbajú offline dáta —
+  pripoj sa k internetu alebo stiahni dáta".
+- Každý offline výsledok má odznak **„OFFLINE · overené lokálne"**; v hlavičke
+  skenera je stav pripojenia a počet skenov čakajúcich na odoslanie.
+- Fronta (`src/lib/queue.ts`) je v Preferences, takže **prežije reštart appky**.
+  Zariadenie sa označuje stabilným `deviceLabel` (napr. „Ticketio Scan · A3F91C")
+  — ten ide aj do online skenov, takže v audite vidno, ktorý telefón odbavil.
+- Odhlásenie s neodoslanými skenmi si vypýta potvrdenie (dáta sa mažú).
 
 ## Prvé spustenie (Blok 1)
 

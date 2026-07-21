@@ -16,6 +16,7 @@
  */
 import { Preferences } from '@capacitor/preferences'
 import { fetchOfflineBundlePage } from './api'
+import { clearQueue } from './queue'
 import type { OfflineTicket } from './types'
 
 /** How long downloaded personal data may survive the event. */
@@ -161,13 +162,17 @@ export async function deleteOffline(eventId: string): Promise<void> {
   await writeJson(INDEX_KEY, index)
 }
 
-/** Wipe every downloaded bundle — called on sign-out. */
+/**
+ * Wipe every downloaded bundle AND the pending sync queue — called on sign-out.
+ * Callers must warn first if the queue is not empty (those admissions are lost).
+ */
 export async function clearAllOffline(): Promise<void> {
   const index = await readIndex()
   for (const eventId of Object.keys(index)) {
     await Preferences.remove({ key: ticketsKey(eventId) })
   }
   await Preferences.remove({ key: INDEX_KEY })
+  await clearQueue()
 }
 
 /** Expiry moment for a bundle: 24 h after the event ends (or starts, if open-ended). */

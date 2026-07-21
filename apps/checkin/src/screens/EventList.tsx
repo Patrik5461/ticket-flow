@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { loadEvents } from '../lib/events'
 import { formatWhen } from '../lib/format'
 import { listOffline, purgeExpiredOffline, type OfflineMeta } from '../lib/offline'
+import { queueCount } from '../lib/queue'
 import { OfflineRow } from '../components/OfflineRow'
 import { supabase } from '../lib/supabase'
 import type { EventRow } from '../lib/types'
@@ -19,6 +20,19 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
       .then(listOffline)
       .then(setOffline)
   }, [])
+
+  // Signing out wipes the local data — including admissions not yet sent.
+  const signOut = async () => {
+    const pending = await queueCount()
+    if (
+      pending > 0 &&
+      !window.confirm(
+        `Máš ${pending} skenov, ktoré ešte neboli odoslané na server. Odhlásením sa zmažú offline dáta aj tieto skeny. Naozaj sa chceš odhlásiť?`,
+      )
+    )
+      return
+    await supabase.auth.signOut()
+  }
 
   const refresh = () => {
     setError(null)
@@ -39,7 +53,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
           ticket<span className="accent">io</span>
           <span className="brand-sub-inline">Scan</span>
         </span>
-        <button className="linkbtn" onClick={() => void supabase.auth.signOut()}>
+        <button className="linkbtn" onClick={() => void signOut()}>
           Odhlásiť
         </button>
       </header>

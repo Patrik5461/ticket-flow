@@ -2,20 +2,38 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import { checkinScan, AuthError } from '../lib/api'
+import { NoOfflineDataError, scanOffline } from '../lib/offline-scan'
+import { queueCount } from '../lib/queue'
 import { supabase } from '../lib/supabase'
 import { restoreDarkChrome } from '../lib/chrome'
 import { formatTime } from '../lib/format'
-import type { EventRow, Outcome, ScanResult } from '../lib/types'
+import type { EventRow, ScanOutcome, ScanResult } from '../lib/types'
 
 // Same hold for every outcome (success and error) — matches the web scanner.
 const RESULT_HOLD_MS = 3000
 
-const OUTCOME: Record<Outcome, { label: string; color: string; icon: string }> = {
+const OUTCOME: Record<
+  ScanOutcome,
+  { label: string; color: string; icon: string }
+> = {
   ok: { label: 'Vstup povolený', color: 'var(--ok)', icon: '✓' },
   reentry: { label: 'Opätovný vstup', color: 'var(--ok)', icon: '✓' },
   already_used: { label: 'Už použitá', color: 'var(--warn)', icon: '!' },
   cancelled: { label: 'Zrušená vstupenka', color: 'var(--bad)', icon: '✕' },
   invalid: { label: 'Neplatný kód', color: 'var(--bad)', icon: '✕' },
+  // Offline-only: not a forgery, just missing data — deliberately not red.
+  unknown: { label: 'Neznáma vstupenka', color: 'var(--warn)', icon: '?' },
+  no_data: { label: 'Chýbajú offline dáta', color: 'var(--bad)', icon: '↓' },
+}
+
+const noDataResult: ScanResult = {
+  result: 'no_data',
+  holderName: null,
+  ticketType: null,
+  usedAt: null,
+  ref: null,
+  seat: null,
+  offline: true,
 }
 
 const isNative = Capacitor.isNativePlatform()
@@ -30,10 +48,32 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
   const [manual, setManual] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const [online, setOnline] = useState(navigator.onLine)
+  const [pending, setPending] = useState(0)
+
   const haltRef = useRef(false)
   const pausedRef = useRef(false)
   const remRef = useRef(0)
   const inFlightRef = useRef(false)
+
+  const refreshPending = useCallback(() => {
+    void queueCount(event.id).then(setPending)
+  }, [event.id])
+
+  // Connectivity is tracked with the webview's own online/offline events — no
+  // extra native plugin. A dropped request is caught in submit() regardless, so
+  // a stale `navigator.onLine` can never send a scan into the void.
+  useEffect(() => {
+    refreshPending()
+    const up = () => setOnline(true)
+    const down = () => setOnline(false)
+    window.addEventListener('online', up)
+    window.addEventListener('offline', down)
+    return () => {
+      window.removeEventListener('online', up)
+      window.removeEventListener('offline', down)
+    }
+  }, [refreshPending])
 
   const showResult = useCallback((data: ScanResult) => {
     haltRef.current = true
@@ -51,28 +91,40 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
       inFlightRef.current = true
       setBusy(true)
       try {
-        showResult(await checkinScan(event.id, qr))
+        let res: ScanResult
+        if (navigator.onLine) {
+          try {
+            res = await checkinScan(event.id, qr)
+          } catch (e) {
+            // An expired session is not a connectivity problem — do not mask it
+            // by silently switching to local data.
+            if (e instanceof AuthError) throw e
+            // The request failed (no signal, captive portal, server down):
+            // fall back to the downloaded data.
+            res = await scanOffline(event.id, qr)
+          }
+        } else {
+          res = await scanOffline(event.id, qr)
+        }
+        showResult(res)
+        if (res.offline) void refreshPending()
       } catch (e) {
         if (e instanceof AuthError) {
           // Session gone → back to login.
           void supabase.auth.signOut()
           return
         }
-        // Network/offline etc. — online-only in Block 2 (offline lands in Block 3).
-        showResult({
-          result: 'invalid',
-          holderName: null,
-          ticketType: null,
-          usedAt: null,
-          ref: null,
-          seat: null,
-        })
+        if (e instanceof NoOfflineDataError) {
+          showResult(noDataResult)
+          return
+        }
+        showResult({ ...noDataResult, result: 'invalid', offline: false })
       } finally {
         inFlightRef.current = false
         setBusy(false)
       }
     },
-    [event.id, showResult],
+    [event.id, showResult, refreshPending],
   )
 
   const dismiss = useCallback(() => {
@@ -177,6 +229,16 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
         </span>
       </header>
 
+      {/* Connectivity + pending admissions. Sending them is block 3c. */}
+      {(!online || pending > 0) && (
+        <div className="scan-status">
+          {!online && <span className="chip offline-chip">OFFLINE</span>}
+          {pending > 0 && (
+            <span className="chip pending-chip">{pending} čaká na odoslanie</span>
+          )}
+        </div>
+      )}
+
       {/* Viewfinder guide (device) or manual entry (web/dev). */}
       <div className="scan-body">
         {isNative ? (
@@ -216,8 +278,23 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
       {banner && result && (
         <div className="result" style={{ background: banner.color }}>
           <div className="result-center">
+            {result.offline && result.result !== 'no_data' && (
+              <div className="result-offline">OFFLINE · overené lokálne</div>
+            )}
             <div className="result-icon">{banner.icon}</div>
             <div className="result-label">{banner.label}</div>
+            {result.result === 'unknown' && (
+              <div className="result-sub">
+                Nie je v stiahnutých dátach — over ju online. Mohla byť predaná
+                až po poslednej aktualizácii.
+              </div>
+            )}
+            {result.result === 'no_data' && (
+              <div className="result-sub">
+                Nie sú stiahnuté offline dáta — pripoj sa k internetu alebo
+                stiahni dáta pre toto podujatie v zozname podujatí.
+              </div>
+            )}
             {result.holderName && <div className="result-name">{result.holderName}</div>}
             {result.ticketType && <div className="result-type">{result.ticketType}</div>}
             {result.seat && <div className="result-seat">🪑 {result.seat}</div>}

@@ -343,6 +343,33 @@ html.scanning .scanner {
   color: var(--accent);
   font-size: 16px;
 }
+/* Connectivity strip under the scanner chrome. */
+.scan-status {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px;
+  flex-wrap: wrap;
+}
+.offline-chip {
+  border-color: rgba(234, 179, 8, 0.5);
+  color: #fcd34d;
+  letter-spacing: 0.12em;
+}
+.pending-chip {
+  color: var(--muted);
+}
+/* Badge on the fullscreen result when the verdict came from local data. */
+.result-offline {
+  align-self: center;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
 .scan-body {
   flex: 1;
   display: flex;

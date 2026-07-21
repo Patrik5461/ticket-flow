@@ -1,6 +1,7 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { API_BASE } from './env'
 import { accessToken } from './supabase'
+import { deviceLabel } from './device'
 import type { OfflineBundlePage, ScanResult } from './types'
 
 const INVALID: ScanResult = {
@@ -100,7 +101,7 @@ export async function checkinScan(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    { eventId, qr, deviceLabel: 'Ticketio Scan' },
+    { eventId, qr, deviceLabel: await deviceLabel() },
   )
 
   if (status === 401) throw new AuthError('UNAUTHORIZED')
