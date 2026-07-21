@@ -144,6 +144,7 @@ const EMPTY: SalesSnapshot = {
   ticketCount: 0,
   checkedIn: 0,
   at: '',
+  series: { hourly: [], daily: [], eventDay: '', timezone: 'Europe/Bratislava' },
 }
 
 const json = (body: unknown, status: number) => Response.json(body, { status })

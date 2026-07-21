@@ -19,6 +19,12 @@ function snap(over: Partial<SalesSnapshot> = {}): SalesSnapshot {
     ticketCount: 3,
     checkedIn: 1,
     at: '2026-07-22T10:00:00.000Z',
+    series: {
+      hourly: [],
+      daily: [],
+      eventDay: '2026-07-20',
+      timezone: 'Europe/Bratislava',
+    },
     ...over,
   }
 }

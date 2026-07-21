@@ -8,6 +8,7 @@ import { useCallback, useRef, useState } from 'react'
 import { getEventSalesFn } from '../server/dashboard'
 import { useLiveSales } from '../lib/use-live-sales'
 import { LiveIndicator } from '../components/LiveIndicator'
+import { SalesTimeChart } from '../components/SalesTimeChart'
 import { formatEur } from '../lib/money'
 import { formatSk } from '../lib/datetime'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
@@ -132,6 +133,19 @@ function SalesPage() {
       <p className="-mt-3 text-xs text-gray-500">
         Súčty zahŕňajú len zaplatené objednávky.
       </p>
+
+      {/* Chart rides on the same live snapshot as the cards above. */}
+      {snapshot && (
+        <SalesTimeChart
+          hourly={snapshot.series.hourly}
+          daily={snapshot.series.daily}
+          eventDayLabel={formatSk(
+            `${snapshot.series.eventDay}T12:00:00.000Z`,
+            'date',
+            'UTC',
+          )}
+        />
+      )}
 
       {/* Per-type sold */}
       <section className="rounded-lg border bg-white p-4">
