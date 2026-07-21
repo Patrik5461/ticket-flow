@@ -167,10 +167,26 @@ videl viac vstupov, než reálne bolo.
 `clientScanId` je **voliteľný** — webový skener ho neposiela a správa sa
 nezmenene (idempotencia na úrovni vstupenky mu stačí).
 
+### Offline zoznam podujatí
+
+Zoznam sa ťahá zo Supabase, ale **každé sieťové volanie má deadline** — v režime
+v lietadle request nezlyhá, on sa jednoducho nikdy nedokončí. Bez limitu sa
+zoznam po návrate zo skenera točil donekonečna.
+
+- `loadEvents()` (5 s) → pri vypršaní, chybe alebo `navigator.onLine === false`
+  vráti zoznam **zo stiahnutých balíkov**; nikdy nevyhodí chybu kvôli sieti.
+- Offline sa zobrazia **len eventy so stiahnutými dátami** + žltý pásik
+  „OFFLINE — zobrazujem stiahnuté podujatia".
+- **Počítadlo odbavených offline sa počíta z lokálnych dát**, takže rastie s tým,
+  čo pracovník naskenuje (zrušené vstupenky sa do celkového počtu nerátajú).
+- Zoznam sa sám obnoví pri návrate siete a pri návrate appky z pozadia.
+- Deadline majú aj ostatné volania: check-in 6 s (inak by skener zamrzol namiesto
+  prepnutia na lokálne overenie) a sťahovanie balíka 20 s na stránku.
+
 ### Blok 3d — testy
 
 ```bash
-cd apps/checkin && npm test     # 26 testov offline vrstvy (vitest)
+cd apps/checkin && npm test     # 36 testov offline vrstvy (vitest)
 npm test                        # v koreni repa: serverová strana
 ```
 

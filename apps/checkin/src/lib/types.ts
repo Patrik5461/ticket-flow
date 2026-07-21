@@ -64,4 +64,8 @@ export interface EventRow {
   venueName: string | null
   checkedIn: number
   total: number
+  /** True when this row was built from downloaded data, not from the server. */
+  offline?: boolean
+  /** For offline rows: when the bundle was downloaded. */
+  syncedAt?: string
 }

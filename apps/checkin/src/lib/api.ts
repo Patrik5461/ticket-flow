@@ -2,6 +2,7 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { API_BASE } from './env'
 import { accessToken } from './supabase'
 import { deviceLabel } from './device'
+import { withTimeout } from './net'
 import type { OfflineBundlePage, ScanResult } from './types'
 
 const INVALID: ScanResult = {
@@ -14,6 +15,14 @@ const INVALID: ScanResult = {
 }
 
 export class AuthError extends Error {}
+
+/**
+ * Deadlines. Without them a request in airplane mode never settles: the scanner
+ * would freeze instead of falling back to local data, and a sync would stay
+ * "running" forever.
+ */
+const CHECKIN_TIMEOUT_MS = 6000
+const BUNDLE_TIMEOUT_MS = 20000
 
 interface Raw {
   status: number
@@ -70,9 +79,13 @@ export async function fetchOfflineBundlePage(
   const token = await accessToken()
   if (!token) throw new AuthError('NO_SESSION')
 
-  const { status, body } = await getJson(
-    `${API_BASE}/api/offline-bundle?eventId=${encodeURIComponent(eventId)}&offset=${offset}&limit=${limit}`,
-    { Authorization: `Bearer ${token}` },
+  const { status, body } = await withTimeout(
+    getJson(
+      `${API_BASE}/api/offline-bundle?eventId=${encodeURIComponent(eventId)}&offset=${offset}&limit=${limit}`,
+      { Authorization: `Bearer ${token}` },
+    ),
+    BUNDLE_TIMEOUT_MS,
+    'stiahnutie offline dát',
   )
 
   if (status === 401) throw new AuthError('UNAUTHORIZED')
@@ -96,16 +109,20 @@ export async function checkinScan(
   const token = await accessToken()
   if (!token) throw new AuthError('NO_SESSION')
 
-  const { status, body } = await postCheckin(
-    `${API_BASE}/api/checkin`,
-    {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    // clientScanId makes a replayed offline admission idempotent at scan level:
-    // if the server already processed this scan, it replays the original
-    // outcome instead of recording another entry.
-    { eventId, qr, deviceLabel: await deviceLabel(), clientScanId },
+  const { status, body } = await withTimeout(
+    postCheckin(
+      `${API_BASE}/api/checkin`,
+      {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      // clientScanId makes a replayed offline admission idempotent at scan
+      // level: if the server already processed this scan, it replays the
+      // original outcome instead of recording another entry.
+      { eventId, qr, deviceLabel: await deviceLabel(), clientScanId },
+    ),
+    CHECKIN_TIMEOUT_MS,
+    'check-in',
   )
 
   if (status === 401) throw new AuthError('UNAUTHORIZED')

@@ -250,6 +250,20 @@ button {
   transition: width 0.4s ease;
 }
 
+/* Shown when the list comes from downloaded data instead of the server. */
+.offline-banner {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: #fcd34d;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.offline-banner b {
+  letter-spacing: 0.12em;
+}
+
 /* ── Sync status + conflicts ────────────────────────────────────────────── */
 .sync-wrap {
   margin: 4px 0 14px;

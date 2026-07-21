@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { loadEvents } from '../lib/events'
+import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
+import { loadEvents, type EventsSource } from '../lib/events'
 import { formatWhen } from '../lib/format'
 import { listOffline, purgeExpiredOffline, type OfflineMeta } from '../lib/offline'
 import { queueCount } from '../lib/queue'
@@ -11,6 +13,7 @@ import type { EventRow } from '../lib/types'
 /** Screen 2 — the events this member can access. Tap one to open the scanner. */
 export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
   const [events, setEvents] = useState<EventRow[] | null>(null)
+  const [source, setSource] = useState<EventsSource>('server')
   const [error, setError] = useState<string | null>(null)
   const [offline, setOffline] = useState<Record<string, OfflineMeta>>({})
 
@@ -35,16 +38,45 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
     await supabase.auth.signOut()
   }
 
+  // Never rejects for connectivity reasons — offline it resolves from the
+  // downloaded bundles, so the screen can't get stuck on a spinner.
   const refresh = () => {
     setError(null)
     loadEvents()
-      .then(setEvents)
+      .then((res) => {
+        setEvents(res.events)
+        setSource(res.source)
+      })
       .catch(() => setError('Nepodarilo sa načítať podujatia.'))
   }
 
   useEffect(() => {
     refresh()
     refreshOffline()
+    // When the network returns (or the app resumes onto this screen) the list
+    // silently upgrades from local data back to server data.
+    const onUp = () => {
+      refresh()
+      refreshOffline()
+    }
+    window.addEventListener('online', onUp)
+
+    // Resuming from the background is the other moment the data can be stale
+    // (and on iOS the 'online' event is not always delivered).
+    let removeResume: (() => void) | undefined
+    if (Capacitor.isNativePlatform()) {
+      void CapApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) onUp()
+      }).then((handle) => {
+        removeResume = () => void handle.remove()
+      })
+    }
+
+    return () => {
+      window.removeEventListener('online', onUp)
+      removeResume?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshOffline])
 
   return (
@@ -72,10 +104,21 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
           </div>
         )}
 
+        {source === 'offline' && events && (
+          <div className="offline-banner">
+            <b>OFFLINE</b> — zobrazujem stiahnuté podujatia. Podujatia bez
+            stiahnutých dát sa zobrazia po pripojení.
+          </div>
+        )}
+
         {!events && !error && <p className="hint">Načítavam…</p>}
 
         {events && events.length === 0 && (
-          <p className="hint">Zatiaľ nemáš prístup k žiadnemu podujatiu.</p>
+          <p className="hint">
+            {source === 'offline'
+              ? 'Bez pripojenia a bez stiahnutých podujatí. Pripoj sa k internetu a stiahni dáta vopred.'
+              : 'Zatiaľ nemáš prístup k žiadnemu podujatiu.'}
+          </p>
         )}
 
         <ul className="list">
