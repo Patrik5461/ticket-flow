@@ -4,8 +4,10 @@ import {
   notFound,
   useRouter,
 } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { getEventSalesFn } from '../server/dashboard'
+import { useLiveSales } from '../lib/use-live-sales'
+import { LiveIndicator } from '../components/LiveIndicator'
 import { formatEur } from '../lib/money'
 import { formatSk } from '../lib/datetime'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
@@ -61,6 +63,18 @@ function SalesPage() {
   const router = useRouter()
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all')
 
+  // Live numbers. The snapshot drives the stat cards directly (instant), and a
+  // throttled invalidate refreshes the order list underneath it.
+  const lastInvalidate = useRef(0)
+  const onLiveChange = useCallback(() => {
+    const now = Date.now()
+    if (now - lastInvalidate.current < 5000) return
+    lastInvalidate.current = now
+    void router.invalidate()
+  }, [router])
+  const { snapshot, mode, updatedAt } = useLiveSales(eventId, onLiveChange)
+  const totals = snapshot ?? data.totals
+
   const orders =
     filter === 'all'
       ? data.orders
@@ -88,6 +102,7 @@ function SalesPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <LiveIndicator mode={mode} updatedAt={updatedAt} />
           <Link
             to="/app/events/$eventId/pos-summary"
             params={{ eventId }}
@@ -106,15 +121,12 @@ function SalesPage() {
 
       {/* Totals (realized revenue = paid orders) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Hrubé tržby" value={formatEur(data.totals.grossCents)} />
-        <Stat
-          label="Provízia platformy"
-          value={formatEur(data.totals.feeCents)}
-        />
-        <Stat label="Netto pre vás" value={formatEur(data.totals.netCents)} />
+        <Stat label="Hrubé tržby" value={formatEur(totals.grossCents)} />
+        <Stat label="Provízia platformy" value={formatEur(totals.feeCents)} />
+        <Stat label="Netto pre vás" value={formatEur(totals.netCents)} />
         <Stat
           label="Zaplatené objednávky"
-          value={String(data.totals.paidOrderCount)}
+          value={String(totals.paidOrderCount)}
         />
       </div>
       <p className="-mt-3 text-xs text-gray-500">

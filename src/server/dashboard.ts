@@ -25,6 +25,8 @@ import { zonedLocalToUtcIso } from '../lib/datetime'
 import { buildSalesData } from './sales-data'
 import type { SalesData } from './sales-data'
 import { getCheckinSummary } from './checkin-service'
+import { loadSalesSnapshot } from './sales-live'
+import type { SalesSnapshot } from './sales-live'
 import { notifyEventChanged } from './event-emails'
 import type {
   EventRow,
@@ -1331,4 +1333,25 @@ export const deleteWebhookFn = createServerFn({ method: 'POST' })
       .eq('id', data.id)
       .eq('organizer_id', actor.organizerId)
     return { ok: true as const }
+  })
+
+// ---------------------------------------------------------------------------
+// Live sales snapshot (Phase 24). Backs the polling fallback of the SSE stream
+// in routes/api.events.$eventId.sales-stream.ts — same numbers, one request.
+// Uses requireOrganizer, so an impersonating platform admin gets it too (the
+// stream itself is cookie/membership based and falls back to this for them).
+// ---------------------------------------------------------------------------
+
+export const getSalesSnapshotFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) => z.object({ eventId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<SalesSnapshot | { error: string }> => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      const snapshot = await loadSalesSnapshot(data.eventId, actor.organizerId)
+      if (!snapshot)
+        throw new DashboardError(
+          'Podujatie sa nenašlo alebo naň nemáte oprávnenie.',
+        )
+      return snapshot
+    })
   })

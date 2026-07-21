@@ -69,6 +69,7 @@ import { Route as AppEventsEventIdGuestlistRouteImport } from './routes/app.even
 import { Route as AppEventsEventIdCheckinRouteImport } from './routes/app.events.$eventId.checkin'
 import { Route as ApiV1EventsIdRouteImport } from './routes/api.v1.events.$id'
 import { Route as ApiSettlementsSettlementIdPdfRouteImport } from './routes/api.settlements.$settlementId.pdf'
+import { Route as ApiEventsEventIdSalesStreamRouteImport } from './routes/api.events.$eventId.sales-stream'
 import { Route as ApiEventsEventIdSalesCsvRouteImport } from './routes/api.events.$eventId.sales-csv'
 import { Route as ApiEventsEventIdAttendeesCsvRouteImport } from './routes/api.events.$eventId.attendees-csv'
 import { Route as ApiAdminExportOrganizersDotcsvRouteImport } from './routes/api.admin.export.organizers[.]csv'
@@ -383,6 +384,12 @@ const ApiSettlementsSettlementIdPdfRoute =
     path: '/api/settlements/$settlementId/pdf',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiEventsEventIdSalesStreamRoute =
+  ApiEventsEventIdSalesStreamRouteImport.update({
+    id: '/api/events/$eventId/sales-stream',
+    path: '/api/events/$eventId/sales-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiEventsEventIdSalesCsvRoute =
   ApiEventsEventIdSalesCsvRouteImport.update({
     id: '/api/events/$eventId/sales-csv',
@@ -487,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/api/events/$eventId/sales-stream': typeof ApiEventsEventIdSalesStreamRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
@@ -554,6 +562,7 @@ export interface FileRoutesByTo {
   '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/api/events/$eventId/sales-stream': typeof ApiEventsEventIdSalesStreamRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
@@ -625,6 +634,7 @@ export interface FileRoutesById {
   '/api/admin/export/organizers.csv': typeof ApiAdminExportOrganizersDotcsvRoute
   '/api/events/$eventId/attendees-csv': typeof ApiEventsEventIdAttendeesCsvRoute
   '/api/events/$eventId/sales-csv': typeof ApiEventsEventIdSalesCsvRoute
+  '/api/events/$eventId/sales-stream': typeof ApiEventsEventIdSalesStreamRoute
   '/api/settlements/$settlementId/pdf': typeof ApiSettlementsSettlementIdPdfRoute
   '/api/v1/events/$id': typeof ApiV1EventsIdRouteWithChildren
   '/app/events/$eventId/checkin': typeof AppEventsEventIdCheckinRoute
@@ -697,6 +707,7 @@ export interface FileRouteTypes {
     | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
+    | '/api/events/$eventId/sales-stream'
     | '/api/settlements/$settlementId/pdf'
     | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
+    | '/api/events/$eventId/sales-stream'
     | '/api/settlements/$settlementId/pdf'
     | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
@@ -834,6 +846,7 @@ export interface FileRouteTypes {
     | '/api/admin/export/organizers.csv'
     | '/api/events/$eventId/attendees-csv'
     | '/api/events/$eventId/sales-csv'
+    | '/api/events/$eventId/sales-stream'
     | '/api/settlements/$settlementId/pdf'
     | '/api/v1/events/$id'
     | '/app/events/$eventId/checkin'
@@ -887,6 +900,7 @@ export interface RootRouteChildren {
   ApiAdminExportOrganizersDotcsvRoute: typeof ApiAdminExportOrganizersDotcsvRoute
   ApiEventsEventIdAttendeesCsvRoute: typeof ApiEventsEventIdAttendeesCsvRoute
   ApiEventsEventIdSalesCsvRoute: typeof ApiEventsEventIdSalesCsvRoute
+  ApiEventsEventIdSalesStreamRoute: typeof ApiEventsEventIdSalesStreamRoute
   ApiSettlementsSettlementIdPdfRoute: typeof ApiSettlementsSettlementIdPdfRoute
   ApiOrdersOrderIdTicketsTicketIdRoute: typeof ApiOrdersOrderIdTicketsTicketIdRouteWithChildren
 }
@@ -1313,6 +1327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSettlementsSettlementIdPdfRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/events/$eventId/sales-stream': {
+      id: '/api/events/$eventId/sales-stream'
+      path: '/api/events/$eventId/sales-stream'
+      fullPath: '/api/events/$eventId/sales-stream'
+      preLoaderRoute: typeof ApiEventsEventIdSalesStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/events/$eventId/sales-csv': {
       id: '/api/events/$eventId/sales-csv'
       path: '/api/events/$eventId/sales-csv'
@@ -1526,6 +1547,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminExportOrganizersDotcsvRoute: ApiAdminExportOrganizersDotcsvRoute,
   ApiEventsEventIdAttendeesCsvRoute: ApiEventsEventIdAttendeesCsvRoute,
   ApiEventsEventIdSalesCsvRoute: ApiEventsEventIdSalesCsvRoute,
+  ApiEventsEventIdSalesStreamRoute: ApiEventsEventIdSalesStreamRoute,
   ApiSettlementsSettlementIdPdfRoute: ApiSettlementsSettlementIdPdfRoute,
   ApiOrdersOrderIdTicketsTicketIdRoute:
     ApiOrdersOrderIdTicketsTicketIdRouteWithChildren,
