@@ -141,6 +141,14 @@ describe('retention', () => {
     ).toBe(false)
   })
 
+  it('warns about multiple devices once per event, not on every refresh', async () => {
+    const { shouldWarnMultiDevice } = await import('./offline')
+    expect(await shouldWarnMultiDevice(EVENT)).toBe(true) // first download
+    expect(await shouldWarnMultiDevice(EVENT)).toBe(false) // a later "Aktualizovať"
+    // A different event warns on its own first download.
+    expect(await shouldWarnMultiDevice('other-event')).toBe(true)
+  })
+
   it('signing out wipes tickets, queue and conflict reports', async () => {
     await enqueueScan({
       id: 'local-1',
@@ -158,6 +166,7 @@ describe('retention', () => {
     expect(await listOffline()).toEqual({})
     expect(await readQueue()).toHaveLength(0)
     // Nothing describing tickets or holders is left behind.
+    // Includes the multi-device warning flags — nothing offline.* survives.
     const leftovers = [...prefStore.keys()].filter((k) =>
       k.startsWith('offline.'),
     )

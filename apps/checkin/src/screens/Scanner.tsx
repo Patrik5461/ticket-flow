@@ -7,6 +7,7 @@ import { refreshSyncState, runSync } from '../lib/sync'
 import { useOnline, useSync } from '../lib/use-sync'
 import { supabase } from '../lib/supabase'
 import { restoreDarkChrome } from '../lib/chrome'
+import { OfflineNoticeModal } from '../components/OfflineNotice'
 import { formatTime } from '../lib/format'
 import type { EventRow, ScanOutcome, ScanResult } from '../lib/types'
 
@@ -48,6 +49,7 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
   const [camError, setCamError] = useState<string | null>(null)
   const [manual, setManual] = useState('')
   const [busy, setBusy] = useState(false)
+  const [showOfflineInfo, setShowOfflineInfo] = useState(false)
 
   // Connectivity and the queue are shared with the event list. A dropped
   // request is caught in submit() regardless, so a stale `navigator.onLine`
@@ -229,7 +231,15 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
           returns; the chip is also tappable so staff can force it. */}
       {(!online || pending > 0 || running) && (
         <div className="scan-status">
-          {!online && <span className="chip offline-chip">OFFLINE</span>}
+          {!online && (
+            <button
+              className="chip offline-chip"
+              onClick={() => setShowOfflineInfo(true)}
+              aria-label="Vysvetlenie offline režimu"
+            >
+              OFFLINE <span className="chip-i">ⓘ</span>
+            </button>
+          )}
           {running && <span className="chip pending-chip">Odosielam…</span>}
           {!running && pending > 0 && (
             <button
@@ -345,6 +355,10 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
             </button>
           </div>
         </div>
+      )}
+
+      {showOfflineInfo && (
+        <OfflineNoticeModal onClose={() => setShowOfflineInfo(false)} />
       )}
     </div>
   )

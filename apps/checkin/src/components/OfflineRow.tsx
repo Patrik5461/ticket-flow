@@ -2,10 +2,12 @@ import { useState } from 'react'
 import {
   downloadOffline,
   deleteOffline,
+  shouldWarnMultiDevice,
   type OfflineMeta,
 } from '../lib/offline'
 import { formatSynced, STALE_AFTER_MS } from '../lib/format'
 import { AuthError } from '../lib/api'
+import { OfflineNoticeModal } from './OfflineNotice'
 
 /**
  * Offline strip under an event card: download / refresh / delete the local
@@ -26,6 +28,7 @@ export function OfflineRow({
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [notice, setNotice] = useState(false)
 
   const busy = progress !== null
 
@@ -38,6 +41,8 @@ export function OfflineRow({
       await downloadOffline(eventId, setProgress)
       setDone(true)
       onChange()
+      // Once per event: warn that offline devices can't see each other.
+      if (await shouldWarnMultiDevice(eventId)) setNotice(true)
     } catch (e) {
       setError(
         e instanceof AuthError
@@ -103,6 +108,7 @@ export function OfflineRow({
           Zmazať
         </button>
       </div>
+      {notice && <OfflineNoticeModal onClose={() => setNotice(false)} />}
     </div>
   )
 }

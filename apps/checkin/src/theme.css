@@ -264,6 +264,47 @@ button {
   letter-spacing: 0.12em;
 }
 
+/* ── Modal (offline-mode notice) ────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(20px + env(safe-area-inset-top)) 20px
+    calc(20px + env(safe-area-inset-bottom));
+}
+.modal-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px;
+}
+.modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.modal-text {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.modal-text.tip {
+  color: var(--text);
+  font-weight: 600;
+}
+.modal-btn {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 6px;
+}
+
 /* ── Sync status + conflicts ────────────────────────────────────────────── */
 .sync-wrap {
   margin: 4px 0 14px;
@@ -437,6 +478,14 @@ html.scanning .scanner {
   border-color: rgba(234, 179, 8, 0.5);
   color: #fcd34d;
   letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip-i {
+  opacity: 0.75;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 .pending-chip {
   color: var(--muted);

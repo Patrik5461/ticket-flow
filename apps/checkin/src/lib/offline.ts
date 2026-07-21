@@ -25,6 +25,7 @@ export const RETENTION_MS = 24 * 60 * 60 * 1000
 const PAGE_SIZE = 500
 
 const INDEX_KEY = 'offline.index'
+const WARNED_KEY = 'offline.warnedEvents'
 const ticketsKey = (eventId: string) => `offline.tickets.${eventId}`
 
 /** What the device knows about one downloaded event. */
@@ -173,9 +174,23 @@ export async function clearAllOffline(): Promise<void> {
     await Preferences.remove({ key: ticketsKey(eventId) })
   }
   await Preferences.remove({ key: INDEX_KEY })
+  await Preferences.remove({ key: WARNED_KEY })
   await clearQueue()
   // Conflict reports name the holders too — they must not outlive the session.
   await dismissConflicts()
+}
+
+/**
+ * Whether the multi-device offline warning has already been shown for an event.
+ * Returns true the FIRST time only, then remembers it so a later "Aktualizovať"
+ * does not nag. Wiped with everything else on sign-out.
+ */
+export async function shouldWarnMultiDevice(eventId: string): Promise<boolean> {
+  const warned = (await readJson<string[]>(WARNED_KEY)) ?? []
+  if (warned.includes(eventId)) return false
+  warned.push(eventId)
+  await writeJson(WARNED_KEY, warned)
+  return true
 }
 
 /** Expiry moment for a bundle: 24 h after the event ends (or starts, if open-ended). */

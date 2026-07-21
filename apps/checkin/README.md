@@ -18,6 +18,29 @@ správe eventov.
 - Odporúčanie pre organizátorov: brigádnikom na vstupe vytvorte účet s rolou
   **`checkin`** — ten vie len skenovať a k ničomu inému sa nedostane.
 
+## Offline režim — prevádzkové odporúčania
+
+**Ako to funguje.** Pred akciou stiahni pri podujatí offline dáta („↓ Stiahnuť
+pre offline"). Bez internetu skener overuje vstupenky z lokálneho zoznamu a
+odbavené skeny si ukladá do fronty. Po pripojení sa fronta automaticky odošle na
+server.
+
+**Limit — dôležité.** Zariadenia sa offline **navzájom nevidia**. Tá istá
+vstupenka sa preto môže offline odbaviť na každom zariadení zvlášť; **duplicita
+sa odhalí až pri synchronizácii** (appka ju ukáže ako „Pri synchronizácii: N
+vstupeniek bolo už použitých inde").
+
+**Odporúčania:**
+
+- **Rozdeľte vstupy medzi zariadenia** (napr. vchod A / vchod B), aby dve
+  zariadenia neskenovali ten istý dav.
+- **Aspoň jedno zariadenie majte online**, ak sa dá — online skeny sa navzájom
+  vidia okamžite.
+- **Offline dáta stiahnite tesne pred akciou**, nech sú čerstvé (čas poslednej
+  aktualizácie appka zobrazuje; po 2 h zožltne).
+- Vstupenka **predaná až po stiahnutí** dát nie je v lokálnom zozname — offline
+  ju skener ukáže ako **„Neznáma vstupenka — over online"**, nie ako neplatnú.
+
 ## Architektúra
 
 - SPA (Vite + React) zabalená Capacitorom do natívnej appky. Zdieľa API s
