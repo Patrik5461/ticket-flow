@@ -146,26 +146,32 @@ export type Database = {
       }
       checkin_log: {
         Row: {
+          client_scan_id: string | null
           created_at: string
           device_label: string | null
           event_id: string | null
           id: string
+          performed_by: string | null
           result: string
           ticket_id: string | null
         }
         Insert: {
+          client_scan_id?: string | null
           created_at?: string
           device_label?: string | null
           event_id?: string | null
           id?: string
+          performed_by?: string | null
           result: string
           ticket_id?: string | null
         }
         Update: {
+          client_scan_id?: string | null
           created_at?: string
           device_label?: string | null
           event_id?: string | null
           id?: string
+          performed_by?: string | null
           result?: string
           ticket_id?: string | null
         }
@@ -488,6 +494,7 @@ export type Database = {
       }
       events: {
         Row: {
+          allow_reentry: boolean
           cover_url: string | null
           created_at: string
           description: string | null
@@ -506,6 +513,7 @@ export type Database = {
           venue_name: string | null
         }
         Insert: {
+          allow_reentry?: boolean
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -524,6 +532,7 @@ export type Database = {
           venue_name?: string | null
         }
         Update: {
+          allow_reentry?: boolean
           cover_url?: string | null
           created_at?: string
           description?: string | null

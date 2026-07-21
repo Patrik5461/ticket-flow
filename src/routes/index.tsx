@@ -152,6 +152,180 @@ function PhoneMockup({ compact }: { compact?: boolean }) {
   )
 }
 
+function DashboardPreview() {
+  // Static illustrative data — decorative only, not from DB.
+  const points = [
+    [0, 92], [1, 88], [2, 80], [3, 78], [4, 70], [5, 66],
+    [6, 60], [7, 55], [8, 48], [9, 44], [10, 38], [11, 32],
+    [12, 28], [13, 22], [14, 18], [15, 14],
+  ] as const
+  const W = 640
+  const H = 200
+  const stepX = W / (points.length - 1)
+  const line = points
+    .map(([i, y], idx) => `${idx === 0 ? 'M' : 'L'} ${(i * stepX).toFixed(1)} ${y}`)
+    .join(' ')
+  const area = `${line} L ${W} ${H} L 0 ${H} Z`
+  const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00']
+
+  return (
+    <section className="border-t border-ink-800 bg-ink-950">
+      <div className="mx-auto max-w-7xl px-6 py-24">
+        <div className="grid items-center gap-12 lg:grid-cols-5">
+          {/* LEFT — copy */}
+          <div className="animate-fade-up lg:col-span-2">
+            <div className="text-sm font-medium uppercase tracking-widest text-accent">
+              Prehľad naživo
+            </div>
+            <h2 className="mt-2 font-display text-4xl font-bold leading-tight md:text-5xl">
+              Vidíš, ako sa predáva.
+            </h2>
+            <p className="mt-5 text-lg text-ink-300">
+              Sledovanie predaja a odbavovania v reálnom čase — kým event beží,
+              aj po ňom.
+            </p>
+            <ul className="mt-8 space-y-3 text-ink-300">
+              {[
+                'Živý prehľad predaja a tržieb',
+                'Sledovanie check-inov počas podujatia',
+                'Rozklad tržieb, provízie a sumy na vyplatenie',
+                'Export objednávok a účastníkov do CSV',
+              ].map((t) => (
+                <li key={t} className="flex items-start gap-3">
+                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                    <Check size={13} strokeWidth={3} />
+                  </span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to="/register" className="btn-primary text-sm">
+                Vytvoriť podujatie
+              </Link>
+              <a href="/cennik" className="btn-ghost text-sm">
+                Zobraziť cenník
+              </a>
+            </div>
+          </div>
+
+          {/* RIGHT — dashboard mockup */}
+          <div className="animate-fade-up lg:col-span-3" aria-hidden="true">
+            <div
+              className="card-surface relative overflow-hidden p-5 md:p-7"
+              style={{
+                transform: 'perspective(1400px) rotateX(2deg) rotateY(-3deg)',
+                boxShadow:
+                  '0 40px 80px -30px rgba(74,222,128,0.18), 0 20px 40px -20px rgba(0,0,0,0.6)',
+              }}
+            >
+              {/* header */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-ink-500">
+                    Podujatie
+                  </div>
+                  <div className="mt-0.5 font-display text-lg font-semibold text-ink-100">
+                    Letný festival 2026
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent">
+                    +18 za poslednú hodinu
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                    </span>
+                    Naživo
+                  </div>
+                </div>
+              </div>
+
+              {/* chart */}
+              <div className="mt-6">
+                <svg
+                  viewBox={`0 0 ${W} ${H + 24}`}
+                  className="h-48 w-full md:h-56"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="dashArea" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#4ade80" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  {/* gridlines */}
+                  {[0, 1, 2, 3].map((i) => (
+                    <line
+                      key={i}
+                      x1="0"
+                      x2={W}
+                      y1={(H / 3) * i + 4}
+                      y2={(H / 3) * i + 4}
+                      stroke="currentColor"
+                      className="text-ink-800"
+                      strokeDasharray="3 5"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  <path d={area} fill="url(#dashArea)" />
+                  <path
+                    d={line}
+                    fill="none"
+                    stroke="#4ade80"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* last point */}
+                  <circle
+                    cx={(points[points.length - 1][0] * stepX).toFixed(1)}
+                    cy={points[points.length - 1][1]}
+                    r="5"
+                    fill="#4ade80"
+                  />
+                  <circle
+                    cx={(points[points.length - 1][0] * stepX).toFixed(1)}
+                    cy={points[points.length - 1][1]}
+                    r="10"
+                    fill="#4ade80"
+                    opacity="0.2"
+                  />
+                </svg>
+                <div className="mt-2 flex justify-between text-[10px] uppercase tracking-wider text-ink-500">
+                  {hours.map((h) => (
+                    <span key={h}>{h}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* metrics */}
+              <div className="mt-6 grid grid-cols-3 gap-3 border-t border-ink-800 pt-5">
+                {[
+                  { label: 'Predané', value: '214' },
+                  { label: 'Tržby', value: '3 210 €' },
+                  { label: 'Odbavených', value: '142' },
+                ].map((m) => (
+                  <div key={m.label}>
+                    <div className="font-display text-2xl font-bold tabular-nums text-ink-100 md:text-3xl">
+                      {m.value}
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-wider text-ink-500">
+                      {m.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Landing() {
   const { events } = Route.useLoaderData()
 
@@ -389,6 +563,9 @@ function Landing() {
           </div>
         )}
       </section>
+
+      {/* DASHBOARD PREVIEW */}
+      <DashboardPreview />
 
       {/* HOW IT WORKS */}
       <section id="how" className="border-t border-ink-800 bg-ink-900/40">
