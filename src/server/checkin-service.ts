@@ -100,6 +100,86 @@ function typeName(row: TicketRow): string | null {
 }
 
 /**
+ * Rebuild the answer for a scan that was already processed (same client_scan_id),
+ * without touching the ticket or writing another log row. Returns null when this
+ * scan id is new.
+ *
+ * The stored row is the source of truth for WHAT happened; holder/type/seat are
+ * re-read from the ticket, and a re-entry is re-numbered as of that moment, so
+ * the retry sees exactly what the first delivery would have shown.
+ */
+async function replayScan(
+  db: CheckinDb,
+  clientScanId: string,
+  eventId: string,
+): Promise<CheckinResponse | null> {
+  const { data: prior } = (await db
+    .from('checkin_log')
+    .select('ticket_id, result, created_at')
+    .eq('client_scan_id', clientScanId)
+    .eq('event_id', eventId)
+    .maybeSingle()) as {
+    data: {
+      ticket_id: string | null
+      result: CheckinOutcome
+      created_at: string
+    } | null
+  }
+  if (!prior) return null
+  if (!prior.ticket_id) return invalidResponse()
+
+  const { data: ticket } = (await db
+    .from('tickets')
+    .select(
+      'id, status, used_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
+    )
+    .eq('id', prior.ticket_id)
+    .maybeSingle()) as { data: TicketRow | null }
+  if (!ticket) return invalidResponse()
+
+  const base = {
+    holderName: ticket.holder_name ?? null,
+    ticketType: typeName(ticket),
+    ref: ticket.id.slice(0, 8).toUpperCase(),
+    seat: seatLabelOf(ticket),
+  }
+
+  if (prior.result === 'ok') {
+    // We admitted them at that moment.
+    return { ...base, result: 'ok', usedAt: prior.created_at }
+  }
+
+  if (prior.result === 'reentry') {
+    // The entry before this one ("naposledy o …") and this entry's number.
+    const { data: previous } = (await db
+      .from('checkin_log')
+      .select('created_at')
+      .eq('ticket_id', ticket.id)
+      .in('result', ['ok', 'reentry'])
+      .lt('created_at', prior.created_at)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()) as { data: { created_at: string } | null }
+
+    const { count } = (await db
+      .from('checkin_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('ticket_id', ticket.id)
+      .in('result', ['ok', 'reentry'])
+      .lte('created_at', prior.created_at)) as { count: number | null }
+
+    return {
+      ...base,
+      result: 'reentry',
+      usedAt: previous?.created_at ?? ticket.used_at ?? null,
+      entryCount: count ?? 2,
+    }
+  }
+
+  return { ...base, result: prior.result, usedAt: ticket.used_at ?? null }
+}
+
+/**
  * Process one scanned QR string for `eventId`, on behalf of member `userId` of
  * `organizerId`. Returns null when the event does not belong to that organizer
  * (the caller maps this to 403); otherwise always returns a CheckinResponse.
@@ -110,6 +190,12 @@ export async function checkInTicket(args: {
   qr: string
   userId: string
   deviceLabel?: string | null
+  /**
+   * Client-generated id of ONE scan (native app). If a scan with this id was
+   * already processed, its original outcome is replayed and nothing is written
+   * again — see replayScan.
+   */
+  clientScanId?: string | null
   now?: () => string
   db?: CheckinDb
 }): Promise<CheckinResponse | null> {
@@ -130,6 +216,15 @@ export async function checkInTicket(args: {
   }
   if (!event) return null
 
+  // 1b. Scan-level idempotency. The offline app replays queued admissions and
+  //     delivery is at-least-once, so the same scan can arrive twice. Ticket
+  //     level idempotency would not be enough: on a re-entry event the replay
+  //     would be counted as another entry and inflate the organizer's numbers.
+  if (args.clientScanId) {
+    const replay = await replayScan(db, args.clientScanId, args.eventId)
+    if (replay) return replay
+  }
+
   const log = (ticketId: string | null, result: CheckinOutcome) =>
     db.from('checkin_log').insert({
       ticket_id: ticketId,
@@ -137,6 +232,7 @@ export async function checkInTicket(args: {
       result,
       device_label: deviceLabel,
       performed_by: args.userId,
+      client_scan_id: args.clientScanId ?? null,
     })
 
   // 2. Verify the HMAC signature against this event's secret.

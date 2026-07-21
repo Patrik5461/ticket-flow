@@ -91,6 +91,7 @@ export async function fetchOfflineBundlePage(
 export async function checkinScan(
   eventId: string,
   qr: string,
+  clientScanId?: string,
 ): Promise<ScanResult> {
   const token = await accessToken()
   if (!token) throw new AuthError('NO_SESSION')
@@ -101,7 +102,10 @@ export async function checkinScan(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    { eventId, qr, deviceLabel: await deviceLabel() },
+    // clientScanId makes a replayed offline admission idempotent at scan level:
+    // if the server already processed this scan, it replays the original
+    // outcome instead of recording another entry.
+    { eventId, qr, deviceLabel: await deviceLabel(), clientScanId },
   )
 
   if (status === 401) throw new AuthError('UNAUTHORIZED')

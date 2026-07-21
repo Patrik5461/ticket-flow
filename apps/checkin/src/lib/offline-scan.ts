@@ -113,6 +113,12 @@ export function evaluateOffline(args: {
 export async function scanOffline(
   eventId: string,
   qr: string,
+  /**
+   * Id of THIS scan. The caller passes the same id it used for the failed
+   * online attempt, so if that attempt actually reached the server the replay
+   * is recognised as a duplicate instead of adding an entry.
+   */
+  scanId: string = crypto.randomUUID(),
   now: () => string = () => new Date().toISOString(),
 ): Promise<ScanResult> {
   const bundle = await getOfflineBundle(eventId)
@@ -131,7 +137,7 @@ export async function scanOffline(
   if (ticket && patch) await updateOfflineTicket(eventId, tokenHash, patch)
   if (ticket && enqueue) {
     await enqueueScan({
-      id: crypto.randomUUID(),
+      id: scanId,
       eventId,
       ticketId: ticket.id,
       ref: response.ref,

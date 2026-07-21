@@ -17,6 +17,11 @@ const bodySchema = z.object({
   eventId: z.string().uuid(),
   qr: z.string().min(1).max(512),
   deviceLabel: z.string().max(120).optional(),
+  /**
+   * Optional per-scan id from the native app, making a replayed offline
+   * admission idempotent at scan level. The web scanner does not send it.
+   */
+  clientScanId: z.string().uuid().optional(),
 })
 
 export interface CheckinDeps {
@@ -33,6 +38,7 @@ export interface CheckinDeps {
     qr: string
     userId: string
     deviceLabel: string | null
+    clientScanId: string | null
   }) => Promise<CheckinResponse | null>
 }
 
@@ -70,6 +76,7 @@ export async function handleCheckin(
     qr: body.qr,
     userId,
     deviceLabel: body.deviceLabel ?? null,
+    clientScanId: body.clientScanId ?? null,
   })
   if (!result) {
     // Event does not belong to this organizer.

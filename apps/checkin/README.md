@@ -39,6 +39,7 @@ správe eventov.
 | 3b | Offline skenovanie (lokálne overenie + fronta) | **hotové** |
 | 3c | Synchronizácia fronty + konflikty | **hotové** |
 | 3d | Testy a overenie | **hotové** |
+| 3e | Idempotencia na úrovni skenu (`client_scan_id`) | **hotové** |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
@@ -143,11 +144,28 @@ počet čakajúcich, priebeh „Odosielam 3 / 12…".
   konkrétnych vstupeniek** (ref, meno, dôvod). Report je uložený lokálne, takže
   ho nezmaže ani reštart appky — mizne až po potvrdení „Rozumiem".
 
-> **Známy kompromis:** doručenie je *at-least-once*. Ak server sken zapíše, ale
-> odpoveď sa stratí, záznam zostane vo fronte a pošle sa znova — potom sa
-> ohlási ako konflikt (`už použitá`), resp. pri zapnutom opätovnom vstupe
-> pribudne jeden vstup navyše. Stratiť odbavenie by bolo horšie než ohlásiť ho
-> dvakrát.
+Doručenie je *at-least-once* — ak server sken zapíše, ale odpoveď sa stratí,
+záznam zostane vo fronte a pošle sa znova. Aby to neskresľovalo dáta, rieši to
+Blok 3e.
+
+### Blok 3e — idempotencia na úrovni skenu
+
+Appka pri **každom skene** vygeneruje `clientScanId` (uuid) a uloží ho do fronty.
+Rovnaké id použije online pokus **aj** offline fallback, takže aj keď online
+požiadavka na server dorazí a stratí sa len odpoveď, neskorší replay z fronty je
+rozpoznaný ako **ten istý sken**.
+
+Server (`checkin_log.client_scan_id` + partial unique index): ak sken s týmto id
+už spracoval, **prehrá pôvodný výsledok** — nezapíše nový riadok a nesiahne na
+vstupenku. Re-entry sa dokonca prečísluje ku dňu pôvodného skenu, takže retry
+vidí presne to, čo by bola videla prvá odpoveď.
+
+Prečo to bolo treba: bez toho by pri evente so zapnutým opätovným vstupom
+stratená odpoveď pridala **jeden vstup navyše** a organizátor by v štatistike
+videl viac vstupov, než reálne bolo.
+
+`clientScanId` je **voliteľný** — webový skener ho neposiela a správa sa
+nezmenene (idempotencia na úrovni vstupenky mu stačí).
 
 ### Blok 3d — testy
 

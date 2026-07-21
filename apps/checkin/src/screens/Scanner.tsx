@@ -82,20 +82,25 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
       inFlightRef.current = true
       setBusy(true)
       try {
+        // One id for this scan, shared by the online attempt and the offline
+        // fallback: if the online request reached the server but its response
+        // was lost, the queued replay is recognised as the SAME scan and cannot
+        // add a second entry.
+        const scanId = crypto.randomUUID()
         let res: ScanResult
         if (navigator.onLine) {
           try {
-            res = await checkinScan(event.id, qr)
+            res = await checkinScan(event.id, qr, scanId)
           } catch (e) {
             // An expired session is not a connectivity problem — do not mask it
             // by silently switching to local data.
             if (e instanceof AuthError) throw e
             // The request failed (no signal, captive portal, server down):
             // fall back to the downloaded data.
-            res = await scanOffline(event.id, qr)
+            res = await scanOffline(event.id, qr, scanId)
           }
         } else {
-          res = await scanOffline(event.id, qr)
+          res = await scanOffline(event.id, qr, scanId)
         }
         showResult(res)
         if (res.offline) void refreshPending()

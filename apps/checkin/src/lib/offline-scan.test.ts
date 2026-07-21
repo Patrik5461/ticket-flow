@@ -150,7 +150,7 @@ describe('scanOffline (against downloaded data)', () => {
 
   it('admits a scan, persists it locally and queues exactly one entry', async () => {
     await seed({})
-    const res = await scanOffline(EVENT, QR, () => '2026-07-20T19:00:00.000Z')
+    const res = await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
     expect(res).toMatchObject({ result: 'ok', holderName: 'Jana Nováková', offline: true })
 
     // Local state updated…
@@ -165,12 +165,21 @@ describe('scanOffline (against downloaded data)', () => {
     expect(queue[0]).toMatchObject({ eventId: EVENT, ticketId: TICKET, qr: QR })
     expect(queue[0].scannedAt).toBe('2026-07-20T19:00:00.000Z')
     expect(queue[0].deviceLabel).toMatch(/^Ticketio Scan · /)
+    // The queue entry id IS the scan id, so replaying it is idempotent.
+    expect(queue[0].id).toBe('scan-1')
+  })
+
+  it('generates a scan id when the caller does not supply one', async () => {
+    await seed({})
+    await scanOffline(EVENT, QR)
+    const [entry] = await readQueue()
+    expect(entry.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('re-entry OFF: the second scan is refused and adds nothing to the queue', async () => {
     await seed({})
-    await scanOffline(EVENT, QR, () => '2026-07-20T19:00:00.000Z')
-    const second = await scanOffline(EVENT, QR, () => '2026-07-20T20:00:00.000Z')
+    await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
+    const second = await scanOffline(EVENT, QR, 'scan-2', () => '2026-07-20T20:00:00.000Z')
     expect(second).toMatchObject({
       result: 'already_used',
       usedAt: '2026-07-20T19:00:00.000Z',
@@ -180,9 +189,9 @@ describe('scanOffline (against downloaded data)', () => {
 
   it('re-entry ON: repeated scans are re-entries, numbered, and each is queued', async () => {
     await seed({ allowReentry: true })
-    await scanOffline(EVENT, QR, () => '2026-07-20T19:00:00.000Z')
-    const second = await scanOffline(EVENT, QR, () => '2026-07-20T20:00:00.000Z')
-    const third = await scanOffline(EVENT, QR, () => '2026-07-20T21:00:00.000Z')
+    await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
+    const second = await scanOffline(EVENT, QR, 'scan-2', () => '2026-07-20T20:00:00.000Z')
+    const third = await scanOffline(EVENT, QR, 'scan-3', () => '2026-07-20T21:00:00.000Z')
 
     expect(second).toMatchObject({
       result: 'reentry',

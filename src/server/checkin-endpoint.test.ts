@@ -42,6 +42,35 @@ describe('handleCheckin', () => {
     expect(await res.json()).toMatchObject({ result: 'ok' })
   })
 
+  it('passes an optional clientScanId through, and null when absent', async () => {
+    const calls: { clientScanId: string | null }[] = []
+    const d = deps({
+      checkInTicket: async (input) => {
+        calls.push({ clientScanId: input.clientScanId })
+        return OK_RESULT
+      },
+    })
+
+    // Native app: carries the per-scan id used for idempotent replay.
+    const scanId = '22222222-2222-4222-8222-222222222222'
+    await handleCheckin(
+      req({ eventId: EVENT_ID, qr: 'TIK.abc.def', clientScanId: scanId }),
+      d,
+    )
+    // Web scanner: does not send one.
+    await handleCheckin(req(), d)
+
+    expect(calls).toEqual([{ clientScanId: scanId }, { clientScanId: null }])
+  })
+
+  it('rejects a malformed clientScanId rather than ignoring it', async () => {
+    const res = await handleCheckin(
+      req({ eventId: EVENT_ID, qr: 'TIK.abc.def', clientScanId: 'nope' }),
+      deps(),
+    )
+    expect(res.status).toBe(400)
+  })
+
   it('invalid / expired token (no user id) → 401', async () => {
     const res = await handleCheckin(req(), deps({ resolveUserId: async () => null }))
     expect(res.status).toBe(401)

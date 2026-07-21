@@ -22,6 +22,8 @@ class Builder {
   private values: Record<string, unknown> = {}
   private eqs: [string, unknown][] = []
   private neqs: [string, unknown][] = []
+  private lts: [string, string][] = []
+  private ltes: [string, string][] = []
   private ins: [string, unknown[]][] = []
   private orderBy: { col: string; asc: boolean } | null = null
   private limitN: number | null = null
@@ -63,6 +65,14 @@ class Builder {
     this.ins.push([col, arr])
     return this
   }
+  lt(col: string, val: string) {
+    this.lts.push([col, val])
+    return this
+  }
+  lte(col: string, val: string) {
+    this.ltes.push([col, val])
+    return this
+  }
   order(col: string, opts?: { ascending?: boolean }) {
     this.orderBy = { col, asc: opts?.ascending ?? true }
     return this
@@ -80,7 +90,9 @@ class Builder {
       (row) =>
         this.eqs.every(([c, v]) => row[c] === v) &&
         this.neqs.every(([c, v]) => row[c] !== v) &&
-        this.ins.every(([c, arr]) => arr.includes(row[c])),
+        this.ins.every(([c, arr]) => arr.includes(row[c])) &&
+        this.lts.every(([c, v]) => String(row[c]) < v) &&
+        this.ltes.every(([c, v]) => String(row[c]) <= v),
     )
     if (this.orderBy) {
       const { col, asc } = this.orderBy
@@ -97,7 +109,13 @@ class Builder {
 
   private run(single: boolean) {
     if (this.op === 'insert') {
-      this.store[this.table].push({ ...this.values })
+      const row = { ...this.values }
+      // The DB stamps created_at; the fake stamps a monotonic one so ordering
+      // between consecutive log rows is deterministic.
+      if (this.table === 'checkin_log' && row.created_at === undefined) {
+        row.created_at = nextStamp()
+      }
+      this.store[this.table].push(row)
       return { data: null, error: null }
     }
     if (this.op === 'update') {
@@ -125,6 +143,12 @@ class Builder {
 
 function fakeDb(store: Store): CheckinDb {
   return { from: (table: string) => new Builder(store, table as keyof Store) }
+}
+
+let stampSeq = 0
+function nextStamp(): string {
+  stampSeq += 1
+  return `2026-07-15T18:00:${String(stampSeq).padStart(2, '0')}.000Z`
 }
 
 const ORG = 'org-1'
@@ -160,14 +184,16 @@ describe('checkInTicket', () => {
   beforeEach(() => {
     store = baseStore()
     db = fakeDb(store)
+    stampSeq = 0
   })
 
-  const scan = (qr: string, now = () => FIXED_NOW) =>
+  const scan = (qr: string, now = () => FIXED_NOW, clientScanId?: string) =>
     checkInTicket({
       eventId: EVENT_ID,
       organizerId: ORG,
       qr,
       userId: USER,
+      clientScanId,
       now,
       db,
     })
@@ -306,6 +332,66 @@ describe('checkInTicket', () => {
     // Summary is unchanged by a re-entry.
     const summary = await getCheckinSummary(EVENT_ID, ORG, db)
     expect(summary).toEqual({ total: 1, checkedIn: 1 })
+  })
+
+  // Scan-level idempotency (Block 3e). The offline app replays queued
+  // admissions at-least-once; the same scan must never be recorded twice.
+  it('replays the same client_scan_id instead of admitting again', async () => {
+    const qr = signTicket(TICKET_ID, SECRET)
+    const first = await scan(qr, () => FIXED_NOW, 'scan-1')
+    expect(first?.result).toBe('ok')
+    expect(store.checkin_log).toHaveLength(1)
+    expect(store.checkin_log[0]).toMatchObject({ client_scan_id: 'scan-1' })
+
+    const replay = await scan(qr, () => '2026-07-15T22:00:00.000Z', 'scan-1')
+
+    expect(replay).toMatchObject({
+      result: 'ok', // NOT already_used — the original answer is replayed
+      holderName: 'Jana Nováková',
+      ticketType: 'VIP',
+    })
+    // Nothing was written a second time.
+    expect(store.checkin_log).toHaveLength(1)
+    expect(store.tickets[0].used_at).toBe(FIXED_NOW)
+  })
+
+  it('re-entry ON: a replayed scan does not inflate the entry count', async () => {
+    store.events[0].allow_reentry = true
+    const qr = signTicket(TICKET_ID, SECRET)
+
+    await scan(qr, () => FIXED_NOW, 'scan-1') // first entry
+    const second = await scan(qr, () => '2026-07-15T20:00:00.000Z', 'scan-2')
+    expect(second).toMatchObject({ result: 'reentry', entryCount: 2 })
+    expect(store.checkin_log).toHaveLength(2)
+
+    // The response to scan-2 was lost, so the app sends it again.
+    const replay = await scan(qr, () => '2026-07-15T21:00:00.000Z', 'scan-2')
+
+    expect(replay).toMatchObject({ result: 'reentry', entryCount: 2 })
+    // No third entry — the organizer's numbers stay truthful.
+    expect(store.checkin_log).toHaveLength(2)
+  })
+
+  it('a different scan id is processed normally', async () => {
+    store.events[0].allow_reentry = true
+    const qr = signTicket(TICKET_ID, SECRET)
+    await scan(qr, () => FIXED_NOW, 'scan-1')
+    const other = await scan(qr, () => '2026-07-15T20:00:00.000Z', 'scan-2')
+    expect(other).toMatchObject({ result: 'reentry', entryCount: 2 })
+    expect(store.checkin_log).toHaveLength(2)
+  })
+
+  it('replays an invalid scan without re-logging it', async () => {
+    const bad = signTicket(TICKET_ID, 'other-secret')
+    expect((await scan(bad, () => FIXED_NOW, 'scan-9'))?.result).toBe('invalid')
+    expect(store.checkin_log).toHaveLength(1)
+    expect((await scan(bad, () => FIXED_NOW, 'scan-9'))?.result).toBe('invalid')
+    expect(store.checkin_log).toHaveLength(1)
+  })
+
+  it('web scans (no client_scan_id) are unaffected and log null', async () => {
+    await scan(signTicket(TICKET_ID, SECRET))
+    expect(store.checkin_log[0]).toMatchObject({ client_scan_id: null })
   })
 
   it('re-entry ON: third scan reports entryCount 3 and the second entry as "last"', async () => {

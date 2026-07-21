@@ -123,7 +123,9 @@ export async function runSync(): Promise<SyncState> {
 
   for (const entry of queue) {
     try {
-      const res = await checkinScan(entry.eventId, entry.qr)
+      // entry.id is the id generated when the holder was scanned — replaying it
+      // is idempotent at scan level, so a lost response cannot inflate entries.
+      const res = await checkinScan(entry.eventId, entry.qr, entry.id)
       accepted.push(entry.id)
       // 'ok' = admitted, 'reentry' = admitted again (re-entry mode on).
       // Anything else means the ticket was consumed elsewhere.

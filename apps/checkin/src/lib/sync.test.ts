@@ -6,11 +6,15 @@ import type { ScanResult } from './types'
 vi.mock('@capacitor/preferences', async () => await import('../test/preferences-mock'))
 
 class FakeAuthError extends Error {}
-const checkinScan = vi.fn<(eventId: string, qr: string) => Promise<ScanResult>>()
+const checkinScan =
+  vi.fn<
+    (eventId: string, qr: string, clientScanId?: string) => Promise<ScanResult>
+  >()
 
 vi.mock('./api', () => ({
   AuthError: FakeAuthError,
-  checkinScan: (eventId: string, qr: string) => checkinScan(eventId, qr),
+  checkinScan: (eventId: string, qr: string, clientScanId?: string) =>
+    checkinScan(eventId, qr, clientScanId),
   fetchOfflineBundlePage: vi.fn(),
 }))
 
@@ -63,6 +67,26 @@ describe('runSync', () => {
     expect(state.pending).toBe(0)
     expect(state.conflicts).toHaveLength(0)
     expect(state.error).toBeNull()
+  })
+
+  it('replays each admission under its own scan id (server-side dedup)', async () => {
+    await queueScans(2)
+    checkinScan.mockResolvedValue(result('ok'))
+
+    await runSync()
+
+    expect(checkinScan).toHaveBeenNthCalledWith(
+      1,
+      EVENT,
+      'TIK.ticket-1.sig',
+      'local-1',
+    )
+    expect(checkinScan).toHaveBeenNthCalledWith(
+      2,
+      EVENT,
+      'TIK.ticket-2.sig',
+      'local-2',
+    )
   })
 
   it('a re-entry is an accepted admission, not a conflict', async () => {
