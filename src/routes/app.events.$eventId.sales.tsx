@@ -120,18 +120,21 @@ function SalesPage() {
         </div>
       </div>
 
-      {/* Totals (realized revenue = paid orders) */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* One dashboard: money AND door progress, all from the same live
+          snapshot — no extra query, the counts fall out of the same pass. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <Stat label="Predané" value={String(totals.ticketCount)} />
         <Stat label="Hrubé tržby" value={formatEur(totals.grossCents)} />
         <Stat label="Provízia platformy" value={formatEur(totals.feeCents)} />
         <Stat label="Netto pre vás" value={formatEur(totals.netCents)} />
         <Stat
-          label="Zaplatené objednávky"
-          value={String(totals.paidOrderCount)}
+          label="Odbavených"
+          value={`${totals.checkedIn} / ${totals.ticketCount}`}
         />
       </div>
       <p className="-mt-3 text-xs text-gray-500">
-        Súčty zahŕňajú len zaplatené objednávky.
+        Súčty zahŕňajú len zaplatené objednávky ({totals.paidOrderCount}).
+        „Predané" a „Odbavených" sú vstupenky (bez zrušených).
       </p>
 
       {/* Chart rides on the same live snapshot as the cards above. */}

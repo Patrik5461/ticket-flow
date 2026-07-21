@@ -58,7 +58,13 @@ interface OrderAmounts {
   order_items: { quantity: number }[] | null
 }
 
-const PAID_STATUSES: OrderStatus[] = ['paid', 'partially_refunded']
+/**
+ * Realized revenue = paid orders, exactly as buildSalesData (and the page's
+ * "Súčty zahŕňajú len zaplatené objednávky" note) define it. The two must agree
+ * or the cards would jump the moment the first live snapshot replaces the
+ * loader's numbers.
+ */
+const PAID_STATUSES: OrderStatus[] = ['paid']
 
 /**
  * Snapshot for one event, scoped to the caller's organizer. Returns null when

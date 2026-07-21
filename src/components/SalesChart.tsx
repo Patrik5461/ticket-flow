@@ -30,7 +30,7 @@ export function SalesChart({
             title={`${fmtDay(d.date)} — ${formatEur(d.grossCents)} · ${d.orders} obj.`}
           >
             <div
-              className="absolute bottom-0 left-0 w-full rounded-t bg-indigo-500/80 transition-colors group-hover:bg-indigo-600"
+              className="absolute bottom-0 left-0 w-full rounded-t bg-green-600/80 transition-colors group-hover:bg-green-600"
               style={{
                 height: `${Math.max(2, Math.round((d.grossCents / max) * 100))}%`,
               }}

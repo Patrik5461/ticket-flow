@@ -14,8 +14,9 @@ import { getRequest } from '@tanstack/react-start/server'
 import { serviceClient } from '../lib/supabase/server'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { isPlatformAdmin } from './admin'
+import { IMPERSONATE_COOKIE } from '../lib/impersonation-cookie'
 
-export const IMPERSONATE_COOKIE = 'ticketio_impersonate'
+export { IMPERSONATE_COOKIE }
 
 function readCookie(name: string): string | null {
   const header = getRequest().headers.get('cookie') ?? ''

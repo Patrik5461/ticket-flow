@@ -30,6 +30,9 @@ export interface SalesData {
     feeCents: number
     netCents: number
     paidOrderCount: number
+    /** Tickets issued (excluding cancelled) and how many are already admitted. */
+    ticketCount: number
+    checkedIn: number
   }
   perType: { name: string; soldQty: number; capacity: number }[]
 }
@@ -117,6 +120,19 @@ export async function buildSalesData(
     }
   }
 
+  // Door progress for the same dashboard. Two indexed COUNTs on page load only —
+  // the live stream derives these from its own pass, not from here.
+  const { count: ticketCount } = (await db
+    .from('tickets')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .neq('status', 'cancelled')) as { count: number | null }
+  const { count: checkedIn } = (await db
+    .from('tickets')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'used')) as { count: number | null }
+
   const perType = (types ?? []).map((t) => ({
     name: t.name,
     soldQty: soldByType.get(t.id) ?? 0,
@@ -126,7 +142,14 @@ export async function buildSalesData(
   return {
     event,
     orders,
-    totals: { grossCents, feeCents, netCents: grossCents - feeCents, paidOrderCount },
+    totals: {
+      grossCents,
+      feeCents,
+      netCents: grossCents - feeCents,
+      paidOrderCount,
+      ticketCount: ticketCount ?? 0,
+      checkedIn: checkedIn ?? 0,
+    },
     perType,
   }
 }
