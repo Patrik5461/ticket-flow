@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { ensureDarkStatusBar } from './lib/chrome'
+import { clearAllOffline } from './lib/offline'
 import { supabase } from './lib/supabase'
 import { Login } from './screens/Login'
 import { EventList } from './screens/EventList'
@@ -24,9 +25,13 @@ export function App() {
     void ensureDarkStatusBar()
     void SplashScreen.hide().catch(() => {})
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (!s) setEvent(null)
+      // Signing out wipes every downloaded bundle: the phone may be borrowed,
+      // and the data contains attendee names. Only on an explicit SIGNED_OUT —
+      // a failed token refresh while offline must NOT destroy local data.
+      if (event === 'SIGNED_OUT') void clearAllOffline()
     })
 
     // iOS resets the status bar on resume — re-assert it. (StatusBar only, so we

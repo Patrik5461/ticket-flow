@@ -31,6 +31,7 @@ import { Route as AppVenuesRouteImport } from './routes/app.venues'
 import { Route as AppSettlementsRouteImport } from './routes/app.settlements'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppDevelopersRouteImport } from './routes/app.developers'
+import { Route as ApiOfflineBundleRouteImport } from './routes/api.offline-bundle'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminSearchRouteImport } from './routes/admin.search'
@@ -186,6 +187,11 @@ const AppDevelopersRoute = AppDevelopersRouteImport.update({
   id: '/developers',
   path: '/developers',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiOfflineBundleRoute = ApiOfflineBundleRouteImport.update({
+  id: '/api/offline-bundle',
+  path: '/api/offline-bundle',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -448,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/offline-bundle': typeof ApiOfflineBundleRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -515,6 +522,7 @@ export interface FileRoutesByTo {
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/offline-bundle': typeof ApiOfflineBundleRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -584,6 +592,7 @@ export interface FileRoutesById {
   '/admin/search': typeof AdminSearchRoute
   '/api/checkin': typeof ApiCheckinRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/offline-bundle': typeof ApiOfflineBundleRoute
   '/app/developers': typeof AppDevelopersRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/settlements': typeof AppSettlementsRoute
@@ -655,6 +664,7 @@ export interface FileRouteTypes {
     | '/admin/search'
     | '/api/checkin'
     | '/api/health'
+    | '/api/offline-bundle'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -722,6 +732,7 @@ export interface FileRouteTypes {
     | '/admin/search'
     | '/api/checkin'
     | '/api/health'
+    | '/api/offline-bundle'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -790,6 +801,7 @@ export interface FileRouteTypes {
     | '/admin/search'
     | '/api/checkin'
     | '/api/health'
+    | '/api/offline-bundle'
     | '/app/developers'
     | '/app/settings'
     | '/app/settlements'
@@ -854,6 +866,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiCheckinRoute: typeof ApiCheckinRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiOfflineBundleRoute: typeof ApiOfflineBundleRoute
   OrderIdRoute: typeof OrderIdRoute
   PosReceiptOrderIdRoute: typeof PosReceiptOrderIdRoute
   ApiCronIssueInvoicesRoute: typeof ApiCronIssueInvoicesRoute
@@ -1033,6 +1046,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/developers'
       preLoaderRoute: typeof AppDevelopersRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/offline-bundle': {
+      id: '/api/offline-bundle'
+      path: '/api/offline-bundle'
+      fullPath: '/api/offline-bundle'
+      preLoaderRoute: typeof ApiOfflineBundleRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -1485,6 +1505,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiCheckinRoute: ApiCheckinRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiOfflineBundleRoute: ApiOfflineBundleRoute,
   OrderIdRoute: OrderIdRoute,
   PosReceiptOrderIdRoute: PosReceiptOrderIdRoute,
   ApiCronIssueInvoicesRoute: ApiCronIssueInvoicesRoute,

@@ -1,7 +1,7 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { API_BASE } from './env'
 import { accessToken } from './supabase'
-import type { ScanResult } from './types'
+import type { OfflineBundlePage, ScanResult } from './types'
 
 const INVALID: ScanResult = {
   result: 'invalid',
@@ -41,6 +41,44 @@ async function postCheckin(
   })
   const text = await res.text()
   return { status: res.status, body: text ? JSON.parse(text) : null }
+}
+
+async function getJson(
+  url: string,
+  headers: Record<string, string>,
+): Promise<Raw> {
+  if (Capacitor.isNativePlatform()) {
+    const res = await CapacitorHttp.get({ url, headers })
+    return { status: res.status, body: res.data }
+  }
+  const res = await fetch(url, { headers })
+  const text = await res.text()
+  return { status: res.status, body: text ? JSON.parse(text) : null }
+}
+
+/**
+ * One page of the offline bundle (ticket list + QR digests) for an event.
+ * Same Bearer authorization as the check-in call. Never contains the event's
+ * qr_secret — see src/server/offline-bundle.ts on the server.
+ */
+export async function fetchOfflineBundlePage(
+  eventId: string,
+  offset: number,
+  limit: number,
+): Promise<OfflineBundlePage> {
+  const token = await accessToken()
+  if (!token) throw new AuthError('NO_SESSION')
+
+  const { status, body } = await getJson(
+    `${API_BASE}/api/offline-bundle?eventId=${encodeURIComponent(eventId)}&offset=${offset}&limit=${limit}`,
+    { Authorization: `Bearer ${token}` },
+  )
+
+  if (status === 401) throw new AuthError('UNAUTHORIZED')
+  if (status < 200 || status >= 300) {
+    throw new Error(`Stiahnutie zlyhalo (${status}).`)
+  }
+  return body as OfflineBundlePage
 }
 
 /**

@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { loadEvents } from '../lib/events'
 import { formatWhen } from '../lib/format'
+import { listOffline, purgeExpiredOffline, type OfflineMeta } from '../lib/offline'
+import { OfflineRow } from '../components/OfflineRow'
 import { supabase } from '../lib/supabase'
 import type { EventRow } from '../lib/types'
 
@@ -8,6 +10,15 @@ import type { EventRow } from '../lib/types'
 export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
   const [events, setEvents] = useState<EventRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [offline, setOffline] = useState<Record<string, OfflineMeta>>({})
+
+  // Bundles of events that ended >24 h ago are dropped here, so personal data
+  // never lingers on a door phone.
+  const refreshOffline = useCallback(() => {
+    void purgeExpiredOffline()
+      .then(listOffline)
+      .then(setOffline)
+  }, [])
 
   const refresh = () => {
     setError(null)
@@ -16,7 +27,10 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
       .catch(() => setError('Nepodarilo sa načítať podujatia.'))
   }
 
-  useEffect(refresh, [])
+  useEffect(() => {
+    refresh()
+    refreshOffline()
+  }, [refreshOffline])
 
   return (
     <div className="screen safe">
@@ -52,7 +66,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
           {events?.map((e) => {
             const pct = e.total > 0 ? Math.round((e.checkedIn / e.total) * 100) : 0
             return (
-              <li key={e.id}>
+              <li key={e.id} className="event-item">
                 <button className="event-card" onClick={() => onPick(e)}>
                   <div className="event-title">{e.title}</div>
                   <div className="event-meta">
@@ -71,6 +85,12 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
                     />
                   </div>
                 </button>
+                <OfflineRow
+                  eventId={e.id}
+                  timezone={e.timezone}
+                  meta={offline[e.id] ?? null}
+                  onChange={refreshOffline}
+                />
               </li>
             )
           })}

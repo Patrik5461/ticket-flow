@@ -35,7 +35,8 @@ správe eventov.
 |------|-------|------|
 | 1 | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové** |
 | 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
-| 3 | Offline režim (lokálna DB, lokálne overenie HMAC, sync) | odložené na v2 |
+| 3a | Offline režim — stiahnutie dát na zariadenie | **hotové** |
+| 3b–3d | Offline skenovanie, synchronizácia, testy | pripravuje sa |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
@@ -54,6 +55,41 @@ správe eventov.
   akceptuje Bearer token **len tu** (spätne kompatibilné s cookie); admin/tržby/
   exporty ostávajú cookie-only. Autorizácia je identická — kontrola členstva v
   `organizer_members` prebehne rovnako ako pri webe.
+
+### Blok 3a — offline dáta
+
+V zozname podujatí má každý event pásik **„Stiahnuť pre offline"**. Stiahnutie
+volá nový endpoint `GET /api/offline-bundle` (stránkovane po 500 vstupenkách,
+s ukazovateľom priebehu) a uloží dáta do natívnych Preferences
+(`src/lib/offline.ts`). Zobrazuje sa počet vstupeniek a **čas poslednej
+aktualizácie** — po 2 hodinách zožltne, nech pracovník vidí, že má staré dáta.
+
+#### ⚠️ Bezpečnosť — na zariadení NIE JE `qr_secret`
+
+Kto má `qr_secret` eventu, vie vyrobiť platné QR kódy. Preto sa **nesťahuje**.
+Namiesto neho posiela server pre každú vstupenku **SHA-256 odtlačok celého QR
+tokenu**. Skener zahashuje to, čo naskenoval, a odtlačok vyhľadá — falzifikát
+neprejde (bez tokenu sa jeho hash nedá vyrobiť), ale z telefónu sa nedá vytiahnuť
+nič, čím by sa dala vstupenka sfalšovať.
+
+Dôsledok, s ktorým appka počíta: vstupenka predaná **až po** stiahnutí dát v
+balíku nie je. Offline ju skener označí ako **„Neznáma vstupenka — over
+online"**, nikdy nie ako neplatnú (Blok 3b).
+
+Stiahnuté dáta obsahujú mená návštevníkov, takže sa mažú:
+
+- **pri odhlásení** (`SIGNED_OUT` → zmaže všetky balíky vrátane fronty),
+- **ručne** tlačidlom „Zmazať" pri evente,
+- **automaticky 24 h po skončení eventu** (kontrola pri každom otvorení zoznamu).
+
+> **Odporúčanie pre organizátorov:** offline dáta sťahujte len na zariadenia,
+> ktoré máte pod kontrolou, a po evente ich zmažte (alebo sa odhláste). Na
+> požičanom telefóne sa po skončení práce vždy odhláste — tým sa lokálne dáta
+> zmažú okamžite.
+
+Sťahovať smie len člen organizátora daného eventu — endpoint má rovnakú
+autorizáciu ako `/api/checkin` (Bearer token → členstvo v `organizer_members` →
+vlastníctvo eventu).
 
 ## Prvé spustenie (Blok 1)
 
