@@ -28,7 +28,12 @@ const config: CapacitorConfig = {
     // projects (see README).
   },
   ios: {
-    contentInset: 'always',
+    // 'never' — the webview paints edge-to-edge and the layout clears the
+    // notch / home indicator in CSS (env(safe-area-inset-*), see theme.css).
+    // With 'always' WKWebView insets its scroll view, and the exposed strip at
+    // the top is painted by the NATIVE webview background, not by our HTML —
+    // that strip is the white bar. Never inset natively; inset in CSS.
+    contentInset: 'never',
     backgroundColor: '#09090b',
   },
   android: {

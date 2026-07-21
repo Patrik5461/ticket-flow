@@ -87,6 +87,35 @@ inštalácii, nie až po prvom stiahnutí modelu):
 
 ---
 
+## 4b. Tmavé pozadie a orientácia (natívna vrstva)
+
+Appka je **dark-only a len na výšku**. Nastavené je to natívne, nie v CSS — CSS
+sa k safe-area pruhom (pod Dynamic Islandom / nad home indikátorom) nedostane:
+Capacitor nastavuje `view = webView`, takže čokoľvek nenamaľuje HTML, maľuje
+**natívne pozadie WKWebView**. Ak sa farba z configu nechytí, Capacitor
+fallbackuje na `UIColor.systemBackground` = **biela v light móde** — to bol ten
+biely pruh hore.
+
+iOS (už aplikované v repe):
+
+| Súbor | Zmena |
+|---|---|
+| `capacitor.config.ts` | `ios.contentInset: 'never'` — webview kreslí edge-to-edge; odsadenie rieši `env(safe-area-inset-*)` v CSS |
+| `ios/App/App/AppDelegate.swift` | `MainViewController: CAPBridgeViewController` — `isOpaque = true`, `backgroundColor`/`scrollView.backgroundColor` = `#09090b`, `overrideUserInterfaceStyle = .dark`, `preferredStatusBarStyle = .lightContent`; `window.backgroundColor` tiež |
+| `ios/App/App/Base.lproj/Main.storyboard` | `customClass="MainViewController" customModule="App"` |
+| `ios/App/App/Info.plist` | `UIUserInterfaceStyle = Dark`, `UIStatusBarStyle = UIStatusBarStyleLightContent`, `UISupportedInterfaceOrientations` (aj `~ipad`) = len `UIInterfaceOrientationPortrait` |
+| `ios/App/App/Base.lproj/LaunchScreen.storyboard` | pozadie natvrdo `#09090b` (nie `systemBackgroundColor`) |
+
+Android (doplniť pri `npx cap add android`) — `android/app/src/main/AndroidManifest.xml`,
+na `<activity android:name=".MainActivity">`:
+```xml
+android:screenOrientation="portrait"
+```
+a v `android/app/src/main/res/values/styles.xml` maj `windowBackground` = `#09090b`
+(Capacitor to preberá z `android.backgroundColor` v `capacitor.config.ts`).
+
+---
+
 ## 5. iOS → TestFlight
 
 1. `npm run sync && npm run open:ios`
@@ -167,5 +196,8 @@ Na zariadení povoľ „Inštalovať neznáme aplikácie".
   predinštaluje.
 - **„Neprihlásený" pri skenovaní:** vypršala session bez siete — prihlás sa
   znova (v1 je online-only). Token sa inak auto-obnovuje.
+- **Biely pruh v safe area (hore/dole):** natívne pozadie webview, nie CSS —
+  pozri časť 4b. Ak sa vráti, over, že storyboard ukazuje na `MainViewController`
+  a že `contentInset` je `never`.
 - **Zlý API cieľ:** skontroluj `VITE_API_BASE` v `.env` (musí byť
   `https://ticketio.sk`) a rebuildni (`npm run sync`).
