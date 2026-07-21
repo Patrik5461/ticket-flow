@@ -6,7 +6,8 @@ import {
   MAX_STREAMS_PER_ORGANIZER,
 } from './sales-stream'
 import type { StreamDeps } from './sales-stream'
-import type { SalesSnapshot } from './sales-live'
+import { loadSalesSnapshot } from './sales-live'
+import type { SalesLiveDb, SalesSnapshot } from './sales-live'
 
 const EVENT_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -54,19 +55,32 @@ const req = () => new Request('https://ticketio.sk/api/events/x/sales-stream')
  * cancelling it would disconnect the subscriber, which several tests are
  * specifically measuring.
  */
+const readers = new WeakMap<
+  Response,
+  { reader: ReadableStreamDefaultReader<Uint8Array>; text: string }
+>()
+
 async function readUntil(
   res: Response,
   match: string,
   maxReads = 20,
 ): Promise<string> {
-  const reader = res.body!.getReader()
+  // One reader per response: a stream can only be locked once, and later calls
+  // must continue where the previous one stopped.
+  let state = readers.get(res)
+  if (!state) {
+    state = { reader: res.body!.getReader(), text: '' }
+    readers.set(res, state)
+  }
+  const { reader } = state
   const decoder = new TextDecoder()
-  let text = ''
+  let text = state.text
   for (let i = 0; i < maxReads && !text.includes(match); i++) {
     const { value, done } = await reader.read()
     if (done) break
     text += decoder.decode(value, { stream: true })
   }
+  state.text = text
   return text
 }
 
@@ -177,5 +191,148 @@ describe('handleSalesStream', () => {
     // Three viewers, one interval.
     expect(ticks).toHaveLength(1)
     expect(activeStreamCount('org-1')).toBe(3)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// End to end over the real snapshot logic: a new paid order must reach an open
+// stream on the next tick, with no page refresh involved.
+// ---------------------------------------------------------------------------
+
+describe('a new order reaches an open stream', () => {
+  const ORG = 'org-1'
+  const EVENT = '11111111-1111-4111-8111-111111111111'
+
+  interface Row {
+    [k: string]: unknown
+  }
+  const store: { events: Row[]; orders: Row[]; tickets: Row[] } = {
+    events: [],
+    orders: [],
+    tickets: [],
+  }
+
+  class Chain {
+    private eqs: [string, unknown][] = []
+    private neqs: [string, unknown][] = []
+    private countMode = false
+    constructor(private table: 'events' | 'orders' | 'tickets') {}
+    select(_c?: unknown, o?: { count?: string; head?: boolean }) {
+      if (o?.count) this.countMode = true
+      return this
+    }
+    eq(c: string, v: unknown) {
+      this.eqs.push([c, v])
+      return this
+    }
+    neq(c: string, v: unknown) {
+      this.neqs.push([c, v])
+      return this
+    }
+    private rows() {
+      return store[this.table].filter(
+        (r) =>
+          this.eqs.every(([c, v]) => r[c] === v) &&
+          this.neqs.every(([c, v]) => r[c] !== v),
+      )
+    }
+    maybeSingle() {
+      return Promise.resolve({ data: this.rows()[0] ?? null, error: null })
+    }
+    then(res: (v: unknown) => void, rej?: (e: unknown) => void) {
+      const rows = this.rows()
+      return Promise.resolve(
+        this.countMode
+          ? { data: null, count: rows.length, error: null }
+          : { data: rows, error: null },
+      ).then(res, rej)
+    }
+  }
+
+  const fakeDb: SalesLiveDb = { from: (t: string) => new Chain(t as never) }
+
+  beforeEach(() => {
+    resetStreamState()
+    store.events = [
+      {
+        id: EVENT,
+        organizer_id: ORG,
+        starts_at: '2026-07-20T18:00:00.000Z',
+        timezone: 'Europe/Bratislava',
+      },
+    ]
+    store.orders = []
+    store.tickets = []
+  })
+
+  it('pushes the new totals and the updated chart without a refresh', async () => {
+    const ticks: (() => void)[] = []
+    const deps: StreamDeps = {
+      resolveUserId: () => Promise.resolve('user-1'),
+      organizerIdForUser: () => Promise.resolve(ORG),
+      loadSnapshot: (eventId, organizerId) =>
+        loadSalesSnapshot(eventId, organizerId, fakeDb, () =>
+          '2026-07-22T10:00:00.000Z',
+        ),
+      setInterval: (fn) => {
+        ticks.push(fn)
+        return ticks.length
+      },
+      clearInterval: () => undefined,
+    }
+
+    const res = await handleSalesStream(req(), EVENT, deps)
+    const first = await readFirst(res)
+    expect(first).toContain('"grossCents":0')
+
+    // Someone buys two tickets while the dashboard is open.
+    store.orders.push({
+      event_id: EVENT,
+      status: 'paid',
+      total_cents: 2400,
+      fee_cents: 96,
+      created_at: '2026-07-20T09:00:00.000Z',
+      paid_at: '2026-07-20T09:00:00.000Z',
+      order_items: [{ quantity: 2 }],
+    })
+    store.tickets.push(
+      { event_id: EVENT, status: 'valid' },
+      { event_id: EVENT, status: 'valid' },
+    )
+    ticks[0]()
+
+    const text = await readUntil(res, '"grossCents":2400')
+    expect(text).toContain('"paidOrderCount":1')
+    expect(text).toContain('"ticketCount":2')
+    // The chart moved with it: 11:00 local holds the two tickets.
+    const frame = text.slice(text.lastIndexOf('data: ') + 6)
+    const snapshot = JSON.parse(frame.trim()) as SalesSnapshot
+    expect(
+      snapshot.series.hourly.find((p) => p.label === '11:00'),
+    ).toMatchObject({ tickets: 2, grossCents: 2400 })
+  })
+
+  it('pushes a check-in the same way', async () => {
+    const ticks: (() => void)[] = []
+    store.tickets.push({ event_id: EVENT, status: 'valid' })
+    const deps: StreamDeps = {
+      resolveUserId: () => Promise.resolve('user-1'),
+      organizerIdForUser: () => Promise.resolve(ORG),
+      loadSnapshot: (eventId, organizerId) =>
+        loadSalesSnapshot(eventId, organizerId, fakeDb),
+      setInterval: (fn) => {
+        ticks.push(fn)
+        return ticks.length
+      },
+      clearInterval: () => undefined,
+    }
+
+    const res = await handleSalesStream(req(), EVENT, deps)
+    await readFirst(res)
+
+    store.tickets[0].status = 'used' // scanned at the door
+    ticks[0]()
+
+    expect(await readUntil(res, '"checkedIn":1')).toContain('"checkedIn":1')
   })
 })
