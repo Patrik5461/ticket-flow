@@ -5,6 +5,7 @@ import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { ensureDarkStatusBar } from './lib/chrome'
 import { clearAllOffline } from './lib/offline'
+import { runSync, startAutoSync } from './lib/sync'
 import { supabase } from './lib/supabase'
 import { Login } from './screens/Login'
 import { EventList } from './screens/EventList'
@@ -39,7 +40,12 @@ export function App() {
     let removeResume: (() => void) | undefined
     if (Capacitor.isNativePlatform()) {
       void CapApp.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) void ensureDarkStatusBar()
+        if (isActive) {
+          void ensureDarkStatusBar()
+          // Coming back from the background is the most reliable moment to
+          // notice the network is back — iOS does not always fire 'online'.
+          if (navigator.onLine) void runSync()
+        }
       }).then((handle) => {
         removeResume = () => void handle.remove()
       })
@@ -50,6 +56,13 @@ export function App() {
       removeResume?.()
     }
   }, [])
+
+  // Flush the offline queue once signed in, and again whenever the network
+  // comes back. Never while signed out — the requests would only 401.
+  useEffect(() => {
+    if (!session) return
+    return startAutoSync()
+  }, [session])
 
   if (session === undefined) {
     return (

@@ -4,6 +4,7 @@ import { formatWhen } from '../lib/format'
 import { listOffline, purgeExpiredOffline, type OfflineMeta } from '../lib/offline'
 import { queueCount } from '../lib/queue'
 import { OfflineRow } from '../components/OfflineRow'
+import { SyncBar } from '../components/SyncBar'
 import { supabase } from '../lib/supabase'
 import type { EventRow } from '../lib/types'
 
@@ -59,6 +60,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
       </header>
 
       <main style={{ padding: '8px 16px 24px' }}>
+        <SyncBar />
         <h1 className="h1">Podujatia</h1>
 
         {error && (

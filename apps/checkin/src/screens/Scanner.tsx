@@ -3,7 +3,8 @@ import { Capacitor } from '@capacitor/core'
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import { checkinScan, AuthError } from '../lib/api'
 import { NoOfflineDataError, scanOffline } from '../lib/offline-scan'
-import { queueCount } from '../lib/queue'
+import { refreshSyncState, runSync } from '../lib/sync'
+import { useOnline, useSync } from '../lib/use-sync'
 import { supabase } from '../lib/supabase'
 import { restoreDarkChrome } from '../lib/chrome'
 import { formatTime } from '../lib/format'
@@ -48,8 +49,11 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
   const [manual, setManual] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [online, setOnline] = useState(navigator.onLine)
-  const [pending, setPending] = useState(0)
+  // Connectivity and the queue are shared with the event list. A dropped
+  // request is caught in submit() regardless, so a stale `navigator.onLine`
+  // can never send a scan into the void.
+  const online = useOnline()
+  const { pending, running } = useSync()
 
   const haltRef = useRef(false)
   const pausedRef = useRef(false)
@@ -57,23 +61,10 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
   const inFlightRef = useRef(false)
 
   const refreshPending = useCallback(() => {
-    void queueCount(event.id).then(setPending)
-  }, [event.id])
+    void refreshSyncState()
+  }, [])
 
-  // Connectivity is tracked with the webview's own online/offline events — no
-  // extra native plugin. A dropped request is caught in submit() regardless, so
-  // a stale `navigator.onLine` can never send a scan into the void.
-  useEffect(() => {
-    refreshPending()
-    const up = () => setOnline(true)
-    const down = () => setOnline(false)
-    window.addEventListener('online', up)
-    window.addEventListener('offline', down)
-    return () => {
-      window.removeEventListener('online', up)
-      window.removeEventListener('offline', down)
-    }
-  }, [refreshPending])
+  useEffect(refreshPending, [refreshPending])
 
   const showResult = useCallback((data: ScanResult) => {
     haltRef.current = true
@@ -229,12 +220,20 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
         </span>
       </header>
 
-      {/* Connectivity + pending admissions. Sending them is block 3c. */}
-      {(!online || pending > 0) && (
+      {/* Connectivity + queue. Sending happens automatically when the network
+          returns; the chip is also tappable so staff can force it. */}
+      {(!online || pending > 0 || running) && (
         <div className="scan-status">
           {!online && <span className="chip offline-chip">OFFLINE</span>}
-          {pending > 0 && (
-            <span className="chip pending-chip">{pending} čaká na odoslanie</span>
+          {running && <span className="chip pending-chip">Odosielam…</span>}
+          {!running && pending > 0 && (
+            <button
+              className="chip pending-chip"
+              disabled={!online}
+              onClick={() => void runSync()}
+            >
+              {pending} čaká{online ? ' · odoslať' : ''}
+            </button>
           )}
         </div>
       )}

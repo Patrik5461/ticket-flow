@@ -37,7 +37,8 @@ správe eventov.
 | 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
 | 3a | Offline režim — stiahnutie dát na zariadenie | **hotové** |
 | 3b | Offline skenovanie (lokálne overenie + fronta) | **hotové** |
-| 3c–3d | Synchronizácia a testy | pripravuje sa |
+| 3c | Synchronizácia fronty + konflikty | **hotové** |
+| 3d | Testy a overenie | pripravuje sa |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
@@ -122,6 +123,31 @@ počet odbavených sa nemôže započítať dvakrát, rovnako ako na serveri.
   Zariadenie sa označuje stabilným `deviceLabel` (napr. „Ticketio Scan · A3F91C")
   — ten ide aj do online skenov, takže v audite vidno, ktorý telefón odbavil.
 - Odhlásenie s neodoslanými skenmi si vypýta potvrdenie (dáta sa mažú).
+
+### Blok 3c — synchronizácia
+
+Fronta sa odosiela cez existujúce `POST /api/checkin` (idempotentné), a to
+**automaticky** po prihlásení, po obnovení siete (`online` udalosť) a po návrate
+appky z pozadia — plus ručne tlačidlom **„↑ Synchronizovať"**. Stav je zdieľaný
+medzi zoznamom podujatí a skenerom (`src/lib/sync.ts`): bodka online/offline,
+počet čakajúcich, priebeh „Odosielam 3 / 12…".
+
+- **Záznam mizne z fronty až keď naň server odpovedal.** Ak sa spojenie preruší
+  v polovici, zvyšok zostáva vo fronte a ďalší pokus pokračuje tam, kde skončil.
+- **Vypršaná session počas synchronizácie appku neodhlási** — odhlásenie by
+  zmazalo práve tú frontu, ktorú sa snažíme zachrániť. Zobrazí sa hláška a dáta
+  zostávajú.
+- **Konflikty sa nikdy nezahodia.** Ak bola vstupenka medzitým použitá online
+  alebo na inom zariadení, server ju neodbaví a appka to ukáže ako
+  „Pri synchronizácii: 2 vstupenky boli už použité inde" **so zoznamom
+  konkrétnych vstupeniek** (ref, meno, dôvod). Report je uložený lokálne, takže
+  ho nezmaže ani reštart appky — mizne až po potvrdení „Rozumiem".
+
+> **Známy kompromis:** doručenie je *at-least-once*. Ak server sken zapíše, ale
+> odpoveď sa stratí, záznam zostane vo fronte a pošle sa znova — potom sa
+> ohlási ako konflikt (`už použitá`), resp. pri zapnutom opätovnom vstupe
+> pribudne jeden vstup navyše. Stratiť odbavenie by bolo horšie než ohlásiť ho
+> dvakrát.
 
 ## Prvé spustenie (Blok 1)
 
