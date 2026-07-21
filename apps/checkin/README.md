@@ -38,7 +38,7 @@ správe eventov.
 | 3a | Offline režim — stiahnutie dát na zariadenie | **hotové** |
 | 3b | Offline skenovanie (lokálne overenie + fronta) | **hotové** |
 | 3c | Synchronizácia fronty + konflikty | **hotové** |
-| 3d | Testy a overenie | pripravuje sa |
+| 3d | Testy a overenie | **hotové** |
 | 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
@@ -148,6 +148,36 @@ počet čakajúcich, priebeh „Odosielam 3 / 12…".
 > ohlási ako konflikt (`už použitá`), resp. pri zapnutom opätovnom vstupe
 > pribudne jeden vstup navyše. Stratiť odbavenie by bolo horšie než ohlásiť ho
 > dvakrát.
+
+### Blok 3d — testy
+
+```bash
+cd apps/checkin && npm test     # 26 testov offline vrstvy (vitest)
+npm test                        # v koreni repa: serverová strana
+```
+
+Appka (`src/lib/*.test.ts`) — `@capacitor/preferences` je nahradené in-memory
+mockom; `vi.resetModules()` so zachovaným úložiskom simuluje **reštart appky**:
+
+- rozhodovacia tabuľka offline skenu vrátane re-entry (vstupenka zostáva `used`,
+  rastie len počítadlo → odbavených sa nezapočíta dvakrát),
+- neznámy kód → `unknown`, nie `invalid`, a **nejde do fronty**,
+- stiahnutie po stránkach, priebeh, a že sa **nikde neuloží žiadny secret**,
+- zlyhané sťahovanie nepoškodí predošlý balík,
+- retencia: 24 h po konci eventu sa dáta zmažú, predtým nie,
+- odhlásenie zmaže vstupenky, frontu **aj report konfliktov** (sú v ňom mená),
+- fronta prežije reštart appky,
+- synchronizácia: konflikt sa ohlási s konkrétnou vstupenkou, prerušené
+  spojenie ponechá zvyšok vo fronte a ďalší pokus dobehne, vypršaná session
+  neodhlási a nič nestratí, report konfliktov prežije reštart.
+
+Server (`src/server/offline-bundle*.test.ts`) — 13 testov: autorizačný reťazec
+(429/401/403/403/400), stránkovanie, a hlavne že payload obsahuje **SHA-256
+odtlačky a ani stopu po `qr_secret`**, plus že sa počítajú len skutočné vstupy
+(`ok` + `reentry`).
+
+> Čo testy pokryť nevedia: skutočná kamera, prepnutie do režimu v lietadle a
+> reálny beh proti produkcii. To je overenie na zariadení — postup nižšie.
 
 ## Prvé spustenie (Blok 1)
 

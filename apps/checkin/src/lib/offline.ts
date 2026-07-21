@@ -17,6 +17,7 @@
 import { Preferences } from '@capacitor/preferences'
 import { fetchOfflineBundlePage } from './api'
 import { clearQueue } from './queue'
+import { dismissConflicts } from './sync'
 import type { OfflineTicket } from './types'
 
 /** How long downloaded personal data may survive the event. */
@@ -173,6 +174,8 @@ export async function clearAllOffline(): Promise<void> {
   }
   await Preferences.remove({ key: INDEX_KEY })
   await clearQueue()
+  // Conflict reports name the holders too — they must not outlive the session.
+  await dismissConflicts()
 }
 
 /** Expiry moment for a bundle: 24 h after the event ends (or starts, if open-ended). */
