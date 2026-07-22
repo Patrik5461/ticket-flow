@@ -946,7 +946,14 @@ export interface PosReceiptView {
     fiscalCode: string | null
   }
   lines: { name: string; quantity: number; unitPriceCents: number }[]
-  tickets: { id: string; ref: string; typeName: string; qrDataUrl: string }[]
+  tickets: {
+    id: string
+    ref: string
+    typeName: string
+    qrDataUrl: string
+    /** Unit price of this ticket's type, for per-ticket print formats. */
+    unitPriceCents: number
+  }[]
 }
 
 /**
@@ -999,12 +1006,19 @@ export async function getPosReceipt(
     unitPriceCents: i.unit_price_cents,
   }))
 
+  // Unit price per ticket type, so a per-ticket format can print the price
+  // without another query (the order items already carry it).
+  const priceByType = new Map(
+    (items ?? []).map((i) => [i.ticket_type_id, i.unit_price_cents]),
+  )
+
   const tickets = await Promise.all(
     (ticketRows ?? []).map(async (t) => ({
       id: t.id,
       ref: t.id.slice(0, 8).toUpperCase(),
       typeName: names.get(t.ticket_type_id) ?? 'Vstupenka',
       qrDataUrl: await qrDataUrl(signTicket(t.id, event.qr_secret)),
+      unitPriceCents: priceByType.get(t.ticket_type_id) ?? 0,
     })),
   )
 

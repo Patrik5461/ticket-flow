@@ -3,6 +3,13 @@ import { useState } from 'react'
 import { getPosReceiptFn } from '../server/pos'
 import { formatEur } from '../lib/money'
 import { formatSk } from '../lib/datetime'
+import {
+  PRINT_FORMATS,
+  PRINT_FORMAT_LIST,
+  printCss,
+} from '../lib/print-formats'
+import type { PrintFormatId } from '../lib/print-formats'
+import { PrintTicket } from '../components/PrintTicket'
 import type { PaymentMethod } from '../lib/db-types'
 
 export const Route = createFileRoute('/pos-receipt/$orderId')({
@@ -21,37 +28,10 @@ const METHOD_SK: Record<PaymentMethod, string> = {
   terminal: 'Kartou (terminál)',
 }
 
-// Print rules: hide everything but the receipt and pick the paper size. Rendered
-// per selected format so window.print() picks up the right @page.
-const THERMAL_CSS = `
-@media print {
-  @page { size: 80mm auto; margin: 3mm; }
-  body { background: #fff; }
-  body * { visibility: hidden; }
-  #pos-receipt, #pos-receipt * { visibility: visible; }
-  #pos-receipt {
-    position: absolute; left: 0; top: 0;
-    width: 74mm; font-size: 12px; color: #000;
-  }
-  .no-print { display: none !important; }
-}`
-
-const A4_CSS = `
-@media print {
-  @page { size: A4; margin: 14mm; }
-  body { background: #fff; }
-  body * { visibility: hidden; }
-  #pos-receipt, #pos-receipt * { visibility: visible; }
-  #pos-receipt {
-    position: absolute; left: 0; top: 0;
-    width: 100%; font-size: 14px; color: #000;
-  }
-  .no-print { display: none !important; }
-}`
-
 function PosReceiptPage() {
   const data = Route.useLoaderData()
-  const [format, setFormat] = useState<'thermal' | 'a4'>('thermal')
+  const [formatId, setFormatId] = useState<PrintFormatId>('thermal80')
+  const format = PRINT_FORMATS[formatId]
 
   const fmtDateTime = (iso: string) =>
     formatSk(iso, 'dateTime', data.event.timezone)
@@ -59,28 +39,23 @@ function PosReceiptPage() {
   const { event, order, lines, tickets } = data
 
   return (
-    <div className="min-h-screen bg-gray-100 py-6">
-      <style>{format === 'thermal' ? THERMAL_CSS : A4_CSS}</style>
+    <div className="print-wrap min-h-screen bg-gray-100 py-6">
+      <style>{printCss(format)}</style>
 
       {/* Controls (never printed) */}
       <div className="no-print mx-auto mb-4 flex max-w-md items-center justify-between gap-3 px-4">
         <div className="inline-flex overflow-hidden rounded-lg border bg-white">
-          <button
-            onClick={() => setFormat('thermal')}
-            className={`px-3 py-2 text-sm font-medium ${
-              format === 'thermal' ? 'bg-indigo-600 text-white' : ''
-            }`}
-          >
-            Termálna 80 mm
-          </button>
-          <button
-            onClick={() => setFormat('a4')}
-            className={`px-3 py-2 text-sm font-medium ${
-              format === 'a4' ? 'bg-indigo-600 text-white' : ''
-            }`}
-          >
-            A4
-          </button>
+          {PRINT_FORMAT_LIST.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFormatId(f.id)}
+              className={`px-3 py-2 text-sm font-medium ${
+                formatId === f.id ? 'bg-indigo-600 text-white' : ''
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
         <button
           onClick={() => window.print()}
@@ -90,11 +65,31 @@ function PosReceiptPage() {
         </button>
       </div>
 
+      {/* One admission ticket per page — Zebra label stock. */}
+      {format.document === 'tickets' && (
+        <div id="print-tickets" className="mx-auto space-y-4">
+          {tickets.map((t) => (
+            <PrintTicket
+              key={t.id}
+              format={format}
+              orderRef={order.ref}
+              ticket={t}
+              event={{
+                title: event.title,
+                venueName: event.venue_name,
+                whenLabel: fmtDateTime(event.starts_at),
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Receipt */}
       <div
         id="pos-receipt"
+        hidden={format.document !== 'receipt'}
         className={`mx-auto bg-white p-5 text-gray-900 shadow ${
-          format === 'thermal' ? 'max-w-[320px] text-sm' : 'max-w-2xl'
+          formatId === 'thermal80' ? 'max-w-[320px] text-sm' : 'max-w-2xl'
         }`}
       >
         <div className="text-center">
