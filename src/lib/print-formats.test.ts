@@ -1,8 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
+  DEFAULT_PRINT_FORMAT,
   PRINT_FORMATS,
   PRINT_FORMAT_LIST,
+  PRINT_FORMAT_STORAGE_KEY,
+  isPrintFormatId,
   printCss,
+  readStoredPrintFormat,
+  storePrintFormat,
 } from './print-formats'
 
 describe('print formats', () => {
@@ -66,5 +71,66 @@ describe('print formats', () => {
     for (const f of PRINT_FORMAT_LIST) {
       expect(printCss(f)).toContain('.no-print { display: none !important; }')
     }
+  })
+})
+
+describe('remembering the operator’s format', () => {
+  const store = new Map<string, string>()
+
+  beforeEach(() => {
+    store.clear()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('falls back to the 80 mm roll when nothing is stored', () => {
+    expect(readStoredPrintFormat()).toBe('thermal80')
+    expect(DEFAULT_PRINT_FORMAT).toBe('thermal80')
+  })
+
+  it('restores every one of the three formats', () => {
+    for (const id of ['thermal80', 'zebra79x152', 'a4'] as const) {
+      storePrintFormat(id)
+      expect(store.get(PRINT_FORMAT_STORAGE_KEY)).toBe(id)
+      expect(readStoredPrintFormat()).toBe(id)
+    }
+  })
+
+  it('ignores an unknown or corrupted stored value', () => {
+    for (const bogus of ['zebra80x100', '', 'null', '{"id":"a4"}']) {
+      store.set(PRINT_FORMAT_STORAGE_KEY, bogus)
+      expect(readStoredPrintFormat()).toBe('thermal80')
+    }
+  })
+
+  it('survives storage being unavailable (private mode)', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('SecurityError')
+      },
+      setItem: () => {
+        throw new Error('SecurityError')
+      },
+    })
+    expect(readStoredPrintFormat()).toBe('thermal80')
+    expect(() => storePrintFormat('a4')).not.toThrow()
+  })
+
+  it('is a no-op on the server, where there is no localStorage', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(readStoredPrintFormat()).toBe('thermal80')
+    expect(() => storePrintFormat('zebra79x152')).not.toThrow()
+  })
+
+  it('only accepts known ids', () => {
+    expect(isPrintFormatId('a4')).toBe(true)
+    expect(isPrintFormatId('zebra79x152')).toBe(true)
+    expect(isPrintFormatId('letter')).toBe(false)
+    expect(isPrintFormatId(null)).toBe(false)
+    expect(isPrintFormatId(42)).toBe(false)
   })
 })

@@ -1,12 +1,15 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getPosReceiptFn } from '../server/pos'
 import { formatEur } from '../lib/money'
 import { formatSk } from '../lib/datetime'
 import {
+  DEFAULT_PRINT_FORMAT,
   PRINT_FORMATS,
   PRINT_FORMAT_LIST,
   printCss,
+  readStoredPrintFormat,
+  storePrintFormat,
 } from '../lib/print-formats'
 import type { PrintFormatId } from '../lib/print-formats'
 import { PrintTicket } from '../components/PrintTicket'
@@ -30,7 +33,17 @@ const METHOD_SK: Record<PaymentMethod, string> = {
 
 function PosReceiptPage() {
   const data = Route.useLoaderData()
-  const [formatId, setFormatId] = useState<PrintFormatId>('thermal80')
+  // Starts at the default on both server and client, then restores the operator's
+  // last choice after mount — reading localStorage during render would make SSR
+  // and hydration disagree.
+  const [formatId, setFormatId] = useState<PrintFormatId>(DEFAULT_PRINT_FORMAT)
+  useEffect(() => setFormatId(readStoredPrintFormat()), [])
+
+  const chooseFormat = (id: PrintFormatId) => {
+    setFormatId(id)
+    storePrintFormat(id)
+  }
+
   const format = PRINT_FORMATS[formatId]
 
   const fmtDateTime = (iso: string) =>
@@ -48,7 +61,7 @@ function PosReceiptPage() {
           {PRINT_FORMAT_LIST.map((f) => (
             <button
               key={f.id}
-              onClick={() => setFormatId(f.id)}
+              onClick={() => chooseFormat(f.id)}
               className={`px-3 py-2 text-sm font-medium ${
                 formatId === f.id ? 'bg-indigo-600 text-white' : ''
               }`}

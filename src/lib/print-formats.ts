@@ -66,6 +66,41 @@ export const PRINT_FORMATS: Record<PrintFormatId, PrintFormat> = {
   },
 }
 
+/** Where the operator's last choice is remembered. */
+export const PRINT_FORMAT_STORAGE_KEY = 'ticketio_print_format'
+
+export const DEFAULT_PRINT_FORMAT: PrintFormatId = 'thermal80'
+
+/**
+ * Narrow an unknown stored value to a format id. Anything else — a removed
+ * format, a corrupted entry, a value from a future version — falls back to the
+ * 80 mm roll rather than breaking the print page.
+ */
+export function isPrintFormatId(value: unknown): value is PrintFormatId {
+  return typeof value === 'string' && value in PRINT_FORMATS
+}
+
+/** The remembered format, or the default. Safe to call during SSR. */
+export function readStoredPrintFormat(): PrintFormatId {
+  if (typeof localStorage === 'undefined') return DEFAULT_PRINT_FORMAT
+  try {
+    const stored = localStorage.getItem(PRINT_FORMAT_STORAGE_KEY)
+    return isPrintFormatId(stored) ? stored : DEFAULT_PRINT_FORMAT
+  } catch {
+    // Private mode / storage disabled — printing must still work.
+    return DEFAULT_PRINT_FORMAT
+  }
+}
+
+export function storePrintFormat(id: PrintFormatId): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(PRINT_FORMAT_STORAGE_KEY, id)
+  } catch {
+    /* not fatal */
+  }
+}
+
 export const PRINT_FORMAT_LIST: PrintFormat[] = [
   PRINT_FORMATS.thermal80,
   PRINT_FORMATS.zebra79x152,
