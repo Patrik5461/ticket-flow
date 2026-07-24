@@ -230,9 +230,6 @@ function DashboardPreview() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent">
-                    +18 za poslednú hodinu
-                  </div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
                     <span className="relative flex h-2 w-2">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
