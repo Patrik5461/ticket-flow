@@ -125,7 +125,9 @@ async function cancelTicketReleaseCapacity(
 ): Promise<void> {
   await deps.db
     .from('tickets')
-    .update({ status: 'cancelled' })
+    // refunded_at marks this as a REFUND cancellation (vs an admin one), so the
+    // scanner shows "Refundovaná" not "Zrušená". status stays 'cancelled'.
+    .update({ status: 'cancelled', refunded_at: new Date().toISOString() })
     .eq('id', ticket.id)
   // Numbered seat: free the specific event_seat so it can be resold. The
   // sold_count decrement below (release_ticket_capacity) is correct for both
@@ -175,6 +177,7 @@ async function bookRefund(
       status = 'failed'
       await deps.db.from('refunds').insert({
         order_id: order.id,
+        event_id: order.event_id,
         ticket_id: ticketId,
         amount_cents: amountCents,
         gopay_refund_id: null,
@@ -189,6 +192,7 @@ async function bookRefund(
   }
   await deps.db.from('refunds').insert({
     order_id: order.id,
+    event_id: order.event_id,
     ticket_id: ticketId,
     amount_cents: amountCents,
     gopay_refund_id: gopayRefundId,
@@ -320,6 +324,7 @@ export async function refundSingleTicket(
     // row so history is complete, without a gateway call.
     await deps.db.from('refunds').insert({
       order_id: order.id,
+      event_id: order.event_id,
       ticket_id: tk.id,
       amount_cents: 0,
       gopay_refund_id: null,

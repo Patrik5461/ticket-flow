@@ -27,6 +27,7 @@ const page: OfflineBundlePage = {
       ticketType: 'VIP',
       seat: null,
       status: 'valid',
+      refunded: false,
       usedAt: null,
       entryCount: 0,
     },

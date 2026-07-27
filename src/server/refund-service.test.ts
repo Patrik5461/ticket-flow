@@ -185,11 +185,15 @@ describe('refundWholeOrder', () => {
     expect(gopayCalls).toEqual([{ paymentId: PAYMENT, amountCents: 5000 }])
     expect(store.orders[0].status).toBe('refunded')
     expect(store.tickets.every((t) => t.status === 'cancelled')).toBe(true)
+    // Each cancelled ticket carries the refund marker, so the scanner shows
+    // "Refundovaná" (not "Zrušená") for it.
+    expect(store.tickets.every((t) => t.refunded_at != null)).toBe(true)
     expect(store.refunds).toHaveLength(1)
     expect(store.refunds[0]).toMatchObject({
       amount_cents: 5000,
       status: 'done',
       gopay_refund_id: 'gp_refund_1',
+      event_id: store.orders[0].event_id,
     })
     expect(audits[0]).toMatchObject({
       action: 'order.refund',

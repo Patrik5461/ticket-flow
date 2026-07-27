@@ -32,6 +32,7 @@ function ticket(n: number) {
     ticketType: 'VIP',
     seat: null,
     status: 'valid' as const,
+    refunded: false,
     usedAt: null,
     entryCount: 0,
   }

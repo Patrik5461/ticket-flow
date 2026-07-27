@@ -47,6 +47,7 @@ function ticket(n: number, tokenHash: string, status: 'valid' | 'cancelled' = 'v
     ticketType: 'VIP',
     seat: null,
     status,
+    refunded: false,
     usedAt: null,
     entryCount: 0,
   }

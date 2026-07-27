@@ -28,6 +28,7 @@ const OTHER_QR = `TIK.bbbbbbbb-0000-0000-0000-000000000009.b3RoZXI`
 function page(overrides: {
   allowReentry?: boolean
   status?: 'valid' | 'used' | 'cancelled'
+  refunded?: boolean
   usedAt?: string | null
   entryCount?: number
   tokenHash: string
@@ -54,6 +55,7 @@ function page(overrides: {
         ticketType: 'VIP',
         seat: null,
         status: overrides.status ?? 'valid',
+        refunded: overrides.refunded ?? false,
         usedAt: overrides.usedAt ?? null,
         entryCount: overrides.entryCount ?? 0,
       },
@@ -77,6 +79,7 @@ describe('evaluateOffline (decision table)', () => {
     ticketType: 'VIP',
     seat: null,
     status: 'valid' as const,
+    refunded: false,
     usedAt: null as string | null,
     entryCount: 0,
   }
@@ -99,11 +102,21 @@ describe('evaluateOffline (decision table)', () => {
 
   it('refuses a cancelled ticket without queueing anything', () => {
     const r = evaluateOffline({
-      ticket: { ...ticket, status: 'cancelled' },
+      ticket: { ...ticket, status: 'cancelled', refunded: false },
       allowReentry: false,
       nowIso: NOW,
     })
     expect(r.response.result).toBe('cancelled')
+    expect(r.enqueue).toBe(false)
+  })
+
+  it('a refunded ticket reads as refunded, not cancelled', () => {
+    const r = evaluateOffline({
+      ticket: { ...ticket, status: 'cancelled', refunded: true },
+      allowReentry: false,
+      nowIso: NOW,
+    })
+    expect(r.response.result).toBe('refunded')
     expect(r.enqueue).toBe(false)
   })
 

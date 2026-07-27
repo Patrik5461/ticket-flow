@@ -66,8 +66,13 @@ export function evaluateOffline(args: {
   }
 
   if (ticket.status === 'cancelled') {
+    // Refunded vs admin-cancelled — same distinction the server makes.
     return {
-      response: { ...base, result: 'cancelled', usedAt: ticket.usedAt },
+      response: {
+        ...base,
+        result: ticket.refunded ? 'refunded' : 'cancelled',
+        usedAt: ticket.usedAt,
+      },
       patch: null,
       enqueue: false,
     }

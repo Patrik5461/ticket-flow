@@ -30,6 +30,8 @@ export interface OfflineTicket {
   ticketType: string | null
   seat: string | null
   status: 'valid' | 'used' | 'cancelled'
+  /** True when a cancelled ticket was cancelled by a REFUND (vs admin cancel). */
+  refunded: boolean
   usedAt: string | null
   /** Admissions so far ('ok' + 're-entry'), for offline re-entry numbering. */
   entryCount: number
@@ -81,6 +83,7 @@ interface TicketRecord {
   id: string
   status: 'valid' | 'used' | 'cancelled'
   used_at: string | null
+  refunded_at: string | null
   holder_name: string | null
   ticket_types: { name: string } | { name: string }[] | null
   seats?: SeatEmbed
@@ -137,7 +140,7 @@ export async function loadOfflineBundle(args: {
   const { data: rows } = (await db
     .from('tickets')
     .select(
-      'id, status, used_at, holder_name, ticket_types(name), seats(sector, row_label, seat_number)',
+      'id, status, used_at, refunded_at, holder_name, ticket_types(name), seats(sector, row_label, seat_number)',
     )
     .eq('event_id', args.eventId)
     .order('id', { ascending: true })
@@ -184,6 +187,7 @@ export async function loadOfflineBundle(args: {
       ticketType: typeName(t),
       seat: seatLabel(t),
       status: t.status,
+      refunded: t.refunded_at != null,
       usedAt: t.used_at,
       entryCount: entryCounts.get(t.id) ?? 0,
     })),

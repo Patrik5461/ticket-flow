@@ -21,7 +21,13 @@ type JsQRFn = (
   options?: { inversionAttempts?: 'dontInvert' | 'onlyInvert' | 'attemptBoth' },
 ) => { data: string } | null
 
-type Outcome = 'ok' | 'already_used' | 'cancelled' | 'invalid' | 'reentry'
+type Outcome =
+  | 'ok'
+  | 'already_used'
+  | 'cancelled'
+  | 'refunded'
+  | 'invalid'
+  | 'reentry'
 
 interface ScanResult {
   result: Outcome
@@ -47,6 +53,7 @@ const OUTCOME_UI: Record<
   reentry: { label: 'Opätovný vstup', color: '#16a34a', icon: '✓' },
   already_used: { label: 'Už použitá', color: '#ea580c', icon: '!' },
   cancelled: { label: 'Zrušená vstupenka', color: '#dc2626', icon: '✕' },
+  refunded: { label: 'Refundovaná vstupenka', color: '#dc2626', icon: '✕' },
   invalid: { label: 'Neplatný kód', color: '#dc2626', icon: '✕' },
 }
 

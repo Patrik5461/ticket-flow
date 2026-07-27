@@ -1646,6 +1646,7 @@ async function syncFullRefund(order: OrderRow): Promise<void> {
   if (remaining > 0) {
     await db.from('refunds').insert({
       order_id: order.id,
+      event_id: order.event_id,
       ticket_id: null,
       amount_cents: remaining,
       gopay_refund_id: order.gopay_payment_id,
@@ -1661,8 +1662,12 @@ async function syncFullRefund(order: OrderRow): Promise<void> {
     .eq('order_id', order.id)
     .neq('status', 'cancelled')
     .returns<{ id: string; ticket_type_id: string; status: string }[]>()
+  const refundedAt = new Date().toISOString()
   for (const t of tickets ?? []) {
-    await db.from('tickets').update({ status: 'cancelled' }).eq('id', t.id)
+    await db
+      .from('tickets')
+      .update({ status: 'cancelled', refunded_at: refundedAt })
+      .eq('id', t.id)
     await db
       .rpc('release_ticket_capacity', {
         p_ticket_type_id: t.ticket_type_id,
@@ -1692,29 +1697,21 @@ async function syncPartialRefund(order: OrderRow): Promise<void> {
     .eq('id', order.id)
 }
 
-/** GoPay CANCELED / TIMEOUTED: drop an unpaid reservation and free its capacity. */
+/**
+ * GoPay CANCELED / TIMEOUTED: drop an unpaid reservation and free its capacity
+ * AND seats immediately, instead of waiting up to ~15 min for the cron sweep.
+ * Delegates to release_pending_order, which handles the seated/unseated split
+ * (so a seated order is never double-decremented) and marks the order cancelled
+ * under a row lock — idempotent and race-safe against the sweep.
+ */
 async function cancelUnpaidOrder(order: OrderRow): Promise<void> {
   if (order.status !== 'pending') return
-  const db = serviceClient()
-
-  const { data: items } = await db
-    .from('order_items')
-    .select('ticket_type_id, quantity')
-    .eq('order_id', order.id)
-    .returns<{ ticket_type_id: string; quantity: number }[]>()
-  for (const it of items ?? []) {
-    await db
-      .rpc('release_ticket_capacity', {
-        p_ticket_type_id: it.ticket_type_id,
-        p_qty: it.quantity,
-      })
-      .then(
-        () => undefined,
-        () => undefined,
-      )
-  }
-
-  await db.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+  await serviceClient()
+    .rpc('release_pending_order', { p_order_id: order.id })
+    .then(
+      () => undefined,
+      () => undefined,
+    )
 }
 
 /** Idempotent webhook entry point: called by /api/gopay/notify. */

@@ -235,12 +235,22 @@ describe('checkInTicket', () => {
     expect(store.tickets[0].used_at).toBe(FIXED_NOW)
   })
 
-  it('reports cancelled tickets without admitting them', async () => {
+  it('reports an admin-cancelled ticket as cancelled (no refunded_at)', async () => {
     store.tickets[0].status = 'cancelled'
+    store.tickets[0].refunded_at = null
     const res = await scan(signTicket(TICKET_ID, SECRET))
     expect(res?.result).toBe('cancelled')
     expect(store.tickets[0].status).toBe('cancelled')
     expect(store.checkin_log.at(-1)).toMatchObject({ result: 'cancelled' })
+  })
+
+  it('reports a REFUNDED ticket as refunded, distinct from cancelled', async () => {
+    store.tickets[0].status = 'cancelled'
+    store.tickets[0].refunded_at = '2026-07-14T12:00:00.000Z'
+    const res = await scan(signTicket(TICKET_ID, SECRET))
+    expect(res?.result).toBe('refunded')
+    // Logged distinctly for the audit trail.
+    expect(store.checkin_log.at(-1)).toMatchObject({ result: 'refunded' })
   })
 
   it('rejects a tampered / wrongly-signed code as invalid and logs it with no ticket', async () => {

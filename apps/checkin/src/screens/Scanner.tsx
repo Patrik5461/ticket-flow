@@ -22,6 +22,7 @@ const OUTCOME: Record<
   reentry: { label: 'Opätovný vstup', color: 'var(--ok)', icon: '✓' },
   already_used: { label: 'Už použitá', color: 'var(--warn)', icon: '!' },
   cancelled: { label: 'Zrušená vstupenka', color: 'var(--bad)', icon: '✕' },
+  refunded: { label: 'Refundovaná vstupenka', color: 'var(--bad)', icon: '✕' },
   invalid: { label: 'Neplatný kód', color: 'var(--bad)', icon: '✕' },
   // Offline-only: not a forgery, just missing data — deliberately not red.
   unknown: { label: 'Neznáma vstupenka', color: 'var(--warn)', icon: '?' },

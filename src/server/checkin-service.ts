@@ -22,6 +22,7 @@ export type CheckinOutcome =
   | 'ok'
   | 'already_used'
   | 'cancelled'
+  | 'refunded'
   | 'invalid'
   | 'reentry'
 
@@ -88,6 +89,7 @@ interface TicketRow {
   id: string
   status: 'valid' | 'used' | 'cancelled'
   used_at: string | null
+  refunded_at: string | null
   holder_name: string | null
   event_id: string
   ticket_types: { name: string } | { name: string }[] | null
@@ -131,7 +133,7 @@ async function replayScan(
   const { data: ticket } = (await db
     .from('tickets')
     .select(
-      'id, status, used_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
+      'id, status, used_at, refunded_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
     )
     .eq('id', prior.ticket_id)
     .maybeSingle()) as { data: TicketRow | null }
@@ -247,7 +249,7 @@ export async function checkInTicket(args: {
   const { data: ticket } = (await db
     .from('tickets')
     .select(
-      'id, status, used_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
+      'id, status, used_at, refunded_at, holder_name, event_id, ticket_types(name), seats(sector, row_label, seat_number)',
     )
     .eq('id', ticketId)
     .maybeSingle()) as { data: TicketRow | null }
@@ -262,9 +264,11 @@ export async function checkInTicket(args: {
   const seat = seatLabelOf(ticket)
 
   if (ticket.status === 'cancelled') {
-    await log(ticket.id, 'cancelled')
+    // Refunded vs admin-cancelled — the marker set by the refund path.
+    const outcome: CheckinOutcome = ticket.refunded_at ? 'refunded' : 'cancelled'
+    await log(ticket.id, outcome)
     return {
-      result: 'cancelled',
+      result: outcome,
       holderName,
       ticketType,
       usedAt: ticket.used_at ?? null,
