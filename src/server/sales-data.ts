@@ -9,6 +9,10 @@
 
 import { serviceClient } from '../lib/supabase/server'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
+import {
+  computeRealizedRevenue,
+  isRealizedOrder,
+} from './realized-revenue'
 
 export interface SalesOrder {
   id: string
@@ -28,6 +32,9 @@ export interface SalesData {
   totals: {
     grossCents: number
     feeCents: number
+    /** Money returned to buyers (non-failed refunds). */
+    refundedCents: number
+    /** gross − fee − refunded. */
     netCents: number
     paidOrderCount: number
     /** Tickets issued (excluding cancelled) and how many are already admitted. */
@@ -103,15 +110,20 @@ export async function buildSalesData(
       .join(', '),
   }))
 
+  // Refund ledger for this event — nets into the realized totals below.
+  const { data: refundRows } = await db
+    .from('refunds')
+    .select('amount_cents, status')
+    .eq('event_id', eventId)
+    .returns<{ amount_cents: number; status: string }[]>()
+
+  const revenue = computeRealizedRevenue(rawOrders ?? [], refundRows ?? [])
+
+  // "Sold by type" is the gross breakdown over realized orders (money collected);
+  // the headline totals net refunds, and the per-type table stays a sales view.
   const soldByType = new Map<string, number>()
-  let grossCents = 0
-  let feeCents = 0
-  let paidOrderCount = 0
   for (const o of rawOrders ?? []) {
-    if (o.status !== 'paid') continue
-    paidOrderCount++
-    grossCents += o.total_cents
-    feeCents += o.fee_cents
+    if (!isRealizedOrder(o.status)) continue
     for (const i of o.order_items) {
       soldByType.set(
         i.ticket_type_id,
@@ -143,10 +155,11 @@ export async function buildSalesData(
     event,
     orders,
     totals: {
-      grossCents,
-      feeCents,
-      netCents: grossCents - feeCents,
-      paidOrderCount,
+      grossCents: revenue.grossCents,
+      feeCents: revenue.feeCents,
+      refundedCents: revenue.refundedCents,
+      netCents: revenue.netCents,
+      paidOrderCount: revenue.orderCount,
       ticketCount: ticketCount ?? 0,
       checkedIn: checkedIn ?? 0,
     },

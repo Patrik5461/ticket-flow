@@ -15,6 +15,7 @@ function snap(over: Partial<SalesSnapshot> = {}): SalesSnapshot {
   return {
     grossCents: 1000,
     feeCents: 40,
+    refundedCents: 0,
     netCents: 960,
     paidOrderCount: 2,
     ticketCount: 3,
@@ -206,17 +207,18 @@ describe('a new order reaches an open stream', () => {
   interface Row {
     [k: string]: unknown
   }
-  const store: { events: Row[]; orders: Row[]; tickets: Row[] } = {
+  const store: { events: Row[]; orders: Row[]; tickets: Row[]; refunds: Row[] } = {
     events: [],
     orders: [],
     tickets: [],
+    refunds: [],
   }
 
   class Chain {
     private eqs: [string, unknown][] = []
     private neqs: [string, unknown][] = []
     private countMode = false
-    constructor(private table: 'events' | 'orders' | 'tickets') {}
+    constructor(private table: 'events' | 'orders' | 'tickets' | 'refunds') {}
     select(_c?: unknown, o?: { count?: string; head?: boolean }) {
       if (o?.count) this.countMode = true
       return this
@@ -263,6 +265,7 @@ describe('a new order reaches an open stream', () => {
     ]
     store.orders = []
     store.tickets = []
+    store.refunds = []
   })
 
   it('pushes the new totals and the updated chart without a refresh', async () => {
@@ -287,6 +290,7 @@ describe('a new order reaches an open stream', () => {
 
     // Someone buys two tickets while the dashboard is open.
     store.orders.push({
+      id: 'order-1',
       event_id: EVENT,
       status: 'paid',
       total_cents: 2400,

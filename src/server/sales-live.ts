@@ -19,12 +19,20 @@ import {
   dayKeyIn,
 } from '../lib/daily-series'
 import type { DatedOrder, SeriesPoint } from '../lib/daily-series'
+import {
+  computeRealizedRevenue,
+  isRealizedOrder,
+  refundCounts,
+} from './realized-revenue'
 import type { OrderStatus } from '../lib/db-types'
 
 export interface SalesSnapshot {
-  /** Realized revenue — paid orders only, in cents. */
+  /** Money collected (paid + refunded orders' original totals), in cents. */
   grossCents: number
   feeCents: number
+  /** Money returned to buyers (non-failed refunds). */
+  refundedCents: number
+  /** Organizer's realized net: gross − fee − refunded. */
   netCents: number
   paidOrderCount: number
   /** Tickets issued (excluding cancelled) and how many are already admitted. */
@@ -50,6 +58,7 @@ export interface SalesLiveDb {
 }
 
 interface OrderAmounts {
+  id: string
   status: OrderStatus
   total_cents: number
   fee_cents: number
@@ -58,13 +67,13 @@ interface OrderAmounts {
   order_items: { quantity: number }[] | null
 }
 
-/**
- * Realized revenue = paid orders, exactly as buildSalesData (and the page's
- * "Súčty zahŕňajú len zaplatené objednávky" note) define it. The two must agree
- * or the cards would jump the moment the first live snapshot replaces the
- * loader's numbers.
- */
-const PAID_STATUSES: OrderStatus[] = ['paid']
+interface RefundRow {
+  order_id: string
+  ticket_id: string | null
+  amount_cents: number
+  status: string
+  created_at: string
+}
 
 /**
  * Snapshot for one event, scoped to the caller's organizer. Returns null when
@@ -87,33 +96,58 @@ export async function loadSalesSnapshot(
   }
   if (!event) return null
 
-  // One pass over the event's orders feeds both the totals and the chart, so
-  // the tick costs a single query. order_items(quantity) is what makes "tickets
-  // sold" available without a second round trip.
+  // One pass over the event's orders feeds both the totals and the chart, so the
+  // tick stays two small queries. order_items(quantity) makes "tickets sold"
+  // available without a round trip; refunds are netted below.
   const { data: orders } = (await db
     .from('orders')
     .select(
-      'status, total_cents, fee_cents, created_at, paid_at, order_items(quantity)',
+      'id, status, total_cents, fee_cents, created_at, paid_at, order_items(quantity)',
     )
     .eq('event_id', eventId)) as { data: OrderAmounts[] | null }
 
-  let grossCents = 0
-  let feeCents = 0
-  let paidOrderCount = 0
-  // Realized revenue only — the chart and the cards must agree.
+  const { data: refundRows } = (await db
+    .from('refunds')
+    .select('order_id, ticket_id, amount_cents, status, created_at')
+    .eq('event_id', eventId)) as { data: RefundRow[] | null }
+
+  const orderList = orders ?? []
+  const refunds = refundRows ?? []
+
+  const revenue = computeRealizedRevenue(orderList, refunds)
+
+  // Tickets a whole-order refund cancels: the order's total item quantity (a
+  // whole-order refund cancels every remaining ticket). Used to net the chart's
+  // "tickets" line at refund time.
+  const ticketsPerOrder = new Map<string, number>()
   const realized: DatedOrder[] = []
-  for (const o of orders ?? []) {
-    if (!PAID_STATUSES.includes(o.status)) continue
-    grossCents += o.total_cents
-    feeCents += o.fee_cents
-    paidOrderCount += 1
+  for (const o of orderList) {
+    const orderTickets = (o.order_items ?? []).reduce((n, i) => n + i.quantity, 0)
+    ticketsPerOrder.set(o.id, orderTickets)
+    if (!isRealizedOrder(o.status)) continue
     realized.push({
       total_cents: o.total_cents,
       created_at: o.created_at,
       paid_at: o.paid_at,
-      tickets: (o.order_items ?? []).reduce((n, i) => n + i.quantity, 0),
+      tickets: orderTickets,
     })
   }
+
+  // Each non-failed refund is a NEGATIVE entry bucketed at the moment the money
+  // moved (refund.created_at), so both the money and the tickets lines drop at
+  // the refund's day/hour — consistent with the settlement view.
+  const refundEntries: DatedOrder[] = []
+  for (const r of refunds) {
+    if (!refundCounts(r.status)) continue
+    const tickets = r.ticket_id ? 1 : (ticketsPerOrder.get(r.order_id) ?? 0)
+    refundEntries.push({
+      total_cents: -r.amount_cents,
+      created_at: r.created_at,
+      paid_at: r.created_at,
+      tickets: -tickets,
+    })
+  }
+  const movements = [...realized, ...refundEntries]
 
   const { count: ticketCount } = (await db
     .from('tickets')
@@ -132,28 +166,36 @@ export async function loadSalesSnapshot(
   const eventDay = dayKeyIn(new Date(event.starts_at), tz)
   const today = dayKeyIn(new Date(nowMs), tz)
 
-  // Pre-sale axis: from the first realized order up to today, or up to the event
-  // day once the event is over. Capped inside buildDayRangeSeries.
-  const firstOrderDay = realized.length
-    ? realized
-        .map((o) => dayKeyIn(new Date(o.paid_at ?? o.created_at), tz))
-        .reduce((a, b) => (a < b ? a : b))
+  // Pre-sale axis spans every money movement — sales and refunds alike — from the
+  // first to the last, so a refund after the event still shows on the chart.
+  const movementDays = movements.map((m) =>
+    dayKeyIn(new Date(m.paid_at ?? m.created_at), tz),
+  )
+  const firstDay = movementDays.length
+    ? movementDays.reduce((a, b) => (a < b ? a : b))
     : eventDay
-  const lastDay = eventDay < today ? eventDay : today
+  // End at the later of "when sales normally stop" (event day, or today if still
+  // selling) and the last refund day.
+  const saleEnd = eventDay < today ? eventDay : today
+  const lastMovementDay = movementDays.length
+    ? movementDays.reduce((a, b) => (a > b ? a : b))
+    : saleEnd
+  const lastDay = lastMovementDay > saleEnd ? lastMovementDay : saleEnd
 
   return {
-    grossCents,
-    feeCents,
-    netCents: grossCents - feeCents,
-    paidOrderCount,
+    grossCents: revenue.grossCents,
+    feeCents: revenue.feeCents,
+    refundedCents: revenue.refundedCents,
+    netCents: revenue.netCents,
+    paidOrderCount: revenue.orderCount,
     ticketCount: ticketCount ?? 0,
     checkedIn: checkedIn ?? 0,
     at: now(),
     series: {
-      hourly: buildHourlySeries(realized, eventDay, tz),
+      hourly: buildHourlySeries(movements, eventDay, tz),
       daily: buildDayRangeSeries(
-        realized,
-        firstOrderDay < lastDay ? firstOrderDay : lastDay,
+        movements,
+        firstDay < lastDay ? firstDay : lastDay,
         lastDay,
         tz,
       ),
@@ -172,6 +214,7 @@ export function snapshotSignature(s: SalesSnapshot): string {
   return [
     s.grossCents,
     s.feeCents,
+    s.refundedCents,
     s.paidOrderCount,
     s.ticketCount,
     s.checkedIn,

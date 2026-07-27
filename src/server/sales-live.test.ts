@@ -13,6 +13,7 @@ interface Store {
   events: Record<string, unknown>[]
   orders: Record<string, unknown>[]
   tickets: Record<string, unknown>[]
+  refunds: Record<string, unknown>[]
 }
 
 class Builder {
@@ -66,8 +67,10 @@ const ORG = 'org-1'
 const EVENT_ID = '11111111-1111-4111-8111-111111111111'
 const NOW = '2026-07-22T10:00:00.000Z'
 
+let orderSeq = 0
 function order(
   over: Partial<{
+    id: string
     status: string
     total_cents: number
     fee_cents: number
@@ -77,6 +80,7 @@ function order(
   }> = {},
 ) {
   const {
+    id = `order-${++orderSeq}`,
     status = 'paid',
     total_cents = 2000,
     fee_cents = 80,
@@ -85,6 +89,7 @@ function order(
     qty = 2,
   } = over
   return {
+    id,
     event_id: EVENT_ID,
     status,
     total_cents,
@@ -108,6 +113,7 @@ function makeStore(): Store {
     ],
     orders: [],
     tickets: [],
+    refunds: [],
   }
 }
 
@@ -119,23 +125,54 @@ describe('loadSalesSnapshot', () => {
     expect(await load(makeStore(), 'someone-else')).toBeNull()
   })
 
-  it('counts only paid orders as realized revenue', async () => {
+  it('gross covers every order whose money was collected; unpaid excluded', async () => {
     const s = makeStore()
     s.orders.push(
-      order({ total_cents: 2000, fee_cents: 80 }),
-      order({ total_cents: 1000, fee_cents: 40, status: 'pending' }),
-      order({ total_cents: 5000, fee_cents: 200, status: 'cancelled' }),
-      order({ total_cents: 3000, fee_cents: 120, status: 'refunded' }),
-      // Deliberately excluded too — buildSalesData and the page's own note
-      // define realized revenue as 'paid' only; the two must agree.
-      order({ total_cents: 900, fee_cents: 36, status: 'partially_refunded' }),
+      order({ id: 'o1', total_cents: 2000, fee_cents: 80 }),
+      order({ total_cents: 1000, fee_cents: 40, status: 'pending' }), // excluded
+      order({ total_cents: 5000, fee_cents: 200, status: 'cancelled' }), // excluded
+      order({ id: 'o2', total_cents: 3000, fee_cents: 120, status: 'refunded' }),
+      order({
+        id: 'o3',
+        total_cents: 900,
+        fee_cents: 36,
+        status: 'partially_refunded',
+      }),
+    )
+    const snapshot = (await load(s))!
+    // paid + refunded + partially_refunded = 2000 + 3000 + 900.
+    expect(snapshot).toMatchObject({
+      grossCents: 5900,
+      feeCents: 236,
+      refundedCents: 0,
+      netCents: 5664,
+      paidOrderCount: 3,
+    })
+  })
+
+  it('nets refunds: net = gross − fee − refunded, fee kept on refund', async () => {
+    const s = makeStore()
+    s.orders.push(
+      order({ id: 'o1', total_cents: 3000, fee_cents: 120, status: 'refunded' }),
+      order({
+        id: 'o2',
+        total_cents: 2000,
+        fee_cents: 80,
+        status: 'partially_refunded',
+      }),
+    )
+    s.refunds.push(
+      { order_id: 'o1', event_id: EVENT_ID, ticket_id: null, amount_cents: 3000, status: 'done', created_at: '2026-07-21T10:00:00.000Z' },
+      { order_id: 'o2', event_id: EVENT_ID, ticket_id: 't1', amount_cents: 500, status: 'done', created_at: '2026-07-21T11:00:00.000Z' },
+      // A failed refund never moved money — must not count.
+      { order_id: 'o2', event_id: EVENT_ID, ticket_id: 't2', amount_cents: 700, status: 'failed', created_at: '2026-07-21T12:00:00.000Z' },
     )
     const snapshot = (await load(s))!
     expect(snapshot).toMatchObject({
-      grossCents: 2000,
-      feeCents: 80,
-      netCents: 1920,
-      paidOrderCount: 1,
+      grossCents: 5000,
+      feeCents: 200,
+      refundedCents: 3500, // 3000 + 500, the failed 700 excluded
+      netCents: 1300, // 5000 − 200 − 3500 — platform kept the full fee
     })
   })
 
@@ -172,16 +209,91 @@ describe('loadSalesSnapshot', () => {
     expect(series.hourly.find((p) => p.label === '22:00')!.tickets).toBe(3)
   })
 
-  it('builds the pre-sale axis from the first order to today', async () => {
+  it('spans the pre-sale axis across every money movement, incl. post-event', async () => {
     const s = makeStore()
     s.orders.push(
       order({ created_at: '2026-07-18T09:00:00.000Z' }),
+      // A sale after the event day (20th) must still appear — not be dropped.
       order({ created_at: '2026-07-21T09:00:00.000Z' }),
     )
     const { series } = (await load(s))!
-    // Event was on the 20th, "today" is the 22nd -> axis ends on the event day.
     expect(series.daily[0].key).toBe('2026-07-18')
-    expect(series.daily[series.daily.length - 1].key).toBe('2026-07-20')
+    expect(series.daily[series.daily.length - 1].key).toBe('2026-07-21')
+  })
+
+  it('subtracts a refund in the bucket of the refund day, not the sale day', async () => {
+    const s = makeStore()
+    s.orders.push(
+      order({
+        id: 'o1',
+        total_cents: 5000,
+        qty: 2,
+        status: 'partially_refunded',
+        created_at: '2026-07-18T09:00:00.000Z',
+      }),
+    )
+    s.refunds.push({
+      order_id: 'o1',
+      event_id: EVENT_ID,
+      ticket_id: 't1', // single-ticket refund → cancels 1 ticket
+      amount_cents: 2500,
+      status: 'done',
+      created_at: '2026-07-19T09:00:00.000Z',
+    })
+    const { series } = (await load(s))!
+    const byKey = Object.fromEntries(series.daily.map((p) => [p.key, p]))
+    // Sale day: full positive.
+    expect(byKey['2026-07-18']).toMatchObject({ grossCents: 5000, tickets: 2 })
+    // Refund day: the negative movement lands here.
+    expect(byKey['2026-07-19']).toMatchObject({ grossCents: -2500, tickets: -1 })
+  })
+
+  it('a failed refund never appears on the chart', async () => {
+    const s = makeStore()
+    s.orders.push(
+      order({ id: 'o1', total_cents: 5000, created_at: '2026-07-18T09:00:00.000Z' }),
+    )
+    s.refunds.push({
+      order_id: 'o1',
+      event_id: EVENT_ID,
+      ticket_id: 't1',
+      amount_cents: 2500,
+      status: 'failed',
+      created_at: '2026-07-19T09:00:00.000Z',
+    })
+    const { series } = (await load(s))!
+    // The failed refund is not a money movement, so it never appears — neither
+    // as its own bucket nor as a negative anywhere.
+    const total = series.daily.reduce((sum, p) => sum + p.grossCents, 0)
+    expect(total).toBe(5000)
+    expect(series.daily.every((p) => p.grossCents >= 0)).toBe(true)
+  })
+
+  it('a whole-order refund subtracts the order’s full ticket count', async () => {
+    const s = makeStore()
+    s.orders.push(
+      order({
+        id: 'o1',
+        total_cents: 6000,
+        qty: 3,
+        status: 'refunded',
+        created_at: '2026-07-20T09:00:00.000Z',
+      }),
+    )
+    s.refunds.push({
+      order_id: 'o1',
+      event_id: EVENT_ID,
+      ticket_id: null, // whole-order → all 3 tickets
+      amount_cents: 6000,
+      status: 'done',
+      created_at: '2026-07-20T12:00:00.000Z',
+    })
+    const { series } = (await load(s))!
+    // Both land on the event day (20th); the hourly view shows the split.
+    const at11 = series.hourly.find((p) => p.label === '11:00')!
+    const at14 = series.hourly.find((p) => p.label === '14:00')!
+    expect(at11).toMatchObject({ grossCents: 6000, tickets: 3 })
+    expect(at14).toMatchObject({ grossCents: -6000, tickets: -3 })
   })
 
   it('excludes unpaid orders from the chart, exactly like the totals', async () => {

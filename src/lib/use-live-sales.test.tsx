@@ -52,6 +52,7 @@ function snap(over: Partial<SalesSnapshot> = {}): SalesSnapshot {
   return {
     grossCents: 1000,
     feeCents: 40,
+    refundedCents: 0,
     netCents: 960,
     paidOrderCount: 1,
     ticketCount: 2,

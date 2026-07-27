@@ -139,6 +139,7 @@ function subscribe(
 const EMPTY: SalesSnapshot = {
   grossCents: 0,
   feeCents: 0,
+  refundedCents: 0,
   netCents: 0,
   paidOrderCount: 0,
   ticketCount: 0,
