@@ -317,6 +317,11 @@ function SettlementsPage() {
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-500">
                   {formatEur(s.fee_cents)}
+                  {s.fee_on_refunded_cents > 0 && (
+                    <div className="text-[11px] text-gray-400">
+                      z toho {formatEur(s.fee_on_refunded_cents)} z refundovaných
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-500">
                   {formatEur(s.refunded_cents)}

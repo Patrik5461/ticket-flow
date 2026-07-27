@@ -47,6 +47,7 @@ export const Route = createFileRoute('/api/settlements/$settlementId/pdf')({
           grossCents: detail.settlement.gross_cents,
           feeCents: detail.settlement.fee_cents,
           refundedCents: detail.settlement.refunded_cents,
+          feeOnRefundedCents: detail.settlement.fee_on_refunded_cents,
           netCents: detail.settlement.net_cents,
           orderCount: detail.settlement.order_count,
           lines: detail.orders.map((o) => ({

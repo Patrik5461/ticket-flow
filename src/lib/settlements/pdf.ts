@@ -32,6 +32,8 @@ export interface SettlementPdfData {
   grossCents: number
   feeCents: number
   refundedCents: number
+  /** Platform fee kept on refunded orders — shown as a sub-line under the fee. */
+  feeOnRefundedCents: number
   netCents: number
   orderCount: number
   lines: SettlementPdfLine[]
@@ -119,6 +121,13 @@ export async function renderSettlementPdf(
   sumRow(`Pocet objednavok`, String(data.orderCount))
   sumRow('Hrube trzby', eur(data.grossCents))
   sumRow('Provizia platformy', eur(data.feeCents))
+  // Explain the kept fee on refunds, so a dip in net is never a surprise.
+  if (data.feeOnRefundedCents > 0) {
+    sumRow(
+      '  z toho provizia z refundovanych obj. (nevracia sa)',
+      eur(data.feeOnRefundedCents),
+    )
+  }
   sumRow('Refundacie', eur(data.refundedCents))
   y -= 4
   page.drawLine({

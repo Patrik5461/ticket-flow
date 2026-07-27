@@ -19,6 +19,8 @@ export interface SettlementRow {
   gross_cents: number
   fee_cents: number
   refunded_cents: number
+  /** Platform fee kept on (fully or partially) refunded orders — subset of fee_cents. */
+  fee_on_refunded_cents: number
   net_cents: number
   order_count: number
   currency: string

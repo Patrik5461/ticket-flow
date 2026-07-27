@@ -16,6 +16,7 @@ describe('renderSettlementPdf', () => {
       grossCents: 123456,
       feeCents: 4938,
       refundedCents: 3500,
+      feeOnRefundedCents: 938,
       netCents: 115018,
       orderCount: 2,
       lines: [
@@ -58,6 +59,7 @@ describe('renderSettlementPdf', () => {
       grossCents: 180000,
       feeCents: 7200,
       refundedCents: 0,
+      feeOnRefundedCents: 0,
       netCents: 172800,
       orderCount: 120,
       lines,
