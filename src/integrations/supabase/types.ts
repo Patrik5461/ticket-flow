@@ -989,6 +989,7 @@ export type Database = {
           amount_cents: number
           created_at: string
           created_by: string | null
+          event_id: string
           gopay_refund_id: string | null
           id: string
           order_id: string
@@ -1000,6 +1001,7 @@ export type Database = {
           amount_cents: number
           created_at?: string
           created_by?: string | null
+          event_id: string
           gopay_refund_id?: string | null
           id?: string
           order_id: string
@@ -1011,6 +1013,7 @@ export type Database = {
           amount_cents?: number
           created_at?: string
           created_by?: string | null
+          event_id?: string
           gopay_refund_id?: string | null
           id?: string
           order_id?: string
@@ -1019,6 +1022,13 @@ export type Database = {
           ticket_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "refunds_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "refunds_order_id_fkey"
             columns: ["order_id"]
@@ -1132,6 +1142,7 @@ export type Database = {
           currency: string
           event_id: string | null
           fee_cents: number
+          fee_on_refunded_cents: number
           generated_at: string
           gross_cents: number
           id: string
@@ -1153,6 +1164,7 @@ export type Database = {
           currency?: string
           event_id?: string | null
           fee_cents?: number
+          fee_on_refunded_cents?: number
           generated_at?: string
           gross_cents?: number
           id?: string
@@ -1174,6 +1186,7 @@ export type Database = {
           currency?: string
           event_id?: string | null
           fee_cents?: number
+          fee_on_refunded_cents?: number
           generated_at?: string
           gross_cents?: number
           id?: string
@@ -1417,6 +1430,7 @@ export type Database = {
           holder_name: string | null
           id: string
           order_id: string | null
+          refunded_at: string | null
           seat_id: string | null
           source: string
           status: string
@@ -1431,6 +1445,7 @@ export type Database = {
           holder_name?: string | null
           id?: string
           order_id?: string | null
+          refunded_at?: string | null
           seat_id?: string | null
           source?: string
           status?: string
@@ -1445,6 +1460,7 @@ export type Database = {
           holder_name?: string | null
           id?: string
           order_id?: string | null
+          refunded_at?: string | null
           seat_id?: string | null
           source?: string
           status?: string
@@ -1722,6 +1738,7 @@ export type Database = {
       organizer_is_active: { Args: { p_org: string }; Returns: boolean }
       recompute_settlement: { Args: { p_id: string }; Returns: number }
       release_expired_orders: { Args: never; Returns: number }
+      release_pending_order: { Args: { p_order_id: string }; Returns: boolean }
       release_seats_for_order: { Args: { p_order_id: string }; Returns: number }
       release_ticket_capacity: {
         Args: { p_qty: number; p_ticket_type_id: string }
