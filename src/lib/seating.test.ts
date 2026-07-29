@@ -14,6 +14,7 @@ import {
   generateSeats,
   migrateLayout,
   moveObject,
+  respaceSector,
   nextCopyName,
   nextObjectId,
   normalizeAngle,
@@ -409,5 +410,159 @@ describe('naming and area keys', () => {
     expect(capacityAreas(layout)).toEqual([
       { id: 'o2', label: 'Parket', capacity: 300, level: 'parter' },
     ])
+  })
+})
+
+describe('curved rows', () => {
+  it('curveDepth 0 keeps the plain grid', () => {
+    const straight = generateSeats({ sector: 'A', rows: 2, seatsPerRow: 5 })
+    const zero = generateSeats({
+      sector: 'A',
+      rows: 2,
+      seatsPerRow: 5,
+      curveDepth: 0,
+    })
+    expect(zero).toEqual(straight)
+  })
+
+  it('bends a row so its ends rise toward the stage', () => {
+    const seats = generateSeats({
+      sector: 'A',
+      rows: 1,
+      seatsPerRow: 5,
+      curveDepth: 20,
+    })
+    const ys = seats.map((s) => s.y)
+    const middle = ys[2]
+    // Stage is up-canvas, so the ends wrap toward it: smaller y than the middle.
+    expect(ys[0]).toBeLessThan(middle)
+    expect(ys[4]).toBeLessThan(middle)
+    // symmetric about the centre seat
+    expect(ys[0]).toBeCloseTo(ys[4])
+    expect(ys[1]).toBeCloseTo(ys[3])
+  })
+
+  it('the first row rises by exactly curveDepth', () => {
+    const seats = generateSeats({
+      sector: 'A',
+      rows: 1,
+      seatsPerRow: 9,
+      curveDepth: 25,
+    })
+    const ys = seats.map((s) => s.y)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(25)
+  })
+
+  it('keeps the seat gap constant as rows widen', () => {
+    const seats = generateSeats({
+      sector: 'A',
+      rows: 4,
+      seatsPerRow: 8,
+      seatGapX: 30,
+      curveDepth: 30,
+    })
+    const gapIn = (row: string) => {
+      const r = seats.filter((s) => s.row_label === row)
+      return Math.hypot(r[1].x - r[0].x, r[1].y - r[0].y)
+    }
+    expect(gapIn('D')).toBeCloseTo(gapIn('A'), 1)
+  })
+
+  it('rows still march away from the stage', () => {
+    const seats = generateSeats({
+      sector: 'A',
+      rows: 3,
+      seatsPerRow: 7,
+      rowGapY: 32,
+      curveDepth: 20,
+    })
+    const mid = (row: string) =>
+      seats.filter((s) => s.row_label === row).map((s) => s.y)[3]
+    expect(mid('B') - mid('A')).toBeCloseTo(32)
+    expect(mid('C') - mid('B')).toBeCloseTo(32)
+  })
+
+  it('survives a single-seat row', () => {
+    const seats = generateSeats({
+      sector: 'A',
+      rows: 2,
+      seatsPerRow: 1,
+      curveDepth: 20,
+    })
+    expect(seats).toHaveLength(2)
+    expect(
+      seats.every((s) => Number.isFinite(s.x) && Number.isFinite(s.y)),
+    ).toBe(true)
+  })
+})
+
+describe('respaceSector', () => {
+  const block = () =>
+    generateSeats({ sector: 'A', rows: 3, seatsPerRow: 4, seatGapX: 20 })
+
+  it('widens the seat gap without touching labels or numbers', () => {
+    const before = block()
+    const after = respaceSector(before, 'A', {
+      seatGapX: 40,
+      rowGapY: 32,
+      curveDepth: 0,
+    })
+    expect(after.map((s) => `${s.row_label}${s.seat_number}`)).toEqual(
+      before.map((s) => `${s.row_label}${s.seat_number}`),
+    )
+    const rowA = after.filter((s) => s.row_label === 'A')
+    expect(rowA[1].x - rowA[0].x).toBeCloseTo(40)
+  })
+
+  it('leaves other sectors alone', () => {
+    const mixed = [
+      ...block(),
+      ...generateSeats({ sector: 'B', rows: 1, seatsPerRow: 2, originY: 500 }),
+    ]
+    const after = respaceSector(mixed, 'A', {
+      seatGapX: 50,
+      rowGapY: 50,
+      curveDepth: 0,
+    })
+    const b = after.filter((s) => s.sector === 'B')
+    expect(b).toEqual(mixed.filter((s) => s.sector === 'B'))
+  })
+
+  it('keeps the block anchored at its current top-left', () => {
+    const before = generateSeats({
+      sector: 'A',
+      rows: 2,
+      seatsPerRow: 3,
+      originX: 120,
+      originY: 80,
+    })
+    const after = respaceSector(before, 'A', {
+      seatGapX: 60,
+      rowGapY: 60,
+      curveDepth: 0,
+    })
+    expect(Math.min(...after.map((s) => s.x))).toBeCloseTo(120)
+    expect(Math.min(...after.map((s) => s.y))).toBeCloseTo(80)
+  })
+
+  it('can curve a sector that was generated straight', () => {
+    const after = respaceSector(block(), 'A', {
+      seatGapX: 20,
+      rowGapY: 32,
+      curveDepth: 15,
+    })
+    const rowA = after.filter((s) => s.row_label === 'A')
+    expect(rowA[0].y).toBeLessThan(rowA[1].y)
+  })
+
+  it('is a no-op for an unknown sector', () => {
+    const before = block()
+    expect(
+      respaceSector(before, 'ZZZ', {
+        seatGapX: 99,
+        rowGapY: 99,
+        curveDepth: 0,
+      }),
+    ).toBe(before)
   })
 })

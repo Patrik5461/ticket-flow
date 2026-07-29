@@ -86,6 +86,8 @@ export interface SeatGenConfig {
   seatGapX?: number
   rowGapY?: number
   seatType?: SeatType
+  /** Sagitta of the first row's arc, in canvas units. 0 = straight rows. */
+  curveDepth?: number
 }
 
 /** Spreadsheet-style column letters: 0→A, 25→Z, 26→AA, 27→AB … */
@@ -111,9 +113,84 @@ function rowLabelOffset(style: 'alpha' | 'numeric', start?: string): number {
 }
 
 /**
- * Generate a rectangular block of seats for one sector. Row labels run A,B,C…
- * (or 1,2,3…); seat numbers run from `seatNumberStart` across each row, left→
- * right or right→left. Coordinates are laid out on a grid for the canvas.
+ * Where a seat sits within its sector, for both fresh generation and respacing.
+ *
+ * With `curveDepth` 0 this is a plain grid. Above 0 the rows bend around a
+ * common centre of curvature placed in front of the block — the way a theatre
+ * wraps its rows around the stage — so a row's ends rise toward the stage while
+ * every seat in it stays the same distance from it. `curveDepth` is the sagitta
+ * of the first row: how far its ends rise above its middle, in canvas units.
+ * Rows further back sit on wider circles, which keeps the seat gap constant
+ * instead of fanning the block out.
+ */
+export interface SeatGrid {
+  gapX: number
+  gapY: number
+  originX: number
+  originY: number
+  /** Widest row in the block — fixes the arc's half-width for every row. */
+  cols: number
+  curveDepth: number
+}
+
+/**
+ * Radius whose arc of half-length `halfArc` rises exactly `depth` at its ends.
+ *
+ * Solves depth = R(1 − cos(halfArc/R)) by Newton. The textbook sagitta formula
+ * is the chord version; measuring along the arc keeps the seat gap constant as
+ * rows widen, so it is the one that matches how the seats are actually placed.
+ * A few iterations converge well inside a pixel.
+ */
+export function arcRadius(halfArc: number, depth: number): number {
+  if (halfArc <= 0 || depth <= 0) return 0
+  // Past a quarter turn the row folds back on itself; clamp to something a hall
+  // could plausibly look like.
+  const d = Math.min(depth, halfArc)
+  let r = (d * d + halfArc * halfArc) / (2 * d) // chord estimate: a good seed
+  for (let i = 0; i < 8; i++) {
+    const u = halfArc / r
+    const f = r * (1 - Math.cos(u)) - d
+    const df = 1 - Math.cos(u) - u * Math.sin(u)
+    if (Math.abs(df) < 1e-12) break
+    const next = r - f / df
+    if (!Number.isFinite(next) || next <= halfArc / Math.PI) break
+    r = next
+    if (Math.abs(f) < 1e-9) break
+  }
+  return r
+}
+
+function seatPosition(
+  grid: SeatGrid,
+  row: number,
+  col: number,
+): { x: number; y: number } {
+  const halfWidth = ((grid.cols - 1) * grid.gapX) / 2
+  const curve = Math.max(0, grid.curveDepth)
+  const radius0 = arcRadius(halfWidth, curve)
+  if (radius0 <= 0) {
+    return {
+      x: grid.originX + col * grid.gapX,
+      y: grid.originY + row * grid.gapY,
+    }
+  }
+  const centerX = grid.originX + halfWidth
+  const centerY = grid.originY - radius0
+  const radius = radius0 + row * grid.gapY
+  // Hold the arc length per row, so seats keep their spacing as rows widen.
+  const theta = ((grid.cols - 1) * grid.gapX) / radius
+  const step = grid.cols > 1 ? theta / (grid.cols - 1) : 0
+  const angle = -theta / 2 + col * step
+  return {
+    x: centerX + radius * Math.sin(angle),
+    y: centerY + radius * Math.cos(angle),
+  }
+}
+
+/**
+ * Generate a block of seats for one sector. Row labels run A,B,C… (or 1,2,3…);
+ * seat numbers run from `seatNumberStart` across each row, left→right or
+ * right→left. Straight by default, curved when `curveDepth` is set.
  */
 export function generateSeats(cfg: SeatGenConfig): GeneratedSeat[] {
   const level = cfg.level ?? 'main'
@@ -127,6 +204,14 @@ export function generateSeats(cfg: SeatGenConfig): GeneratedSeat[] {
   const rowOffset = rowLabelOffset(style, cfg.rowLabelStart)
   const rows = Math.max(0, Math.floor(cfg.rows))
   const cols = Math.max(0, Math.floor(cfg.seatsPerRow))
+  const grid: SeatGrid = {
+    gapX,
+    gapY,
+    originX: ox,
+    originY: oy,
+    cols,
+    curveDepth: cfg.curveDepth ?? 0,
+  }
 
   const out: GeneratedSeat[] = []
   for (let r = 0; r < rows; r++) {
@@ -140,13 +225,76 @@ export function generateSeats(cfg: SeatGenConfig): GeneratedSeat[] {
         sector: cfg.sector,
         row_label,
         seat_number: String(seatNo),
-        x: ox + posCol * gapX,
-        y: oy + r * gapY,
+        ...seatPosition(grid, r, posCol),
         seat_type: seatType,
       })
     }
   }
   return out
+}
+
+export interface RespaceOptions {
+  seatGapX: number
+  rowGapY: number
+  curveDepth: number
+}
+
+/**
+ * Re-lay an existing sector at new spacing/curvature, keeping its identity: row
+ * labels and seat numbers are untouched, only coordinates move. Rows are read
+ * off the current positions (top to bottom, then left to right within a row),
+ * so a sector that was dragged or rotated still respaces sensibly, and the
+ * block stays anchored at its current top-left corner.
+ *
+ * Returns a new array in the input order; seats outside the sector pass
+ * through unchanged.
+ */
+export function respaceSector<T extends GeneratedSeat>(
+  seats: T[],
+  sector: string,
+  opts: RespaceOptions,
+): T[] {
+  const target = seats.filter((s) => s.sector === sector)
+  if (target.length === 0) return seats
+
+  // Group into rows by label, ordered by where the rows currently sit.
+  const rows = new Map<string, T[]>()
+  for (const s of target) {
+    const arr = rows.get(s.row_label) ?? []
+    arr.push(s)
+    rows.set(s.row_label, arr)
+  }
+  const ordered = [...rows.entries()]
+    .map(([label, rowSeats]) => ({
+      label,
+      seats: [...rowSeats].sort((a, b) => a.x - b.x),
+      top: Math.min(...rowSeats.map((s) => s.y)),
+    }))
+    .sort((a, b) => a.top - b.top || a.label.localeCompare(b.label))
+
+  const grid: SeatGrid = {
+    gapX: opts.seatGapX,
+    gapY: opts.rowGapY,
+    originX: Math.min(...target.map((s) => s.x)),
+    originY: Math.min(...target.map((s) => s.y)),
+    cols: Math.max(...ordered.map((r) => r.seats.length)),
+    curveDepth: opts.curveDepth,
+  }
+
+  const moved = new Map<T, { x: number; y: number }>()
+  ordered.forEach((row, r) =>
+    row.seats.forEach((s, c) => moved.set(s, seatPosition(grid, r, c))),
+  )
+  // Curving pulls the block off its origin (the ends rise, the width narrows to
+  // the chord), so re-anchor on the corner it started from — respacing must not
+  // walk the sector across the canvas.
+  const placed = [...moved.values()]
+  const dx = grid.originX - Math.min(...placed.map((p) => p.x))
+  const dy = grid.originY - Math.min(...placed.map((p) => p.y))
+  return seats.map((s) => {
+    const p = moved.get(s)
+    return p ? { ...s, x: p.x + dx, y: p.y + dy } : s
+  })
 }
 
 /** Distinct sectors present in a set of seats (for sector→price mapping). */

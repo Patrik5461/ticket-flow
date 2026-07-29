@@ -22,6 +22,7 @@ import {
   nextCopyName,
   nextObjectId,
   normalizeAngle,
+  respaceSector,
   objectCenter,
   objectCorners,
   objectPoints,
@@ -36,6 +37,7 @@ import type {
   MapObject,
   MapObjectKind,
   ResizeHandle,
+  RespaceOptions,
   SeatMapLayout,
   Viewport,
 } from '../lib/seating'
@@ -70,6 +72,22 @@ const SEAT_COLORS: Record<SeatType, string> = {
 
 let cidSeq = 0
 const nextCid = () => `s${++cidSeq}`
+
+const DEFAULT_SEAT_GAP = 28
+const DEFAULT_ROW_GAP = 32
+/** How many editor steps undo can walk back. */
+const HISTORY_LIMIT = 40
+
+const numOr = (raw: string, fallback: number) => {
+  const n = parseFloat(raw)
+  return Number.isFinite(n) && n >= 0 ? n : fallback
+}
+
+/** Everything undo/redo restores — the geometry, not the viewport or selection. */
+interface EditorDoc {
+  seats: WorkSeat[]
+  objects: WorkObject[]
+}
 
 function VenuesPage() {
   const initial = Route.useLoaderData()
@@ -295,6 +313,105 @@ function MapEditor({
   // actually looking, so this mirrors it without re-rendering the editor.
   const viewRef = useRef<Viewport | null>(null)
 
+  // --- undo/redo -----------------------------------------------------------
+  // Snapshots are taken *before* a change lands, and a continuous gesture
+  // checkpoints once at pointer-down, so dragging a sector across the canvas
+  // costs one undo step rather than one per mouse move.
+  const docRef = useRef<EditorDoc>({ seats, objects })
+  docRef.current = { seats, objects }
+  const history = useRef<{ past: EditorDoc[]; future: EditorDoc[] }>({
+    past: [],
+    future: [],
+  })
+  const [histSize, setHistSize] = useState({ undo: 0, redo: 0 })
+  const syncHist = () =>
+    setHistSize({
+      undo: history.current.past.length,
+      redo: history.current.future.length,
+    })
+
+  const checkpoint = useCallback(() => {
+    const h = history.current
+    h.past.push(docRef.current)
+    if (h.past.length > HISTORY_LIMIT) h.past.shift()
+    h.future = []
+    syncHist()
+  }, [])
+
+  const restore = (doc: EditorDoc) => {
+    setSeats(doc.seats)
+    setObjects(doc.objects)
+    setSel(null)
+  }
+
+  const undo = useCallback(() => {
+    const h = history.current
+    const prev = h.past.pop()
+    if (!prev) return
+    h.future.push(docRef.current)
+    restore(prev)
+    syncHist()
+  }, [])
+
+  const redo = useCallback(() => {
+    const h = history.current
+    const next = h.future.pop()
+    if (!next) return
+    h.past.push(docRef.current)
+    restore(next)
+    syncHist()
+  }, [])
+
+  // Loading a map is the baseline, not an undoable step.
+  const resetHistory = () => {
+    history.current = { past: [], future: [] }
+    syncHist()
+  }
+
+  // --- keyboard ------------------------------------------------------------
+  const selRef = useRef<Selection>(sel)
+  selRef.current = sel
+  const editableRef = useRef(true)
+
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === 'INPUT' ||
+        t.tagName === 'TEXTAREA' ||
+        t.tagName === 'SELECT' ||
+        t.isContentEditable)
+
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+        return
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const s = selRef.current
+        if (!s || !editableRef.current) return
+        e.preventDefault()
+        if (s.kind === 'sector') deleteSectorRef.current(s.sector)
+        else deleteObjectRef.current(s.id)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
+
+  // The delete handlers close over current state, so reach them through refs
+  // rather than re-binding the key listener on every edit.
+  const deleteSectorRef = useRef<(s: string) => void>(() => {})
+  const deleteObjectRef = useRef<(id: string) => void>(() => {})
+
   // Load existing map
   useEffect(() => {
     if (!seatMapId) {
@@ -326,6 +443,7 @@ function MapEditor({
       )
       const first = res.seats[0]?.level ?? layout.levels[0]?.key
       if (first) setLevel(first)
+      resetHistory()
     })
   }, [seatMapId])
 
@@ -347,10 +465,12 @@ function MapEditor({
       : null
 
   const grid = snapOn ? GRID_SIZE : 0
+  editableRef.current = editable
 
   // --- objects -------------------------------------------------------------
 
   const addObject = (kind: MapObjectKind) => {
+    checkpoint()
     const v = viewRef.current
     const width = kind === 'stage' ? 240 : 200
     const height = kind === 'stage' ? 60 : 140
@@ -380,6 +500,7 @@ function MapEditor({
   const duplicateObject = (id: string) => {
     const src = objects.find((o) => o.id === id)
     if (!src) return
+    checkpoint()
     const copy: WorkObject = {
       ...src,
       id: nextObjectId(objects.map((o) => o.id)),
@@ -397,6 +518,7 @@ function MapEditor({
   const deleteObject = (id: string) => {
     const o = objects.find((x) => x.id === id)
     if (!o || !confirm(`Zmazať „${o.label}"?`)) return
+    checkpoint()
     setObjects((prev) => prev.filter((x) => x.id !== id))
     setSel(null)
   }
@@ -409,6 +531,7 @@ function MapEditor({
   const rotateSector = (sector: string, deg: number) => {
     const target = sectorSeats(sector)
     if (target.length === 0) return
+    checkpoint()
     const pivot = centroid(target)
     const moved = new Map(
       rotatePoints(target, deg, pivot).map((s) => [s.cid, s]),
@@ -419,6 +542,7 @@ function MapEditor({
   const duplicateSector = (sector: string) => {
     const src = sectorSeats(sector)
     if (src.length === 0) return
+    checkpoint()
     const copyName = nextCopyName(
       [...new Set(seats.map((s) => s.sector))],
       sector,
@@ -438,14 +562,34 @@ function MapEditor({
     setSel({ kind: 'sector', sector: copyName })
   }
 
+  const respace = (sector: string, opts: RespaceOptions) => {
+    if (sectorSeats(sector).length === 0) return
+    checkpoint()
+    // Respace only the sector on this level; the lib keys off sector name, so
+    // scope it here to avoid touching a same-named sector on another level.
+    const onLevel = new Set(sectorSeats(sector).map((s) => s.cid))
+    const relaid = new Map(
+      respaceSector(
+        seats.filter((s) => onLevel.has(s.cid)),
+        sector,
+        opts,
+      ).map((s) => [s.cid, s]),
+    )
+    setSeats((prev) => prev.map((s) => relaid.get(s.cid) ?? s))
+  }
+
   const deleteSector = (sector: string) => {
     const n = sectorSeats(sector).length
     if (!confirm(`Zmazať sektor „${sector}" a jeho ${n} sedadiel?`)) return
+    checkpoint()
     setSeats((prev) =>
       prev.filter((s) => !(s.level === level && s.sector === sector)),
     )
     setSel(null)
   }
+
+  deleteSectorRef.current = deleteSector
+  deleteObjectRef.current = deleteObject
 
   const save = async () => {
     setSaving(true)
@@ -502,6 +646,28 @@ function MapEditor({
           className="rounded-md border px-3 py-2 text-lg font-semibold"
         />
         <div className="flex gap-2">
+          {editable && (
+            <div className="flex gap-1">
+              <button
+                onClick={undo}
+                disabled={histSize.undo === 0}
+                title="Späť (Ctrl/Cmd+Z)"
+                aria-label="Späť"
+                className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-40"
+              >
+                ↶
+              </button>
+              <button
+                onClick={redo}
+                disabled={histSize.redo === 0}
+                title="Znova (Ctrl/Cmd+Shift+Z)"
+                aria-label="Znova"
+                className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-40"
+              >
+                ↷
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setPreview((p) => !p)}
             className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
@@ -578,12 +744,13 @@ function MapEditor({
               ) + 40
             }
             existingSectors={[...new Set(seats.map((s) => s.sector))]}
-            onAdd={(gen) =>
+            onAdd={(gen) => {
+              checkpoint()
               setSeats((prev) => [
                 ...prev,
                 ...gen.map((g) => ({ ...g, cid: nextCid() })),
               ])
-            }
+            }}
           />
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button
@@ -619,6 +786,7 @@ function MapEditor({
         grid={grid}
         viewRef={viewRef}
         onSelect={setSel}
+        onGestureStart={checkpoint}
         onMoveSector={
           !editable
             ? undefined
@@ -641,7 +809,9 @@ function MapEditor({
           onDelete={() => deleteSector(selSector)}
           onDuplicate={() => duplicateSector(selSector)}
           onRotate={(deg) => rotateSector(selSector, deg)}
-          onType={(t) =>
+          onRespace={(opts) => respace(selSector, opts)}
+          onType={(t) => {
+            checkpoint()
             setSeats((prev) =>
               prev.map((s) =>
                 s.level === level && s.sector === selSector
@@ -649,13 +819,14 @@ function MapEditor({
                   : s,
               ),
             )
-          }
+          }}
         />
       )}
 
       {editable && selObject && (
         <ObjectTools
           object={selObject}
+          onBeforeEdit={checkpoint}
           onPatch={(patch) => patchObject(selObject.id, patch)}
           onDuplicate={() => duplicateObject(selObject.id)}
           onDelete={() => deleteObject(selObject.id)}
@@ -683,6 +854,9 @@ function AddSectorForm({
   const [perRow, setPerRow] = useState('20')
   const [style, setStyle] = useState<'alpha' | 'numeric'>('alpha')
   const [dir, setDir] = useState<'ltr' | 'rtl'>('ltr')
+  const [seatGap, setSeatGap] = useState(String(DEFAULT_SEAT_GAP))
+  const [rowGap, setRowGap] = useState(String(DEFAULT_ROW_GAP))
+  const [curve, setCurve] = useState('0')
   const [warn, setWarn] = useState<string | null>(null)
 
   const add = () => {
@@ -703,6 +877,9 @@ function AddSectorForm({
       seatsPerRow: parseInt(perRow, 10) || 0,
       rowLabelStyle: style,
       seatNumberDir: dir,
+      seatGapX: numOr(seatGap, DEFAULT_SEAT_GAP),
+      rowGapY: numOr(rowGap, DEFAULT_ROW_GAP),
+      curveDepth: numOr(curve, 0),
       originX: 0,
       originY: existingBottom,
     })
@@ -769,6 +946,14 @@ function AddSectorForm({
           <option value="rtl">sprava</option>
         </select>
       </label>
+      <SpacingFields
+        seatGap={seatGap}
+        rowGap={rowGap}
+        curve={curve}
+        onSeatGap={setSeatGap}
+        onRowGap={setRowGap}
+        onCurve={setCurve}
+      />
       <button
         onClick={add}
         className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
@@ -777,6 +962,58 @@ function AddSectorForm({
       </button>
       {warn && <p className="w-full text-xs text-red-600">{warn}</p>}
     </div>
+  )
+}
+
+/** Row/seat spacing and curvature — shared by the generator and sector tools. */
+function SpacingFields({
+  seatGap,
+  rowGap,
+  curve,
+  onSeatGap,
+  onRowGap,
+  onCurve,
+}: {
+  seatGap: string
+  rowGap: string
+  curve: string
+  onSeatGap: (v: string) => void
+  onRowGap: (v: string) => void
+  onCurve: (v: string) => void
+}) {
+  return (
+    <>
+      <label>
+        <span className="mb-1 block text-xs text-gray-600">Rozostup miest</span>
+        <input
+          value={seatGap}
+          onChange={(e) => onSeatGap(e.target.value)}
+          type="number"
+          min={8}
+          className="w-20 rounded border px-2 py-1"
+        />
+      </label>
+      <label>
+        <span className="mb-1 block text-xs text-gray-600">Rozostup radov</span>
+        <input
+          value={rowGap}
+          onChange={(e) => onRowGap(e.target.value)}
+          type="number"
+          min={8}
+          className="w-20 rounded border px-2 py-1"
+        />
+      </label>
+      <label title="0 = rovné rady; vyššia hodnota ohne rady okolo pódia">
+        <span className="mb-1 block text-xs text-gray-600">Zakrivenie</span>
+        <input
+          value={curve}
+          onChange={(e) => onCurve(e.target.value)}
+          type="number"
+          min={0}
+          className="w-20 rounded border px-2 py-1"
+        />
+      </label>
+    </>
   )
 }
 
@@ -807,6 +1044,7 @@ function SectorTools({
   onDelete,
   onDuplicate,
   onRotate,
+  onRespace,
   onType,
 }: {
   sector: string
@@ -814,8 +1052,14 @@ function SectorTools({
   onDelete: () => void
   onDuplicate: () => void
   onRotate: (deg: number) => void
+  onRespace: (opts: RespaceOptions) => void
   onType: (t: SeatType) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const [seatGap, setSeatGap] = useState(String(DEFAULT_SEAT_GAP))
+  const [rowGap, setRowGap] = useState(String(DEFAULT_ROW_GAP))
+  const [curve, setCurve] = useState('0')
+
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
       <span className="font-medium">
@@ -841,21 +1085,54 @@ function SectorTools({
         </ToolButton>
       ))}
       <ToolButton onClick={onDuplicate}>Duplikovať</ToolButton>
+      <ToolButton onClick={() => setOpen((o) => !o)}>
+        Rozostupy{open ? ' ▴' : ' ▾'}
+      </ToolButton>
       <span className="ml-auto" />
       <ToolButton onClick={onDelete} danger>
         Zmazať sektor
       </ToolButton>
+      {open && (
+        <div className="flex w-full flex-wrap items-end gap-2 border-t pt-2">
+          <SpacingFields
+            seatGap={seatGap}
+            rowGap={rowGap}
+            curve={curve}
+            onSeatGap={setSeatGap}
+            onRowGap={setRowGap}
+            onCurve={setCurve}
+          />
+          <ToolButton
+            onClick={() =>
+              onRespace({
+                seatGapX: numOr(seatGap, DEFAULT_SEAT_GAP),
+                rowGapY: numOr(rowGap, DEFAULT_ROW_GAP),
+                curveDepth: numOr(curve, 0),
+              })
+            }
+          >
+            Prepočítať sektor
+          </ToolButton>
+          <p className="w-full text-xs text-gray-500">
+            Rady a čísla sedadiel zostanú, zmenia sa len súradnice. Sektor
+            zostane ukotvený v ľavom hornom rohu.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
 
 function ObjectTools({
   object,
+  onBeforeEdit,
   onPatch,
   onDuplicate,
   onDelete,
 }: {
   object: MapObject
+  /** Called once as a field gains focus, so typing costs one undo step. */
+  onBeforeEdit: () => void
   onPatch: (patch: Partial<MapObject>) => void
   onDuplicate: () => void
   onDelete: () => void
@@ -868,6 +1145,7 @@ function ObjectTools({
         </span>
         <input
           value={object.label}
+          onFocus={onBeforeEdit}
           onChange={(e) => onPatch({ label: e.target.value })}
           className="w-40 rounded border px-2 py-1"
         />
@@ -882,6 +1160,7 @@ function ObjectTools({
             min={0}
             value={object.capacity ?? ''}
             placeholder="bez predaja"
+            onFocus={onBeforeEdit}
             onChange={(e) => {
               const n = parseInt(e.target.value, 10)
               onPatch({ capacity: Number.isFinite(n) && n > 0 ? n : null })
@@ -895,6 +1174,7 @@ function ObjectTools({
         <input
           type="number"
           value={Math.round(object.rotation)}
+          onFocus={onBeforeEdit}
           onChange={(e) =>
             onPatch({
               rotation: normalizeAngle(parseInt(e.target.value, 10) || 0),
@@ -907,9 +1187,10 @@ function ObjectTools({
         {[-90, -15, 15, 90].map((deg) => (
           <ToolButton
             key={deg}
-            onClick={() =>
+            onClick={() => {
+              onBeforeEdit()
               onPatch({ rotation: normalizeAngle(object.rotation + deg) })
-            }
+            }}
           >
             {deg > 0 ? `+${deg}°` : `${deg}°`}
           </ToolButton>
@@ -971,6 +1252,7 @@ function Canvas({
   grid,
   viewRef,
   onSelect,
+  onGestureStart,
   onMoveSector,
   onPatchObject,
 }: {
@@ -985,6 +1267,8 @@ function Canvas({
   /** Mirrors the live viewport so the editor can drop objects into view. */
   viewRef: React.MutableRefObject<Viewport | null>
   onSelect: (s: Selection) => void
+  /** Fired once when a mutating drag begins, so undo records one step per drag. */
+  onGestureStart?: () => void
   onMoveSector?: (sector: string, dx: number, dy: number) => void
   onPatchObject?: (id: string, patch: Partial<MapObject>) => void
 }) {
@@ -994,6 +1278,19 @@ function Canvas({
   )
   const [space, setSpace] = useState(false)
   const [panning, setPanning] = useState(false)
+  // Rendered width in CSS px, so the zoom readout can be a real scale factor.
+  const [pxWidth, setPxWidth] = useState(0)
+
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w) setPxWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Live gesture state lives in refs: pointer moves must not wait for a render.
   const gesture = useRef<
@@ -1151,9 +1448,20 @@ function Canvas({
       svg.releasePointerCapture(e.pointerId)
   }
 
+  // A press that never moves is only a selection, so the undo checkpoint waits
+  // for the first actual change — otherwise clicking a seat would burn a step
+  // and "undo" would appear to do nothing.
+  const edited = useRef(false)
+  const beginEdit = () => {
+    if (edited.current) return
+    edited.current = true
+    onGestureStart?.()
+  }
+
   /** Shared opener for the object gestures: capture the pointer and select. */
   const grabObject = (e: React.PointerEvent, o: WorkObject) => {
     onSelect({ kind: 'object', id: o.id })
+    edited.current = false
     svgRef.current?.setPointerCapture(e.pointerId)
   }
 
@@ -1171,10 +1479,18 @@ function Canvas({
   const selected = objects.find((o) => o.id === selObjectId) ?? null
   // Handles are sized off the viewport so they stay grabbable at any zoom.
   const hs = view.w / 90
+  // 100% = one canvas unit per CSS pixel.
+  const zoomPercent = pxWidth > 0 ? Math.round((pxWidth / view.w) * 100) : 100
 
   return (
     <div className="relative rounded-md border bg-ink-950">
-      <div className="absolute right-2 top-2 z-10 flex gap-1">
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+        <span
+          className="mr-1 rounded border border-white/20 bg-black/40 px-2 py-1 text-xs tabular-nums text-white/80"
+          title="Priblíženie"
+        >
+          {zoomPercent}%
+        </span>
         <CanvasButton onClick={() => zoomBy(1 / 1.3)} title="Priblížiť">
           +
         </CanvasButton>
@@ -1244,6 +1560,7 @@ function Canvas({
             const dx = wantX - g.appliedX
             const dy = wantY - g.appliedY
             if (dx === 0 && dy === 0) return
+            beginEdit()
             g.appliedX = wantX
             g.appliedY = wantY
             onMoveSector?.(g.sector, dx, dy)
@@ -1253,6 +1570,7 @@ function Canvas({
           const target = objectsRef.current.find((o) => o.id === g.objectId)
           if (!target || !onPatchObject) return
           const pt = clientToSvg(svg, e.clientX, e.clientY)
+          beginEdit()
 
           if (g.kind === 'object') {
             onPatchObject(g.objectId, {
@@ -1376,6 +1694,7 @@ function Canvas({
               if (spaceRef.current || e.button === 1) return startPan(e, false)
               onSelect({ kind: 'sector', sector: s.sector })
               if (!onMoveSector) return
+              edited.current = false
               svgRef.current?.setPointerCapture(e.pointerId)
               gesture.current = {
                 kind: 'sector',
