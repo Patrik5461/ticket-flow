@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listVenuesFn,
@@ -36,28 +36,49 @@ const nextCid = () => `s${++cidSeq}`
 
 function VenuesPage() {
   const initial = Route.useLoaderData()
+  const router = useRouter()
   const [venues, setVenues] = useState<VenueRow[]>(initial)
   const [venueId, setVenueId] = useState<string | null>(initial[0]?.id ?? null)
   const [newVenue, setNewVenue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Venue whose editor should open by itself right after creation, so that
+  // "+ Pridať miesto" lands the user straight in the seat-map editor.
+  const [autoNewMapFor, setAutoNewMapFor] = useState<string | null>(null)
+
+  const selectVenue = (id: string | null) => {
+    setAutoNewMapFor(null)
+    setVenueId(id)
+  }
 
   const addVenue = async () => {
     const name = newVenue.trim()
-    if (!name) return
+    if (!name) return setError('Zadajte názov miesta.')
+    setError(null)
+    setSaving(true)
     try {
       const res = await createVenueFn({ data: { name } })
-      if ('error' in res) return alert(res.error)
+      if ('error' in res) return setError(res.error)
+      // Refresh the select; if the refetch fails we still show the new venue
+      // rather than leaving the user with an unchanged screen.
       const list = await listVenuesFn()
-      if (!('error' in list)) {
-        setVenues(list)
-        setVenueId(res.id)
-      }
+      setVenues(
+        'error' in list
+          ? [...venues, { id: res.id, name, address: null, createdAt: '' }]
+          : list,
+      )
+      setVenueId(res.id)
+      setAutoNewMapFor(res.id)
       setNewVenue('')
+      void router.invalidate()
     } catch (e) {
-      alert(
+      setError(
         `Miesto sa nepodarilo vytvoriť: ${
           e instanceof Error ? e.message : 'neznáma chyba'
         }`,
       )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -77,7 +98,7 @@ function VenuesPage() {
             <span className="mb-1 block text-gray-600">Miesto konania</span>
             <select
               value={venueId ?? ''}
-              onChange={(e) => setVenueId(e.target.value || null)}
+              onChange={(e) => selectVenue(e.target.value || null)}
               className="rounded-md border px-3 py-2 text-sm"
             >
               <option value="">— vyberte —</option>
@@ -93,35 +114,70 @@ function VenuesPage() {
             <input
               value={newVenue}
               onChange={(e) => setNewVenue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void addVenue()
+              }}
               placeholder="napr. Mestské divadlo"
               className="rounded-md border px-3 py-2 text-sm"
             />
           </label>
           <button
             onClick={addVenue}
-            className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50"
+            disabled={saving}
+            className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
-            + Pridať miesto
+            {saving ? 'Vytváram…' : '+ Pridať miesto'}
           </button>
         </div>
+        {error && (
+          <p className="mt-3 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
       </section>
 
-      {venueId && <SeatMaps venueId={venueId} />}
+      {venueId && (
+        <SeatMaps
+          key={venueId}
+          venueId={venueId}
+          autoNewMap={autoNewMapFor === venueId}
+        />
+      )}
     </div>
   )
 }
 
-function SeatMaps({ venueId }: { venueId: string }) {
+function SeatMaps({
+  venueId,
+  autoNewMap,
+}: {
+  venueId: string
+  autoNewMap: boolean
+}) {
   const [maps, setMaps] = useState<SeatMapSummary[]>([])
-  const [editing, setEditing] = useState<{ id: string | null } | null>(null)
+  // Keyed on venueId by the parent, so the initial value is enough — a fresh
+  // venue mounts straight into an empty editor.
+  const [editing, setEditing] = useState<{ id: string | null } | null>(
+    autoNewMap ? { id: null } : null,
+  )
+  const [error, setError] = useState<string | null>(null)
 
   const load = async () => {
-    const res = await listSeatMapsFn({ data: { venueId } })
-    if (!('error' in res)) setMaps(res)
+    try {
+      const res = await listSeatMapsFn({ data: { venueId } })
+      if ('error' in res) return setError(res.error)
+      setError(null)
+      setMaps(res)
+    } catch (e) {
+      setError(
+        `Mapy sa nepodarilo načítať: ${
+          e instanceof Error ? e.message : 'neznáma chyba'
+        }`,
+      )
+    }
   }
   useEffect(() => {
     void load()
-    setEditing(null)
   }, [venueId])
 
   if (editing) {
@@ -148,6 +204,11 @@ function SeatMaps({ venueId }: { venueId: string }) {
           + Nová mapa
         </button>
       </div>
+      {error && (
+        <p className="mb-3 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
       {maps.length === 0 ? (
         <p className="text-sm text-gray-500">Zatiaľ žiadne mapy.</p>
       ) : (
@@ -190,6 +251,7 @@ function MapEditor({
   const [inUse, setInUse] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selSector, setSelSector] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Load existing map
   useEffect(() => {
@@ -198,7 +260,7 @@ function MapEditor({
       return
     }
     void getSeatMapFn({ data: { seatMapId } }).then((res) => {
-      if ('error' in res) return alert(res.error)
+      if ('error' in res) return setError(res.error)
       setName(res.name)
       setInUse(res.inUse)
       setSeats(
@@ -228,6 +290,21 @@ function MapEditor({
 
   const save = async () => {
     setSaving(true)
+    setError(null)
+    try {
+      await doSave()
+    } catch (e) {
+      setError(
+        `Mapu sa nepodarilo uložiť: ${
+          e instanceof Error ? e.message : 'neznáma chyba'
+        }`,
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const doSave = async () => {
     const res = await saveSeatMapFn({
       data: {
         seatMapId,
@@ -246,15 +323,14 @@ function MapEditor({
         })),
       },
     })
-    setSaving(false)
-    if ('error' in res) return alert(res.error)
+    if ('error' in res) return setError(res.error)
     onClose()
   }
 
   const removeMap = async () => {
     if (!seatMapId || !confirm('Zmazať túto mapu?')) return
     const res = await deleteSeatMapFn({ data: { seatMapId } })
-    if ('error' in res) return alert(res.error)
+    if ('error' in res) return setError(res.error)
     onClose()
   }
 
@@ -297,6 +373,12 @@ function MapEditor({
           </button>
         </div>
       </div>
+
+      {error && (
+        <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
       {inUse && (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
