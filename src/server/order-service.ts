@@ -71,6 +71,8 @@ export interface PublicTicketType {
   max_per_order: number
   sort_order: number
   sold_out: boolean
+  /** Seat-bound category: the buyer picks seats, not a quantity. */
+  seated: boolean
   customFields: CustomField[]
 }
 
@@ -127,6 +129,7 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
     max_per_order: t.max_per_order,
     sort_order: t.sort_order,
     sold_out: t.sold_count >= t.capacity,
+    seated: (t as { seated?: boolean }).seated === true,
     customFields: parseCustomFields(t.custom_fields),
   }
 }

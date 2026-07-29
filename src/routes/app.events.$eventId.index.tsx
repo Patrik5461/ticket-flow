@@ -42,6 +42,8 @@ import {
 } from '../server/event-seating'
 import type { EventSeatingView } from '../server/event-seating'
 import { listVenuesFn, listSeatMapsFn, getSeatMapFn } from '../server/venues'
+import { capacityAreas, migrateLayout } from '../lib/seating'
+import type { CapacityArea } from '../lib/seating'
 import { utcIsoToZonedLocal, formatSk } from '../lib/datetime'
 import { formatEur } from '../lib/money'
 import type { CouponRow, TicketTypeRow } from '../lib/db-types'
@@ -302,8 +304,8 @@ function ReentrySection({ event }: { event: EventDetail['event'] }) {
           <p className="mt-1 max-w-prose text-sm text-gray-500">
             Ak je zapnuté, skener pustí už použitú vstupenku znova (zelená
             „Opätovný vstup") namiesto blokovania — vhodné, keď návštevníci
-            odchádzajú a vracajú sa. Každý vstup sa zaznamená do histórie a počet
-            odbavených sa opätovným vstupom nezvyšuje.
+            odchádzajú a vracajú sa. Každý vstup sa zaznamená do histórie a
+            počet odbavených sa opätovným vstupom nezvyšuje.
           </p>
         </div>
         <button
@@ -436,8 +438,8 @@ function SeatingSection({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-gray-500">
-                <th className="py-1">Sektor</th>
-                <th className="py-1">Sedadiel</th>
+                <th className="py-1">Sektor / plocha</th>
+                <th className="py-1">Kapacita</th>
                 <th className="py-1">Cenová kategória</th>
               </tr>
             </thead>
@@ -447,6 +449,18 @@ function SeatingSection({
                   <td className="py-1 font-medium">{s.sector}</td>
                   <td className="py-1">{s.seatCount}</td>
                   <td className="py-1">{ttName(s.ticketTypeId)}</td>
+                </tr>
+              ))}
+              {state.areas.map((a) => (
+                <tr key={a.id} className="border-t">
+                  <td className="py-1 font-medium">
+                    {a.label}
+                    <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-600">
+                      státie
+                    </span>
+                  </td>
+                  <td className="py-1">{a.capacity}</td>
+                  <td className="py-1">{ttName(a.ticketTypeId)}</td>
                 </tr>
               ))}
             </tbody>
@@ -492,7 +506,9 @@ function SeatMapPicker({
   const [maps, setMaps] = useState<{ id: string; name: string }[]>([])
   const [mapId, setMapId] = useState('')
   const [sectors, setSectors] = useState<string[]>([])
+  const [areas, setAreas] = useState<CapacityArea[]>([])
   const [pricing, setPricing] = useState<Record<string, string>>({})
+  const [areaPricing, setAreaPricing] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -504,6 +520,7 @@ function SeatMapPicker({
     setMaps([])
     setMapId('')
     setSectors([])
+    setAreas([])
     if (!venueId) return
     void listSeatMapsFn({ data: { venueId } }).then((r) => {
       if (!('error' in r)) setMaps(r.map((m) => ({ id: m.id, name: m.name })))
@@ -511,16 +528,23 @@ function SeatMapPicker({
   }, [venueId])
   useEffect(() => {
     setSectors([])
+    setAreas([])
     setPricing({})
+    setAreaPricing({})
     if (!mapId) return
     void getSeatMapFn({ data: { seatMapId: mapId } }).then((r) => {
       if ('error' in r) return
       setSectors([...new Set(r.seats.map((s) => s.sector))].sort())
+      // Standing areas live in the layout, not in the seats table.
+      setAreas(capacityAreas(migrateLayout(r.layout)))
     })
   }, [mapId])
 
   const canAssign =
-    mapId && sectors.length > 0 && sectors.every((s) => pricing[s])
+    mapId &&
+    sectors.length + areas.length > 0 &&
+    sectors.every((s) => pricing[s]) &&
+    areas.every((a) => areaPricing[a.id])
 
   const assign = async () => {
     setBusy(true)
@@ -531,6 +555,10 @@ function SeatMapPicker({
         sectorPricing: sectors.map((s) => ({
           sector: s,
           ticketTypeId: pricing[s],
+        })),
+        areaPricing: areas.map((a) => ({
+          areaId: a.id,
+          ticketTypeId: areaPricing[a.id],
         })),
       },
     })
@@ -595,6 +623,42 @@ function SeatMapPicker({
                   value={pricing[s] ?? ''}
                   onChange={(e) =>
                     setPricing((p) => ({ ...p, [s]: e.target.value }))
+                  }
+                  className="rounded-md border px-3 py-1.5"
+                >
+                  <option value="">— cenová kategória —</option>
+                  {ticketTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({formatEur(t.price_cents)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {areas.length > 0 && (
+        <div>
+          <div className="mb-1 text-sm font-medium">
+            Plochy na státie → cenové kategórie
+          </div>
+          <p className="mb-2 text-xs text-gray-500">
+            Kapacita plochy prepíše kapacitu vybranej kategórie. Použite pre ne
+            samostatné kategórie — nie tie, ktoré ste priradili sektorom.
+          </p>
+          <div className="space-y-2">
+            {areas.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 text-sm">
+                <span className="w-24 font-medium">{a.label}</span>
+                <span className="w-20 text-xs text-gray-500">
+                  {a.capacity} miest
+                </span>
+                <select
+                  value={areaPricing[a.id] ?? ''}
+                  onChange={(e) =>
+                    setAreaPricing((p) => ({ ...p, [a.id]: e.target.value }))
                   }
                   className="rounded-md border px-3 py-1.5"
                 >

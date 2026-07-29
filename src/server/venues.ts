@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { getImpersonation } from './impersonation-session'
+import { migrateLayout } from '../lib/seating'
 import type { SeatType, SeatMapLayout } from '../lib/seating'
 
 export class VenueError extends Error {}
@@ -188,10 +189,20 @@ export interface SeatMapSummary {
   inUse: boolean
 }
 
+/** Objects a single map may hold — a guard against a runaway client payload. */
+const MAX_OBJECTS = 500
+
 const seatInput = z.object({
   level: z.string().max(60).default('main'),
   levelOrder: z.number().int().default(0),
-  sector: z.string().min(1).max(60),
+  sector: z
+    .string()
+    .min(1)
+    .max(60)
+    // '#' is reserved: event_sector_pricing keys standing areas with that prefix.
+    .refine((s) => !s.startsWith('#'), {
+      message: 'Názov sektora nesmie začínať znakom „#".',
+    }),
   rowLabel: z.string().min(1).max(20),
   seatNumber: z.string().min(1).max(20),
   x: z.number(),
@@ -303,7 +314,8 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
         id: map.id,
         venueId: map.venue_id,
         name: map.name,
-        layout: map.layout ?? { levels: [] },
+        // Normalize on read: pre-object maps carry no version and no objects.
+        layout: migrateLayout(map.layout),
         inUse: (uses ?? 0) > 0,
         seats: (seats ?? []).map((s) => ({
           id: s.id,
@@ -340,6 +352,17 @@ export const saveSeatMapFn = createServerFn({ method: 'POST' })
       await ownVenue(actor, data.venueId)
       const db = serviceClient()
 
+      // Store a canonical v2 layout whatever the client sent: the migration is
+      // also the validator, so unknown fields never reach the jsonb column.
+      const layout = migrateLayout(data.layout)
+      const objectCount = layout.levels.reduce(
+        (n, lv) => n + lv.objects.length,
+        0,
+      )
+      if (objectCount > MAX_OBJECTS) {
+        throw new VenueError(`Mapa smie mať najviac ${MAX_OBJECTS} objektov.`)
+      }
+
       let mapId = data.seatMapId ?? null
       if (mapId) {
         // Editing an existing map: block structural changes while it is assigned
@@ -357,7 +380,7 @@ export const saveSeatMapFn = createServerFn({ method: 'POST' })
           .from('seat_maps')
           .update({
             name: data.name,
-            layout: data.layout,
+            layout,
             updated_at: new Date().toISOString(),
           })
           .eq('id', mapId)
@@ -368,7 +391,7 @@ export const saveSeatMapFn = createServerFn({ method: 'POST' })
           .insert({
             venue_id: data.venueId,
             name: data.name,
-            layout: data.layout,
+            layout,
             external_ref: data.externalRef || null,
           })
           .select('id')

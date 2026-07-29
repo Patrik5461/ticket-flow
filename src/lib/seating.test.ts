@@ -1,15 +1,32 @@
 import { describe, it, expect } from 'vitest'
 import {
+  LAYOUT_VERSION,
   MAX_VIEW_W,
+  MIN_OBJECT_SIZE,
   MIN_VIEW_W,
   alphaLabel,
+  areaIdFromPricingKey,
+  areaPricingKey,
+  capacityAreas,
+  centroid,
   contentBounds,
   fitViewport,
   generateSeats,
+  migrateLayout,
+  moveObject,
+  nextCopyName,
+  nextObjectId,
+  normalizeAngle,
+  objectBounds,
+  objectCorners,
+  resizeObject,
+  rotatePoint,
+  rotatePoints,
   sectorsOf,
+  snap,
   zoomViewport,
 } from './seating'
-import type { Viewport } from './seating'
+import type { MapObject, Viewport } from './seating'
 
 describe('alphaLabel', () => {
   it('produces spreadsheet-style letters', () => {
@@ -171,5 +188,226 @@ describe('editor viewport', () => {
   it('zoomViewport is a no-op once clamped', () => {
     const deep = zoomViewport(view, 1e-9)
     expect(zoomViewport(deep, 0.5)).toBe(deep)
+  })
+})
+
+describe('layout migration', () => {
+  it('reads a v1 layout and fills in the object list', () => {
+    const v1 = {
+      levels: [
+        {
+          key: 'parter',
+          name: 'parter',
+          order: 0,
+          canvas: { width: 500, height: 300 },
+          shapes: [
+            { sector: 'A', kind: 'rect', x: 0, y: 0, width: 100, height: 50 },
+          ],
+        },
+      ],
+    }
+    const out = migrateLayout(v1)
+    expect(out.version).toBe(LAYOUT_VERSION)
+    expect(out.levels).toHaveLength(1)
+    expect(out.levels[0].shapes).toHaveLength(1)
+    expect(out.levels[0].objects).toEqual([])
+  })
+
+  it('keeps v2 objects and defaults their missing fields', () => {
+    const out = migrateLayout({
+      version: 2,
+      levels: [
+        {
+          key: 'parter',
+          shapes: [],
+          objects: [
+            { id: 'o1', kind: 'stage', label: 'Pódium', x: 10, y: 20 },
+            { kind: 'area', label: 'Parket', capacity: 250 },
+          ],
+        },
+      ],
+    })
+    const [stage, area] = out.levels[0].objects
+    expect(stage).toMatchObject({ id: 'o1', kind: 'stage', x: 10, y: 20 })
+    expect(stage.rotation).toBe(0)
+    expect(stage.capacity).toBeNull()
+    // A missing id still has to be unique within the level.
+    expect(area.id).toBe('o2')
+    expect(area.capacity).toBe(250)
+    expect(area.width).toBeGreaterThanOrEqual(MIN_OBJECT_SIZE)
+  })
+
+  it('drops a stage capacity — only areas sell standing tickets', () => {
+    const out = migrateLayout({
+      levels: [
+        {
+          key: 'p',
+          objects: [{ id: 'o1', kind: 'stage', capacity: 100 }],
+        },
+      ],
+    })
+    expect(out.levels[0].objects[0].capacity).toBeNull()
+  })
+
+  it('survives junk instead of throwing', () => {
+    expect(migrateLayout(null).levels).toEqual([])
+    expect(migrateLayout({}).levels).toEqual([])
+    expect(migrateLayout({ levels: 'nope' }).levels).toEqual([])
+    expect(
+      migrateLayout({ levels: [null, { name: 'no key' }] }).levels,
+    ).toEqual([])
+  })
+})
+
+describe('geometry', () => {
+  const obj = (over: Partial<MapObject> = {}): MapObject => ({
+    id: 'o1',
+    kind: 'area',
+    label: 'Parket',
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 100,
+    rotation: 0,
+    capacity: null,
+    ...over,
+  })
+
+  it('snaps to the grid, and leaves values alone without one', () => {
+    expect(snap(23, 10)).toBe(20)
+    expect(snap(26, 10)).toBe(30)
+    expect(snap(-23, 10)).toBe(-20)
+    expect(snap(23.4, 0)).toBe(23.4)
+  })
+
+  it('rotates a point clockwise about a centre', () => {
+    const p = rotatePoint({ x: 10, y: 0 }, 90, { x: 0, y: 0 })
+    expect(p.x).toBeCloseTo(0)
+    expect(p.y).toBeCloseTo(10) // SVG y grows downwards
+  })
+
+  it('rotating a sector keeps its centroid and its shape', () => {
+    const seats = [
+      { x: 0, y: 0, cid: 'a' },
+      { x: 100, y: 0, cid: 'b' },
+      { x: 100, y: 40, cid: 'c' },
+      { x: 0, y: 40, cid: 'd' },
+    ]
+    const c = centroid(seats)
+    const turned = rotatePoints(seats, 90, c)
+    expect(centroid(turned).x).toBeCloseTo(c.x)
+    expect(centroid(turned).y).toBeCloseTo(c.y)
+    // distances from the pivot are preserved, and the extra fields ride along
+    seats.forEach((s, i) => {
+      expect(Math.hypot(turned[i].x - c.x, turned[i].y - c.y)).toBeCloseTo(
+        Math.hypot(s.x - c.x, s.y - c.y),
+      )
+      expect(turned[i].cid).toBe(s.cid)
+    })
+  })
+
+  it('four 90° turns return a sector to where it started', () => {
+    const seats = [
+      { x: 3, y: 7 },
+      { x: 55, y: 12 },
+    ]
+    const c = centroid(seats)
+    let out = seats
+    for (let i = 0; i < 4; i++) out = rotatePoints(out, 90, c)
+    out.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(seats[i].x)
+      expect(p.y).toBeCloseTo(seats[i].y)
+    })
+  })
+
+  it('objectBounds covers a rotated object', () => {
+    const b = objectBounds(obj({ rotation: 45 }))
+    const plain = objectBounds(obj())
+    // A rotated rectangle needs a wider axis-aligned box than a flat one.
+    expect(b.maxY - b.minY).toBeGreaterThan(plain.maxY - plain.minY)
+    // …and it stays centred on the object.
+    expect((b.minX + b.maxX) / 2).toBeCloseTo(200)
+    expect((b.minY + b.maxY) / 2).toBeCloseTo(150)
+  })
+
+  it('resize keeps the opposite corner nailed in place', () => {
+    const o = obj()
+    const fixed = objectCorners(o)[0] // nw stays put while se is dragged
+    const out = resizeObject(o, 'se', { x: 400, y: 260 })
+    expect(out.width).toBeCloseTo(300)
+    expect(out.height).toBeCloseTo(160)
+    const after = objectCorners(out)[0]
+    expect(after.x).toBeCloseTo(fixed.x)
+    expect(after.y).toBeCloseTo(fixed.y)
+  })
+
+  it('resize of a rotated object still pins the opposite corner', () => {
+    const o = obj({ rotation: 30 })
+    const fixed = objectCorners(o)[3] // dragging ne pins sw
+    const out = resizeObject(o, 'ne', { x: 500, y: -50 })
+    const after = objectCorners(out)[3]
+    expect(after.x).toBeCloseTo(fixed.x)
+    expect(after.y).toBeCloseTo(fixed.y)
+    expect(out.rotation).toBe(30)
+  })
+
+  it('resize snaps to the grid and refuses to collapse the object', () => {
+    const snapped = resizeObject(obj(), 'se', { x: 403, y: 258 }, 10)
+    expect(snapped.width).toBeCloseTo(300)
+    expect(snapped.height).toBeCloseTo(160)
+    // Dragging the handle onto the fixed corner keeps a grabbable minimum.
+    const tiny = resizeObject(obj(), 'se', { x: 100, y: 100 })
+    expect(tiny.width).toBe(MIN_OBJECT_SIZE)
+    expect(tiny.height).toBe(MIN_OBJECT_SIZE)
+  })
+
+  it('moveObject snaps the corner only when a grid is given', () => {
+    expect(moveObject(obj(), 3, 4, 10)).toMatchObject({ x: 100, y: 100 })
+    expect(moveObject(obj(), 7, 8, 10)).toMatchObject({ x: 110, y: 110 })
+    expect(moveObject(obj(), 3.5, 4.5, 0)).toMatchObject({ x: 103.5, y: 104.5 })
+  })
+
+  it('normalizeAngle folds into [0, 360)', () => {
+    expect(normalizeAngle(-90)).toBe(270)
+    expect(normalizeAngle(360)).toBe(0)
+    expect(normalizeAngle(725)).toBe(5)
+  })
+})
+
+describe('naming and area keys', () => {
+  it('nextObjectId skips ids already in the map', () => {
+    expect(nextObjectId([])).toBe('o1')
+    expect(nextObjectId(['o1', 'o4', 'weird'])).toBe('o5')
+  })
+
+  it('nextCopyName never collides and does not stack suffixes', () => {
+    expect(nextCopyName(['A'], 'A')).toBe('A (kópia)')
+    expect(nextCopyName(['A', 'A (kópia)'], 'A')).toBe('A (kópia 2)')
+    // Duplicating a copy stays "A (kópia N)", not "A (kópia) (kópia)".
+    expect(nextCopyName(['A', 'A (kópia)'], 'A (kópia)')).toBe('A (kópia 2)')
+  })
+
+  it('area pricing keys round-trip and stay out of the sector namespace', () => {
+    const key = areaPricingKey('o7')
+    expect(areaIdFromPricingKey(key)).toBe('o7')
+    expect(areaIdFromPricingKey('A')).toBeNull()
+  })
+
+  it('capacityAreas lists only areas that actually sell', () => {
+    const layout = migrateLayout({
+      levels: [
+        {
+          key: 'parter',
+          objects: [
+            { id: 'o1', kind: 'stage', label: 'Pódium' },
+            { id: 'o2', kind: 'area', label: 'Parket', capacity: 300 },
+            { id: 'o3', kind: 'area', label: 'Bar' }, // no capacity → not sold
+          ],
+        },
+      ],
+    })
+    expect(capacityAreas(layout)).toEqual([
+      { id: 'o2', label: 'Parket', capacity: 300, level: 'parter' },
+    ])
   })
 })

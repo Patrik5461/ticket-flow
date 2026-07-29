@@ -177,6 +177,14 @@ function EventPage() {
   const [seats, setSeats] = useState<string[]>([])
 
   const seated = seatMap.seated
+  // The map is worth showing whenever there is one — a standing-only floor has
+  // no seats but still has a stage and areas to orient the buyer.
+  const showMap =
+    seated || seatMap.layout.levels.some((l) => l.objects.length > 0)
+  // Seated categories are bought by picking seats; everything else (standing
+  // areas, extras) keeps the quantity stepper, and an event can have both.
+  const quantityTypes = ticketTypes.filter((t) => !t.seated)
+
   const seatPriceById = new Map(
     seatMap.seats.map((s) => [s.seatId, s.priceCents]),
   )
@@ -185,33 +193,28 @@ function EventPage() {
     0,
   )
 
-  const total = seated
-    ? seatedTotal
-    : ticketTypes.reduce((sum, t) => sum + (qty[t.id] ?? 0) * t.price_cents, 0)
+  const itemsTotal = quantityTypes.reduce(
+    (sum, t) => sum + (qty[t.id] ?? 0) * t.price_cents,
+    0,
+  )
+  const total = seatedTotal + itemsTotal
   const totalItems = Object.values(qty).reduce((a, b) => a + b, 0)
-  const anySelected = seated ? seats.length > 0 : totalItems > 0
+  const anySelected = seats.length > 0 || totalItems > 0
 
   const setQuantity = (id: string, value: number) => {
     setQty((prev) => ({ ...prev, [id]: value }))
   }
 
   const goToCheckout = () => {
-    if (seated) {
-      navigate({
-        to: '/e/$slug/checkout',
-        params: { slug },
-        search: { items: '', seats: seats.join(',') },
-      })
-      return
-    }
-    const items = ticketTypes
+    // Checkout takes both halves of the cart: picked seats and quantity items.
+    const items = quantityTypes
       .filter((t) => (qty[t.id] ?? 0) > 0)
       .map((t) => `${t.id}:${qty[t.id]}`)
       .join(',')
     navigate({
       to: '/e/$slug/checkout',
       params: { slug },
-      search: { items, seats: '' },
+      search: { items, seats: seats.join(',') },
     })
   }
 
@@ -327,9 +330,9 @@ function EventPage() {
           <aside className="md:sticky md:top-24 md:self-start">
             <div className="card-surface p-6">
               <h2 className="font-display text-xl font-bold">
-                {seated ? 'Výber sedadiel' : 'Vstupenky'}
+                {showMap ? 'Výber miest' : 'Vstupenky'}
               </h2>
-              {seated ? (
+              {showMap && (
                 <div className="mt-4">
                   <SeatPicker
                     map={seatMap}
@@ -337,49 +340,58 @@ function EventPage() {
                     onChange={setSeats}
                   />
                 </div>
-              ) : ticketTypes.length === 0 ? (
+              )}
+              {!showMap && quantityTypes.length === 0 && (
                 <p className="mt-4 text-sm text-ink-400">
                   Momentálne nie sú v predaji žiadne vstupenky.
                 </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {ticketTypes.map((t) => (
-                    <li
-                      key={t.id}
-                      className="rounded-xl border border-ink-700 bg-ink-900/50 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-ink-100">
-                            {t.name}
-                          </div>
-                          {t.description && (
-                            <div className="mt-0.5 text-xs text-ink-400 line-clamp-2">
-                              {t.description}
+              )}
+              {quantityTypes.length > 0 && (
+                <>
+                  {showMap && (
+                    <div className="mt-6 text-sm font-semibold text-ink-200">
+                      Státie a ostatné vstupenky
+                    </div>
+                  )}
+                  <ul className="mt-4 space-y-3">
+                    {quantityTypes.map((t) => (
+                      <li
+                        key={t.id}
+                        className="rounded-xl border border-ink-700 bg-ink-900/50 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-ink-100">
+                              {t.name}
                             </div>
+                            {t.description && (
+                              <div className="mt-0.5 text-xs text-ink-400 line-clamp-2">
+                                {t.description}
+                              </div>
+                            )}
+                            <div className="mt-2 font-display text-lg font-bold text-accent">
+                              {formatEur(t.price_cents)}
+                            </div>
+                          </div>
+                          {t.sold_out ? (
+                            <div className="flex flex-col items-end gap-2">
+                              <span className="rounded-md bg-ink-800 px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink-400">
+                                Vypredané
+                              </span>
+                              <WaitlistWatch slug={slug} ticketTypeId={t.id} />
+                            </div>
+                          ) : (
+                            <Stepper
+                              value={qty[t.id] ?? 0}
+                              max={t.max_per_order}
+                              onChange={(n) => setQuantity(t.id, n)}
+                            />
                           )}
-                          <div className="mt-2 font-display text-lg font-bold text-accent">
-                            {formatEur(t.price_cents)}
-                          </div>
                         </div>
-                        {t.sold_out ? (
-                          <div className="flex flex-col items-end gap-2">
-                            <span className="rounded-md bg-ink-800 px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink-400">
-                              Vypredané
-                            </span>
-                            <WaitlistWatch slug={slug} ticketTypeId={t.id} />
-                          </div>
-                        ) : (
-                          <Stepper
-                            value={qty[t.id] ?? 0}
-                            max={t.max_per_order}
-                            onChange={(n) => setQuantity(t.id, n)}
-                          />
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
 
               {/* Desktop total + CTA */}
