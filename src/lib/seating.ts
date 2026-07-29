@@ -122,3 +122,90 @@ export function generateSeats(cfg: SeatGenConfig): GeneratedSeat[] {
 export function sectorsOf(seats: { sector: string }[]): string[] {
   return [...new Set(seats.map((s) => s.sector))].sort()
 }
+
+// ---------------------------------------------------------------------------
+// Editor viewport
+//
+// The seat-map editor pans and zooms by moving the SVG viewBox rather than by
+// CSS-transforming the rendered image, so the map stays vector-sharp at every
+// zoom level. Every helper here preserves the viewport's aspect ratio, which is
+// what makes zoomViewport's anchor formula exact.
+// ---------------------------------------------------------------------------
+
+export interface Viewport {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** viewBox width limits — a smaller width means a deeper zoom. */
+export const MIN_VIEW_W = 40
+export const MAX_VIEW_W = 40_000
+
+/** Padded extent of the given points, with a sane frame when there are none. */
+export function contentBounds(
+  points: { x: number; y: number }[],
+  pad = 40,
+): Bounds {
+  if (points.length === 0)
+    return { minX: -200, minY: -120, maxX: 200, maxY: 120 }
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  return {
+    minX: Math.min(...xs) - pad,
+    minY: Math.min(...ys) - pad,
+    maxX: Math.max(...xs) + pad,
+    maxY: Math.max(...ys) + pad,
+  }
+}
+
+/**
+ * Frame `bounds` in a viewport of the given aspect (width/height). The result
+ * is grown — never cropped — on the short axis, so the whole map stays visible
+ * and nothing letterboxes.
+ */
+export function fitViewport(bounds: Bounds, aspect: number): Viewport {
+  let w = Math.max(bounds.maxX - bounds.minX, MIN_VIEW_W)
+  let h = Math.max(bounds.maxY - bounds.minY, 1)
+  if (Number.isFinite(aspect) && aspect > 0) {
+    if (w / h < aspect) w = h * aspect
+    else h = w / aspect
+  }
+  return {
+    x: (bounds.minX + bounds.maxX) / 2 - w / 2,
+    y: (bounds.minY + bounds.maxY) / 2 - h / 2,
+    w,
+    h,
+  }
+}
+
+/**
+ * Scale the viewport by `factor` (>1 zooms out) while keeping `anchor` — a
+ * point in SVG user units, typically under the cursor — pinned to the same
+ * spot on screen. Defaults to the viewport centre. Clamped to the zoom limits.
+ */
+export function zoomViewport(
+  view: Viewport,
+  factor: number,
+  anchor?: { x: number; y: number },
+): Viewport {
+  const w = Math.min(MAX_VIEW_W, Math.max(MIN_VIEW_W, view.w * factor))
+  const k = w / view.w
+  if (k === 1) return view
+  const px = anchor ? anchor.x : view.x + view.w / 2
+  const py = anchor ? anchor.y : view.y + view.h / 2
+  return {
+    x: px - (px - view.x) * k,
+    y: py - (py - view.y) * k,
+    w,
+    h: view.h * k,
+  }
+}

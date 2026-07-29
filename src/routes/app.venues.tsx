@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   listVenuesFn,
   createVenueFn,
@@ -9,8 +9,18 @@ import {
   deleteSeatMapFn,
 } from '../server/venues'
 import type { VenueRow, SeatMapSummary } from '../server/venues'
-import { generateSeats } from '../lib/seating'
-import type { SeatType, GeneratedSeat, SeatMapLayout } from '../lib/seating'
+import {
+  contentBounds,
+  fitViewport,
+  generateSeats,
+  zoomViewport,
+} from '../lib/seating'
+import type {
+  SeatType,
+  GeneratedSeat,
+  SeatMapLayout,
+  Viewport,
+} from '../lib/seating'
 
 export const Route = createFileRoute('/app/venues')({
   loader: async (): Promise<VenueRow[]> => {
@@ -419,6 +429,7 @@ function MapEditor({
 
       <Canvas
         seats={levelSeats}
+        fitKey={`${seatMapId ?? 'new'}:${level}`}
         preview={preview}
         selSector={selSector}
         onSelect={setSelSector}
@@ -600,34 +611,156 @@ function SectorTools({
   )
 }
 
+/** Client (screen px) → SVG user units, letterboxing included. */
+function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+  const ctm = svg.getScreenCTM()
+  if (!ctm) return { x: clientX, y: clientY }
+  const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse())
+  return { x: p.x, y: p.y }
+}
+
+/** Rendered pixels per SVG unit — the divisor for turning drags into units. */
+function pixelsPerUnit(svg: SVGSVGElement) {
+  const ctm = svg.getScreenCTM()
+  return ctm && ctm.a !== 0 ? ctm.a : 1
+}
+
 function Canvas({
   seats,
+  fitKey,
   preview,
   selSector,
   onSelect,
   onMoveSector,
 }: {
   seats: WorkSeat[]
+  /** Changing this refits the view (switching level or opening another map). */
+  fitKey: string
   preview: boolean
   selSector: string | null
   onSelect: (s: string | null) => void
   onMoveSector?: (sector: string, dx: number, dy: number) => void
 }) {
-  const drag = useRef<{ sector: string; x: number; y: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const [view, setView] = useState<Viewport>(() =>
+    fitViewport(contentBounds(seats), 0),
+  )
+  const [space, setSpace] = useState(false)
+  const [panning, setPanning] = useState(false)
 
-  const bounds = useMemo(() => {
-    if (seats.length === 0) return { minX: 0, minY: 0, w: 400, h: 200 }
-    const xs = seats.map((s) => s.x)
-    const ys = seats.map((s) => s.y)
-    const minX = Math.min(...xs) - 20
-    const minY = Math.min(...ys) - 20
-    return {
-      minX,
-      minY,
-      w: Math.max(...xs) - minX + 40,
-      h: Math.max(...ys) - minY + 40,
+  // Live gesture state lives in refs: pointer moves must not wait for a render.
+  const gesture = useRef<
+    | { kind: 'pan'; id: number; x: number; y: number; moved: boolean }
+    | { kind: 'sector'; id: number; sector: string; x: number; y: number }
+    | null
+  >(null)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinchDist = useRef<number | null>(null)
+  const hovering = useRef(false)
+  const spaceRef = useRef(false)
+
+  const seatsRef = useRef(seats)
+  seatsRef.current = seats
+
+  /** Frame the content, matching the container's aspect so nothing letterboxes. */
+  const fit = useCallback(() => {
+    const rect = svgRef.current?.getBoundingClientRect()
+    const aspect = rect && rect.height > 0 ? rect.width / rect.height : 0
+    setView(fitViewport(contentBounds(seatsRef.current), aspect))
+  }, [])
+
+  const zoomBy = useCallback(
+    (factor: number, clientX?: number, clientY?: number) => {
+      setView((v) => {
+        const svg = svgRef.current
+        const anchor =
+          svg && clientX !== undefined && clientY !== undefined
+            ? clientToSvg(svg, clientX, clientY)
+            : undefined
+        return zoomViewport(v, factor, anchor)
+      })
+    },
+    [],
+  )
+
+  // Refit when the map or level changes, and once seats first appear.
+  const hadSeats = useRef(seats.length > 0)
+  useEffect(() => {
+    hadSeats.current = seatsRef.current.length > 0
+    fit()
+  }, [fitKey, fit])
+  useEffect(() => {
+    if (!hadSeats.current && seats.length > 0) fit()
+    hadSeats.current = seats.length > 0
+  }, [seats.length, fit])
+
+  // Wheel must be a non-passive listener, otherwise preventDefault is ignored
+  // and the page scrolls instead of the map zooming.
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+      zoomBy(Math.exp(delta * 0.0015), e.clientX, e.clientY)
     }
-  }, [seats])
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [zoomBy])
+
+  // Space holds the canvas in pan mode, like every other editor.
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === 'INPUT' ||
+        t.tagName === 'TEXTAREA' ||
+        t.tagName === 'SELECT' ||
+        t.isContentEditable)
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || isTyping(e.target)) return
+      if (hovering.current) e.preventDefault()
+      spaceRef.current = true
+      setSpace(true)
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return
+      spaceRef.current = false
+      setSpace(false)
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [])
+
+  const startPan = (e: React.PointerEvent, fromBackground: boolean) => {
+    svgRef.current?.setPointerCapture(e.pointerId)
+    gesture.current = {
+      kind: 'pan',
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      moved: !fromBackground,
+    }
+    setPanning(true)
+  }
+
+  const endPointer = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) pinchDist.current = null
+    const g = gesture.current
+    if (g && g.id === e.pointerId) {
+      // A background press that never moved is a click: clear the selection.
+      if (g.kind === 'pan' && !g.moved) onSelect(null)
+      gesture.current = null
+      setPanning(false)
+    }
+    const svg = svgRef.current
+    if (svg?.hasPointerCapture(e.pointerId))
+      svg.releasePointerCapture(e.pointerId)
+  }
 
   const color = (s: WorkSeat) =>
     preview
@@ -636,26 +769,81 @@ function Canvas({
         : '#22c55e'
       : SEAT_COLORS[s.seat_type]
 
+  const cursor = space || panning ? 'grabbing' : 'default'
+
   return (
-    <div className="overflow-auto rounded-md border bg-ink-950">
+    <div className="relative rounded-md border bg-ink-950">
+      <div className="absolute right-2 top-2 z-10 flex gap-1">
+        <CanvasButton onClick={() => zoomBy(1 / 1.3)} title="Priblížiť">
+          +
+        </CanvasButton>
+        <CanvasButton onClick={() => zoomBy(1.3)} title="Oddialiť">
+          −
+        </CanvasButton>
+        <CanvasButton onClick={fit} title="Prispôsobiť obrazovke">
+          ⤢
+        </CanvasButton>
+      </div>
+
       <svg
-        viewBox={`${bounds.minX} ${bounds.minY} ${bounds.w} ${bounds.h}`}
-        className="h-[26rem] w-full touch-none"
-        onPointerUp={() => (drag.current = null)}
-        onPointerLeave={() => (drag.current = null)}
-        onPointerMove={(e) => {
-          if (!drag.current || !onMoveSector) return
-          const svg = e.currentTarget
-          const scale = bounds.w / svg.clientWidth
-          const nx = e.clientX * scale
-          const ny = e.clientY * scale
-          const dx = nx - drag.current.x
-          const dy = ny - drag.current.y
-          drag.current.x = nx
-          drag.current.y = ny
-          onMoveSector(drag.current.sector, dx, dy)
+        ref={svgRef}
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        className="h-[26rem] w-full touch-none select-none"
+        style={{ cursor }}
+        onPointerEnter={() => (hovering.current = true)}
+        onPointerLeave={() => (hovering.current = false)}
+        onPointerDown={(e) => {
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          if (pointers.current.size >= 2) {
+            // Second finger down: hand over to pinch, drop any single-pointer
+            // gesture so a sector does not travel with the pinch.
+            gesture.current = null
+            setPanning(false)
+            return
+          }
+          // A seat sets its own gesture first (events bubble target-up).
+          if (!gesture.current) startPan(e, true)
         }}
+        onPointerMove={(e) => {
+          const svg = svgRef.current
+          if (!svg) return
+          if (pointers.current.has(e.pointerId))
+            pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+          if (pointers.current.size >= 2) {
+            const [a, b] = [...pointers.current.values()]
+            const d = Math.hypot(a.x - b.x, a.y - b.y)
+            if (pinchDist.current && d > 0)
+              zoomBy(pinchDist.current / d, (a.x + b.x) / 2, (a.y + b.y) / 2)
+            pinchDist.current = d
+            return
+          }
+
+          const g = gesture.current
+          if (!g || g.id !== e.pointerId) return
+          const scale = pixelsPerUnit(svg)
+          const dx = (e.clientX - g.x) / scale
+          const dy = (e.clientY - g.y) / scale
+          g.x = e.clientX
+          g.y = e.clientY
+          if (g.kind === 'pan') {
+            if (dx !== 0 || dy !== 0) g.moved = true
+            setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }))
+          } else {
+            onMoveSector?.(g.sector, dx, dy)
+          }
+        }}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
       >
+        {/* Catches presses on empty space so panning works away from seats. */}
+        <rect
+          x={view.x}
+          y={view.y}
+          width={view.w}
+          height={view.h}
+          fill="transparent"
+        />
         {seats.map((s) => (
           <circle
             key={s.cid}
@@ -665,17 +853,26 @@ function Canvas({
             fill={color(s)}
             stroke={selSector === s.sector ? '#fff' : 'none'}
             strokeWidth={selSector === s.sector ? 1.5 : 0}
-            style={{ cursor: onMoveSector ? 'move' : 'pointer' }}
+            style={{
+              cursor:
+                space || panning
+                  ? 'grabbing'
+                  : onMoveSector
+                    ? 'move'
+                    : 'pointer',
+            }}
             onPointerDown={(e) => {
+              if (pointers.current.size >= 1) return // pinch starting
+              if (spaceRef.current || e.button === 1) return startPan(e, false)
               onSelect(s.sector)
-              if (onMoveSector) {
-                const svg = e.currentTarget.ownerSVGElement!
-                const scale = bounds.w / svg.clientWidth
-                drag.current = {
-                  sector: s.sector,
-                  x: e.clientX * scale,
-                  y: e.clientY * scale,
-                }
+              if (!onMoveSector) return
+              svgRef.current?.setPointerCapture(e.pointerId)
+              gesture.current = {
+                kind: 'sector',
+                id: e.pointerId,
+                sector: s.sector,
+                x: e.clientX,
+                y: e.clientY,
               }
             }}
           >
@@ -684,6 +881,28 @@ function Canvas({
         ))}
       </svg>
     </div>
+  )
+}
+
+function CanvasButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="h-7 w-7 rounded border border-white/20 bg-black/40 text-sm leading-none text-white hover:bg-black/60"
+    >
+      {children}
+    </button>
   )
 }
 

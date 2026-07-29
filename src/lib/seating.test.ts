@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { alphaLabel, generateSeats, sectorsOf } from './seating'
+import {
+  MAX_VIEW_W,
+  MIN_VIEW_W,
+  alphaLabel,
+  contentBounds,
+  fitViewport,
+  generateSeats,
+  sectorsOf,
+  zoomViewport,
+} from './seating'
+import type { Viewport } from './seating'
 
 describe('alphaLabel', () => {
   it('produces spreadsheet-style letters', () => {
@@ -70,5 +80,96 @@ describe('generateSeats', () => {
     expect(
       sectorsOf([{ sector: 'B' }, { sector: 'A' }, { sector: 'A' }]),
     ).toEqual(['A', 'B'])
+  })
+})
+
+describe('editor viewport', () => {
+  const view: Viewport = { x: 0, y: 0, w: 800, h: 400 }
+
+  /** Where an SVG point lands on screen, given a viewport rendered at `scale`. */
+  const project = (v: Viewport, p: { x: number; y: number }) => ({
+    x: (p.x - v.x) / v.w,
+    y: (p.y - v.y) / v.h,
+  })
+
+  it('contentBounds pads the extent of the points', () => {
+    expect(
+      contentBounds(
+        [
+          { x: 0, y: 0 },
+          { x: 100, y: 50 },
+        ],
+        10,
+      ),
+    ).toEqual({
+      minX: -10,
+      minY: -10,
+      maxX: 110,
+      maxY: 60,
+    })
+  })
+
+  it('contentBounds falls back to a frame when there is nothing to show', () => {
+    const b = contentBounds([])
+    expect(b.maxX).toBeGreaterThan(b.minX)
+    expect(b.maxY).toBeGreaterThan(b.minY)
+  })
+
+  it('fitViewport grows the short axis instead of cropping', () => {
+    // Content is 400x400; a 2:1 container must widen, never shrink the height.
+    const v = fitViewport({ minX: 0, minY: 0, maxX: 400, maxY: 400 }, 2)
+    expect(v.w / v.h).toBeCloseTo(2)
+    expect(v.h).toBeGreaterThanOrEqual(400)
+    expect(v.w).toBeGreaterThanOrEqual(400)
+    // and it stays centred on the content
+    expect(v.x + v.w / 2).toBeCloseTo(200)
+    expect(v.y + v.h / 2).toBeCloseTo(200)
+  })
+
+  it('fitViewport keeps the whole content inside the frame', () => {
+    const b = { minX: -50, minY: 10, maxX: 950, maxY: 110 }
+    const v = fitViewport(b, 1)
+    expect(v.x).toBeLessThanOrEqual(b.minX)
+    expect(v.y).toBeLessThanOrEqual(b.minY)
+    expect(v.x + v.w).toBeGreaterThanOrEqual(b.maxX)
+    expect(v.y + v.h).toBeGreaterThanOrEqual(b.maxY)
+  })
+
+  it('zoomViewport pins the anchor to the same screen position', () => {
+    const anchor = { x: 600, y: 300 }
+    const before = project(view, anchor)
+    const zoomed = zoomViewport(view, 0.5, anchor)
+    expect(project(zoomed, anchor)).toEqual(before)
+  })
+
+  it('zoomViewport keeps the anchor pinned across a zoom in/out round trip', () => {
+    const anchor = { x: 123, y: 45 }
+    const out = zoomViewport(view, 2, anchor)
+    const back = zoomViewport(out, 0.5, anchor)
+    expect(back.x).toBeCloseTo(view.x)
+    expect(back.y).toBeCloseTo(view.y)
+    expect(back.w).toBeCloseTo(view.w)
+    expect(back.h).toBeCloseTo(view.h)
+  })
+
+  it('zoomViewport preserves the aspect ratio', () => {
+    const zoomed = zoomViewport(view, 0.37, { x: 10, y: 20 })
+    expect(zoomed.w / zoomed.h).toBeCloseTo(view.w / view.h)
+  })
+
+  it('zoomViewport defaults to the centre when no anchor is given', () => {
+    const zoomed = zoomViewport(view, 0.5)
+    expect(zoomed.x + zoomed.w / 2).toBeCloseTo(view.x + view.w / 2)
+    expect(zoomed.y + zoomed.h / 2).toBeCloseTo(view.y + view.h / 2)
+  })
+
+  it('zoomViewport clamps at both zoom limits', () => {
+    expect(zoomViewport(view, 1e-9).w).toBe(MIN_VIEW_W)
+    expect(zoomViewport(view, 1e9).w).toBe(MAX_VIEW_W)
+  })
+
+  it('zoomViewport is a no-op once clamped', () => {
+    const deep = zoomViewport(view, 1e-9)
+    expect(zoomViewport(deep, 0.5)).toBe(deep)
   })
 })
