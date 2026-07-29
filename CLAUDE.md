@@ -89,7 +89,12 @@ cd ~/ticketio &&
   npm run verify:polyfill &&
   pm2 restart ticketio --update-env && pm2 save
 ```
-Pozor: keď buildeš z rozrobeného working tree (nie z čerstvého `git pull`), `.output` obsahuje necommitnuté zmeny — commitni a pushni pred reštartom, inak najbližší webhook deploy tvoju verziu prepíše.
+> **`npm run build` na VM = výpadok, kým nereštartuješ PM2.** Build prepíše `.output/`, ale bežiaci proces má v pamäti starý server, ktorý v SSR HTML odkazuje na staré asset hashe — a tie build práve zmazal. Verejná stránka vracia 500 na entry chunk až do `pm2 restart`. Preto:
+> - **Nikdy nebuilduj na VM „len na overenie".** Na overenie zmien stačí `npx tsc --noEmit` a `npx vitest run` — tie `.output/` nechajú na pokoji.
+> - Ak build musíš spustiť, počítaj s tým, že si sa zaviazal hneď aj reštartovať. Build + `pm2 restart` patria k sebe ako jeden krok.
+> - Ak buildeš z rozrobeného working tree, nasadzuješ tým necommitnutý kód. Buď to commitni a pushni, alebo sa vráť na `main`, prebuilduj a reštartuj.
+
+**Rollback na poslednú nasadenú verziu:** `git checkout main && NODE_OPTIONS="--max-old-space-size=4096" npm run build && pm2 restart ticketio --update-env`. Staré `.output/` sa nedá obnoviť — jediná cesta späť je prebuild z gitu.
 
 **Manuálny deploy (z lokálneho stroja, keď webhook nestačí):**
 ```bash
