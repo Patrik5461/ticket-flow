@@ -51,7 +51,91 @@ function Nav() {
   )
 }
 
+/** Interaktívny prepočet výplaty organizátorovi (ilustračný, UI-only). */
+function PayoutCalculator() {
+  const [price, setPrice] = useState(20)
+  const [count, setCount] = useState(300)
+
+  const gross = price * count
+  const feePerTicket = Math.max(price * 0.04, 0.4)
+  const fee = feePerTicket * count
+  const net = gross - fee
+  const eur = (v: number) =>
+    v.toLocaleString('sk-SK', {
+      style: 'currency',
+      currency: 'EUR',
+      maximumFractionDigits: 0,
+    })
+
+  return (
+    <div className="card-surface p-7">
+      <div className="text-xs font-semibold uppercase tracking-widest text-accent">
+        Kalkulačka výplaty
+      </div>
+      <p className="mt-2 text-sm text-ink-400">
+        Posuňte a uvidíte, koľko vám z predaja reálne príde na účet.
+      </p>
+
+      <div className="mt-7 space-y-6">
+        <label className="block">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-ink-300">Cena vstupenky</span>
+            <span className="font-display text-lg font-bold">{price} €</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={150}
+            step={1}
+            value={price}
+            onChange={(e) => setPrice(Number(e.target.value))}
+            className="mt-3 w-full accent-[var(--color-accent)]"
+          />
+        </label>
+
+        <label className="block">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-ink-300">Počet vstupeniek</span>
+            <span className="font-display text-lg font-bold">{count}</span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={5000}
+            step={10}
+            value={count}
+            onChange={(e) => setCount(Number(e.target.value))}
+            className="mt-3 w-full accent-[var(--color-accent)]"
+          />
+        </label>
+      </div>
+
+      <div className="mt-7 space-y-2 border-t border-ink-800 pt-5 text-sm">
+        <div className="flex justify-between text-ink-400">
+          <span>Hrubý predaj</span>
+          <span className="text-ink-200">{eur(gross)}</span>
+        </div>
+        <div className="flex justify-between text-ink-400">
+          <span>Provízia Ticketio</span>
+          <span className="text-ink-300">−{eur(fee)}</span>
+        </div>
+        <div className="mt-4 flex items-end justify-between">
+          <span className="text-ink-300">Dostanete</span>
+          <span className="font-display text-4xl font-bold text-accent">
+            {eur(net)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl bg-accent/10 px-4 py-3 text-xs text-ink-300">
+        Vyplácame priebežne počas predaja — nečakáte na koniec podujatia.
+      </div>
+    </div>
+  )
+}
+
 function Footer() {
+
   return (
     <footer className="mt-32 border-t border-ink-800 bg-ink-950">
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 md:grid-cols-3">
