@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState } from 'react'
+
 import { Check, Scan } from 'lucide-react'
 import { listEventsFn } from '../server/fns'
 import { ThemeToggle } from '../components/ThemeToggle'
