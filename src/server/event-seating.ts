@@ -16,7 +16,12 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
 import { requireEventManager, EventAuthzError } from './event-authz'
-import { areaPricingKey, capacityAreas, migrateLayout } from '../lib/seating'
+import {
+  areaPricingKey,
+  capacityAreas,
+  isAreaPricingKey,
+  migrateLayout,
+} from '../lib/seating'
 import type { CapacityArea } from '../lib/seating'
 
 async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -45,7 +50,41 @@ export interface EventSeatingView {
     sold: number
     blocked: number
   }
-  locked: boolean // true once any seat is held/sold — reassignment blocked
+  /** True once any seat is held/sold or any standing ticket is sold — reassignment blocked. */
+  locked: boolean
+}
+
+/**
+ * Standing tickets already sold for this event's areas.
+ *
+ * Areas generate no event_seats, so the seat-based reassignment guard cannot
+ * see them: on a standing-only map it counts zero however much has been sold.
+ * Without this, reassigning could drop a category's capacity below its
+ * sold_count and leave the event oversold.
+ */
+async function soldStandingCount(
+  db: ReturnType<typeof serviceClient>,
+  eventId: string,
+): Promise<number> {
+  const { data: pricing } = await db
+    .from('event_sector_pricing')
+    .select('sector, ticket_type_id')
+    .eq('event_id', eventId)
+    .returns<{ sector: string; ticket_type_id: string }[]>()
+  const areaTypeIds = [
+    ...new Set(
+      (pricing ?? [])
+        .filter((p) => isAreaPricingKey(p.sector))
+        .map((p) => p.ticket_type_id),
+    ),
+  ]
+  if (areaTypeIds.length === 0) return 0
+  const { data: tts } = await db
+    .from('ticket_types')
+    .select('sold_count')
+    .in('id', areaTypeIds)
+    .returns<{ sold_count: number }[]>()
+  return (tts ?? []).reduce((n, t) => n + t.sold_count, 0)
 }
 
 /** The standing areas of a seat map, read straight from its layout jsonb. */
@@ -113,6 +152,7 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
         counts[st] = count ?? 0
       }
       const areas = await loadAreas(db, esm.seat_map_id)
+      const standingSold = await soldStandingCount(db, data.eventId)
 
       return {
         seatMapId: esm.seat_map_id,
@@ -131,7 +171,7 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
           ticketTypeId: priceOf.get(areaPricingKey(a.id)) ?? null,
         })),
         statusCounts: counts,
-        locked: counts.held + counts.sold > 0,
+        locked: counts.held + counts.sold > 0 || standingSold > 0,
       }
     })
   })
@@ -198,6 +238,11 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
         if ((live ?? 0) > 0) {
           throw new EventAuthzError(
             'Podujatie už má rezervované/predané sedadlá — mapu nemožno zmeniť.',
+          )
+        }
+        if ((await soldStandingCount(db, data.eventId)) > 0) {
+          throw new EventAuthzError(
+            'Podujatie už má predané vstupenky na státie — mapu nemožno zmeniť.',
           )
         }
 
