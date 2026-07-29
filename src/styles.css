@@ -384,7 +384,12 @@ body {
 .app-shell .bg-indigo-600:hover,
 .app-shell .hover\:bg-indigo-700:hover { background-color: #86efac !important; }
 .app-shell .text-indigo-600 { color: var(--color-accent) !important; }
-.app-shell .text-white { color: var(--color-ink-950) !important; }
+/* `text-white` is intentional on dark surfaces — only flip it when it sits on
+ * a legacy solid button that we recolour to the accent. */
+.app-shell .bg-indigo-600.text-white,
+.app-shell .bg-indigo-500.text-white,
+.app-shell .bg-green-600.text-white,
+.app-shell .bg-blue-600.text-white { color: var(--color-ink-950) !important; }
 
 .app-shell .bg-green-100,
 .app-shell .bg-green-50 { background-color: color-mix(in oklab, var(--color-accent) 15%, transparent) !important; }
