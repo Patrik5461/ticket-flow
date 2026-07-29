@@ -46,7 +46,9 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 
 ## Git a spolupráca s Lovable
 
-- Remote: `origin` = https://github.com/Patrik5461/ticket-flow.git, hlavná vetva `main` (žiadny `master`).
+- Remote: `origin` = `git@github.com:Patrik5461/ticket-flow.git`, hlavná vetva `main` (žiadny `master`).
+- Z VM sa pushuje cez **deploy key** (`~/.ssh/id_ed25519`), preto je remote SSH, nie HTTPS. Ak `git push` zlyhá na `could not read Username for 'https://github.com'`, remote je prepnutý na HTTPS — oprav cez `git remote set-url origin git@github.com:Patrik5461/ticket-flow.git`.
+- Git identita na VM je repo-lokálna (`git config user.email` v `~/ticketio`), globálna neexistuje. Bez nej `git commit` zlyhá na „Author identity unknown".
 - Pred každým začiatkom práce: `git pull origin main`.
 - Po každej dokončenej a odsúhlasenej fáze: commit + `git push origin main`.
 - Repo je napojené na **Lovable**, ktorý commituje UI zmeny (routes, komponenty, štýly).
@@ -62,7 +64,9 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 
 ## Deploy (produkčná VM)
 
-**Prístup:** `ssh ticketio` → `patrik@192.168.1.15`, ProxyJump cez `pve` (`root@116.202.234.213`), rovnaký viac-hopový vzor ako preversi. Ak blok chýba v `~/.ssh/config`, pridaj:
+**Najprv zisti, kde bežíš.** Claude Code session môže bežať priamo na produkčnej VM. Over `hostname` — ak vráti `ticketio` (resp. `hostname -I` → `192.168.1.15`), si na VM a **SSH nepoužívaj**, choď rovno na „Deploy z VM" nižšie. Inak deployuj cez SSH.
+
+**Prístup (z lokálneho stroja):** `ssh ticketio` → `patrik@192.168.1.15`, ProxyJump cez `pve` (`root@116.202.234.213`), rovnaký viac-hopový vzor ako preversi. Ak blok chýba v `~/.ssh/config`, pridaj:
 
 ```
 Host ticketio
@@ -73,7 +77,21 @@ Host ticketio
 
 **Kde:** repo v `~/ticketio` (nie `/opt/...`), build v `.output/`, beží pod PM2 ako proces `ticketio` (fork mód), Nitro počúva na `127.0.0.1:3000` za HAProxy/OPNsense SNI routingom na ticketio.sk. Secrets v `~/ticketio-secrets.env`, PM2 ecosystem v `~/ecosystem.config.cjs` (obe NIE v repe).
 
-**Manuálny deploy (keď webhook nestačí):**
+**Deploy z VM (keď už na nej bežíš — bez SSH):**
+```bash
+cd ~/ticketio &&
+  git remote -v &&                                   # musí byť ticket-flow.git; ak nie, STOP
+  git fetch origin main && git checkout main && git pull origin main &&
+  git log --oneline -1 &&                            # over očakávaný commit
+  npm ci &&
+  rm -rf .output &&
+  NODE_OPTIONS="--max-old-space-size=4096" npm run build &&
+  npm run verify:polyfill &&
+  pm2 restart ticketio --update-env && pm2 save
+```
+Pozor: keď buildeš z rozrobeného working tree (nie z čerstvého `git pull`), `.output` obsahuje necommitnuté zmeny — commitni a pushni pred reštartom, inak najbližší webhook deploy tvoju verziu prepíše.
+
+**Manuálny deploy (z lokálneho stroja, keď webhook nestačí):**
 ```bash
 ssh ticketio 'cd ~/ticketio &&
   git remote -v &&                                   # musí byť ticket-flow.git; ak nie, STOP
@@ -87,6 +105,6 @@ ssh ticketio 'cd ~/ticketio &&
 ```
 
 **Over po deployi:**
-- `ssh ticketio 'curl -s http://127.0.0.1:3000/api/health'` → `{"status":"ok","db":true}` (localhost je spoľahlivejší než verejná URL zvnútra VM).
+- `curl -s http://127.0.0.1:3000/api/health` (z VM; inak cez `ssh ticketio '…'`) → `{"status":"ok","db":true}` — localhost je spoľahlivejší než verejná URL zvnútra VM.
 - Zmenený entry asset hash: `curl -s https://ticketio.sk/ | grep -aoE '/assets/index-[^"]+\.js'` — po úspešnom builde sa musí líšiť od predošlého.
 - Migrácie Supabase aplikuj samostatne (nie sú súčasťou VM buildu) — DB je cloud Supabase; RPC/tabuľky over service-role probe, nie len z migračných súborov.
