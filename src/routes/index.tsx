@@ -669,24 +669,8 @@ function Landing() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="card-surface p-6">
-              <div className="text-sm text-ink-400">Konkurencia (Inviton)</div>
-              <div className="mt-1 font-display text-2xl font-bold text-ink-300">
-                5 % / min 0,60 €
-              </div>
-              <div className="mt-1 text-xs text-ink-500">
-                Payout až po evente
-              </div>
-            </div>
-            <div className="card-surface p-6 border-accent/40">
-              <div className="text-sm text-accent">Ticketio</div>
-              <div className="mt-1 font-display text-2xl font-bold">
-                4 % / min 0,40 €
-              </div>
-              <div className="mt-1 text-xs text-ink-400">Priebežný payout</div>
-            </div>
-          </div>
+          <PayoutCalculator />
+
         </div>
       </section>
 
