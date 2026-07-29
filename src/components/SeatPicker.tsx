@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { EventSeatMap, BuyerSeat } from '../server/seat-map'
+import { objectCenter, objectPoints } from '../lib/seating'
+import type { MapObject } from '../lib/seating'
 import { formatEur } from '../lib/money'
 
 /**
@@ -39,6 +41,9 @@ export function SeatPicker({
   }, [map.ticketTypes])
 
   const levelSeats = map.seats.filter((s) => s.level === levelKey)
+  // Stage and standing areas are part of the room, drawn under the seats.
+  const levelObjects =
+    map.layout.levels.find((l) => l.key === levelKey)?.objects ?? []
   const seatById = useMemo(
     () => new Map(map.seats.map((s) => [s.seatId, s])),
     [map.seats],
@@ -94,6 +99,7 @@ export function SeatPicker({
       <ZoomableMap
         key={levelKey}
         seats={levelSeats}
+        objects={levelObjects}
         colorOf={colorOf}
         selectedSet={selectedSet}
         onToggle={toggle}
@@ -141,23 +147,27 @@ export function SeatPicker({
 
 function ZoomableMap({
   seats,
+  objects,
   colorOf,
   selectedSet,
   onToggle,
 }: {
   seats: BuyerSeat[]
+  objects: MapObject[]
   colorOf: Map<string, string>
   selectedSet: Set<string>
   onToggle: (s: BuyerSeat) => void
 }) {
   const base = useMemo(() => {
-    if (seats.length === 0) return { x: 0, y: 0, w: 400, h: 200 }
-    const xs = seats.map((s) => s.x)
-    const ys = seats.map((s) => s.y)
+    // Frame seats and objects together, so a stage never falls off the edge.
+    const pts = [...seats, ...objectPoints(objects)]
+    if (pts.length === 0) return { x: 0, y: 0, w: 400, h: 200 }
+    const xs = pts.map((p) => p.x)
+    const ys = pts.map((p) => p.y)
     const x = Math.min(...xs) - 20
     const y = Math.min(...ys) - 20
     return { x, y, w: Math.max(...xs) - x + 20, h: Math.max(...ys) - y + 20 }
-  }, [seats])
+  }, [seats, objects])
 
   const [vb, setVb] = useState(base)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
@@ -249,6 +259,36 @@ function ZoomableMap({
         onPointerCancel={onPointerUp}
         onPointerMove={onPointerMove}
       >
+        {objects.map((o) => {
+          const c = objectCenter(o)
+          const stage = o.kind === 'stage'
+          return (
+            <g key={o.id} transform={`rotate(${o.rotation} ${c.x} ${c.y})`}>
+              <rect
+                x={o.x}
+                y={o.y}
+                width={o.width}
+                height={o.height}
+                rx={4}
+                fill={stage ? '#475569' : 'rgba(99,102,241,0.15)'}
+                stroke={stage ? '#94a3b8' : '#818cf8'}
+                strokeWidth={1.5}
+              />
+              <text
+                x={c.x}
+                y={c.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={Math.max(10, Math.min(20, o.height / 4))}
+                fill={stage ? '#f8fafc' : '#c7d2fe'}
+                style={{ pointerEvents: 'none' }}
+              >
+                {o.label}
+              </text>
+            </g>
+          )
+        })}
+
         {seats.map((s) => (
           <circle
             key={s.seatId}

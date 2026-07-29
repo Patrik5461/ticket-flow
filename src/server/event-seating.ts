@@ -4,12 +4,25 @@
  * per-event event_seats (available/blocked), and marks the involved ticket types
  * seated with capacity = seat count (the invariant the reservation functions
  * rely on). Guarded by requireEventManager. Server-only.
+ *
+ * A map may also carry standing areas (parket, bar). Those have no seats, so
+ * their ticket type stays *unseated* with capacity = the area's capacity, and it
+ * sells by quantity through the ordinary reserve_ticket_capacity path. Their
+ * price mapping shares the event_sector_pricing table under a '#<objectId>' key,
+ * a namespace sector names are forbidden from using.
  */
 
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
 import { requireEventManager, EventAuthzError } from './event-authz'
+import {
+  areaPricingKey,
+  capacityAreas,
+  isAreaPricingKey,
+  migrateLayout,
+} from '../lib/seating'
+import type { CapacityArea } from '../lib/seating'
 
 async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
   try {
@@ -24,13 +37,67 @@ export interface EventSeatingView {
   seatMapId: string | null
   mapName: string | null
   sectors: { sector: string; seatCount: number; ticketTypeId: string | null }[]
+  /** Standing areas of the map that sell by capacity. */
+  areas: {
+    id: string
+    label: string
+    capacity: number
+    ticketTypeId: string | null
+  }[]
   statusCounts: {
     available: number
     held: number
     sold: number
     blocked: number
   }
-  locked: boolean // true once any seat is held/sold — reassignment blocked
+  /** True once any seat is held/sold or any standing ticket is sold — reassignment blocked. */
+  locked: boolean
+}
+
+/**
+ * Standing tickets already sold for this event's areas.
+ *
+ * Areas generate no event_seats, so the seat-based reassignment guard cannot
+ * see them: on a standing-only map it counts zero however much has been sold.
+ * Without this, reassigning could drop a category's capacity below its
+ * sold_count and leave the event oversold.
+ */
+async function soldStandingCount(
+  db: ReturnType<typeof serviceClient>,
+  eventId: string,
+): Promise<number> {
+  const { data: pricing } = await db
+    .from('event_sector_pricing')
+    .select('sector, ticket_type_id')
+    .eq('event_id', eventId)
+    .returns<{ sector: string; ticket_type_id: string }[]>()
+  const areaTypeIds = [
+    ...new Set(
+      (pricing ?? [])
+        .filter((p) => isAreaPricingKey(p.sector))
+        .map((p) => p.ticket_type_id),
+    ),
+  ]
+  if (areaTypeIds.length === 0) return 0
+  const { data: tts } = await db
+    .from('ticket_types')
+    .select('sold_count')
+    .in('id', areaTypeIds)
+    .returns<{ sold_count: number }[]>()
+  return (tts ?? []).reduce((n, t) => n + t.sold_count, 0)
+}
+
+/** The standing areas of a seat map, read straight from its layout jsonb. */
+async function loadAreas(
+  db: ReturnType<typeof serviceClient>,
+  seatMapId: string,
+): Promise<CapacityArea[]> {
+  const { data } = await db
+    .from('seat_maps')
+    .select('layout')
+    .eq('id', seatMapId)
+    .maybeSingle<{ layout: unknown }>()
+  return capacityAreas(migrateLayout(data?.layout))
 }
 
 export const getEventSeatingFn = createServerFn({ method: 'GET' })
@@ -52,6 +119,7 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
           seatMapId: null,
           mapName: null,
           sectors: [],
+          areas: [],
           statusCounts: { available: 0, held: 0, sold: 0, blocked: 0 },
           locked: false,
         }
@@ -83,6 +151,9 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
           .eq('status', st)
         counts[st] = count ?? 0
       }
+      const areas = await loadAreas(db, esm.seat_map_id)
+      const standingSold = await soldStandingCount(db, data.eventId)
+
       return {
         seatMapId: esm.seat_map_id,
         mapName: esm.seat_maps?.name ?? null,
@@ -93,8 +164,14 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
             seatCount,
             ticketTypeId: priceOf.get(sector) ?? null,
           })),
+        areas: areas.map((a) => ({
+          id: a.id,
+          label: a.label,
+          capacity: a.capacity,
+          ticketTypeId: priceOf.get(areaPricingKey(a.id)) ?? null,
+        })),
         statusCounts: counts,
-        locked: counts.held + counts.sold > 0,
+        locked: counts.held + counts.sold > 0 || standingSold > 0,
       }
     })
   })
@@ -105,21 +182,30 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
       .object({
         eventId: z.string().uuid(),
         seatMapId: z.string().uuid(),
-        sectorPricing: z
+        sectorPricing: z.array(
+          z.object({
+            sector: z.string().min(1).max(60),
+            ticketTypeId: z.string().uuid(),
+          }),
+        ),
+        areaPricing: z
           .array(
             z.object({
-              sector: z.string().min(1).max(60),
+              areaId: z.string().min(1).max(59),
               ticketTypeId: z.string().uuid(),
             }),
           )
-          .min(1),
+          .default([]),
       })
       .parse(d),
   )
   .handler(
     async ({
       data,
-    }): Promise<{ ok: true; seatCount: number } | { error: string }> => {
+    }): Promise<
+      | { ok: true; seatCount: number; standingCapacity: number }
+      | { error: string }
+    > => {
       return run(async () => {
         await requireEventManager(data.eventId)
         const db = serviceClient()
@@ -154,6 +240,11 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
             'Podujatie už má rezervované/predané sedadlá — mapu nemožno zmeniť.',
           )
         }
+        if ((await soldStandingCount(db, data.eventId)) > 0) {
+          throw new EventAuthzError(
+            'Podujatie už má predané vstupenky na státie — mapu nemožno zmeniť.',
+          )
+        }
 
         const { data: seats } = await db
           .from('seats')
@@ -162,6 +253,13 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
           .returns<{ id: string; sector: string; seat_type: string }[]>()
         const allSeats = seats ?? []
         const sectors = [...new Set(allSeats.map((s) => s.sector))]
+
+        const areas = await loadAreas(db, data.seatMapId)
+        if (allSeats.length === 0 && areas.length === 0) {
+          throw new EventAuthzError(
+            'Mapa nemá sedadlá ani plochy s kapacitou — nie je čo predávať.',
+          )
+        }
 
         const priceOf = new Map(
           data.sectorPricing.map((p) => [p.sector, p.ticketTypeId]),
@@ -172,9 +270,36 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
               `Sektor „${sec}" nemá priradenú cenovú kategóriu.`,
             )
         }
+        const areaTypeOf = new Map(
+          data.areaPricing.map((p) => [p.areaId, p.ticketTypeId]),
+        )
+        for (const a of areas) {
+          if (!areaTypeOf.has(a.id))
+            throw new EventAuthzError(
+              `Plocha „${a.label}" nemá priradenú cenovú kategóriu.`,
+            )
+        }
+
+        // A category is either seated or sold by quantity — never both, or the
+        // capacity written below would contradict itself.
+        const seatedTypes = new Set(
+          sectors.map((s) => priceOf.get(s)!).filter(Boolean),
+        )
+        for (const a of areas) {
+          const tt = areaTypeOf.get(a.id)!
+          if (seatedTypes.has(tt)) {
+            throw new EventAuthzError(
+              `Cenová kategória plochy „${a.label}" sa už používa pre sektor — vytvorte pre státie samostatnú kategóriu.`,
+            )
+          }
+        }
+
         // All referenced ticket types must belong to this event.
         const ttIds = [
-          ...new Set(data.sectorPricing.map((p) => p.ticketTypeId)),
+          ...new Set([
+            ...data.sectorPricing.map((p) => p.ticketTypeId),
+            ...areas.map((a) => areaTypeOf.get(a.id)!),
+          ]),
         ]
         const { data: tts } = await db
           .from('ticket_types')
@@ -199,15 +324,20 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
         await db
           .from('event_seat_maps')
           .insert({ event_id: data.eventId, seat_map_id: data.seatMapId })
-        await db
-          .from('event_sector_pricing')
-          .insert(
-            data.sectorPricing.map((p) => ({
-              event_id: data.eventId,
-              sector: p.sector,
-              ticket_type_id: p.ticketTypeId,
-            })),
-          )
+        const pricingRows = [
+          ...data.sectorPricing.map((p) => ({
+            event_id: data.eventId,
+            sector: p.sector,
+            ticket_type_id: p.ticketTypeId,
+          })),
+          ...areas.map((a) => ({
+            event_id: data.eventId,
+            sector: areaPricingKey(a.id),
+            ticket_type_id: areaTypeOf.get(a.id)!,
+          })),
+        ]
+        if (pricingRows.length > 0)
+          await db.from('event_sector_pricing').insert(pricingRows)
 
         const seatRows = allSeats.map((s) => ({
           event_id: data.eventId,
@@ -238,7 +368,28 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
             .eq('id', ttId)
         }
 
-        return { ok: true as const, seatCount: allSeats.length }
+        // Standing areas stay unseated: quantity tickets capped at the area's
+        // capacity, summed when several areas share one category.
+        const areaCapByType = new Map<string, number>()
+        for (const a of areas) {
+          const tt = areaTypeOf.get(a.id)!
+          areaCapByType.set(tt, (areaCapByType.get(tt) ?? 0) + a.capacity)
+        }
+        for (const [ttId, cap] of areaCapByType) {
+          await db
+            .from('ticket_types')
+            .update({ seated: false, capacity: cap })
+            .eq('id', ttId)
+        }
+
+        return {
+          ok: true as const,
+          seatCount: allSeats.length,
+          standingCapacity: [...areaCapByType.values()].reduce(
+            (a, b) => a + b,
+            0,
+          ),
+        }
       })
     },
   )

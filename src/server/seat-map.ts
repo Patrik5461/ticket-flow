@@ -10,6 +10,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
+import { migrateLayout } from '../lib/seating'
 import type { SeatType, SeatMapLayout } from '../lib/seating'
 
 export type SeatAvailability = 'available' | 'taken' | 'blocked'
@@ -128,9 +129,16 @@ export const getEventSeatMapFn = createServerFn({ method: 'GET' })
       })
     }
 
+    // The buyer map draws the stage and standing areas too, so the layout goes
+    // through the same migration the editor uses.
+    const layout = migrateLayout(esm.seat_maps?.layout)
+    // A level with objects but no seats (a standing-only floor) still needs a tab.
+    for (const lv of layout.levels)
+      if (!levelOrder.has(lv.key)) levelOrder.set(lv.key, lv.order)
+
     return {
       seated: seats.length > 0,
-      layout: esm.seat_maps?.layout ?? { levels: [] },
+      layout,
       levels: [...levelOrder.entries()]
         .sort((a, b) => a[1] - b[1])
         .map(([key, order]) => ({ key, name: key, order })),

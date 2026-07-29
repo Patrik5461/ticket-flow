@@ -1,5 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { alphaLabel, generateSeats, sectorsOf } from './seating'
+import {
+  LAYOUT_VERSION,
+  MAX_VIEW_W,
+  MIN_OBJECT_SIZE,
+  MIN_VIEW_W,
+  alphaLabel,
+  areaIdFromPricingKey,
+  areaPricingKey,
+  capacityAreas,
+  centroid,
+  contentBounds,
+  fitViewport,
+  generateSeats,
+  migrateLayout,
+  moveObject,
+  nextCopyName,
+  nextObjectId,
+  normalizeAngle,
+  objectBounds,
+  objectCorners,
+  resizeObject,
+  rotatePoint,
+  rotatePoints,
+  sectorsOf,
+  snap,
+  zoomViewport,
+} from './seating'
+import type { MapObject, Viewport } from './seating'
 
 describe('alphaLabel', () => {
   it('produces spreadsheet-style letters', () => {
@@ -70,5 +97,317 @@ describe('generateSeats', () => {
     expect(
       sectorsOf([{ sector: 'B' }, { sector: 'A' }, { sector: 'A' }]),
     ).toEqual(['A', 'B'])
+  })
+})
+
+describe('editor viewport', () => {
+  const view: Viewport = { x: 0, y: 0, w: 800, h: 400 }
+
+  /** Where an SVG point lands on screen, given a viewport rendered at `scale`. */
+  const project = (v: Viewport, p: { x: number; y: number }) => ({
+    x: (p.x - v.x) / v.w,
+    y: (p.y - v.y) / v.h,
+  })
+
+  it('contentBounds pads the extent of the points', () => {
+    expect(
+      contentBounds(
+        [
+          { x: 0, y: 0 },
+          { x: 100, y: 50 },
+        ],
+        10,
+      ),
+    ).toEqual({
+      minX: -10,
+      minY: -10,
+      maxX: 110,
+      maxY: 60,
+    })
+  })
+
+  it('contentBounds falls back to a frame when there is nothing to show', () => {
+    const b = contentBounds([])
+    expect(b.maxX).toBeGreaterThan(b.minX)
+    expect(b.maxY).toBeGreaterThan(b.minY)
+  })
+
+  it('fitViewport grows the short axis instead of cropping', () => {
+    // Content is 400x400; a 2:1 container must widen, never shrink the height.
+    const v = fitViewport({ minX: 0, minY: 0, maxX: 400, maxY: 400 }, 2)
+    expect(v.w / v.h).toBeCloseTo(2)
+    expect(v.h).toBeGreaterThanOrEqual(400)
+    expect(v.w).toBeGreaterThanOrEqual(400)
+    // and it stays centred on the content
+    expect(v.x + v.w / 2).toBeCloseTo(200)
+    expect(v.y + v.h / 2).toBeCloseTo(200)
+  })
+
+  it('fitViewport keeps the whole content inside the frame', () => {
+    const b = { minX: -50, minY: 10, maxX: 950, maxY: 110 }
+    const v = fitViewport(b, 1)
+    expect(v.x).toBeLessThanOrEqual(b.minX)
+    expect(v.y).toBeLessThanOrEqual(b.minY)
+    expect(v.x + v.w).toBeGreaterThanOrEqual(b.maxX)
+    expect(v.y + v.h).toBeGreaterThanOrEqual(b.maxY)
+  })
+
+  it('zoomViewport pins the anchor to the same screen position', () => {
+    const anchor = { x: 600, y: 300 }
+    const before = project(view, anchor)
+    const zoomed = zoomViewport(view, 0.5, anchor)
+    expect(project(zoomed, anchor)).toEqual(before)
+  })
+
+  it('zoomViewport keeps the anchor pinned across a zoom in/out round trip', () => {
+    const anchor = { x: 123, y: 45 }
+    const out = zoomViewport(view, 2, anchor)
+    const back = zoomViewport(out, 0.5, anchor)
+    expect(back.x).toBeCloseTo(view.x)
+    expect(back.y).toBeCloseTo(view.y)
+    expect(back.w).toBeCloseTo(view.w)
+    expect(back.h).toBeCloseTo(view.h)
+  })
+
+  it('zoomViewport preserves the aspect ratio', () => {
+    const zoomed = zoomViewport(view, 0.37, { x: 10, y: 20 })
+    expect(zoomed.w / zoomed.h).toBeCloseTo(view.w / view.h)
+  })
+
+  it('zoomViewport defaults to the centre when no anchor is given', () => {
+    const zoomed = zoomViewport(view, 0.5)
+    expect(zoomed.x + zoomed.w / 2).toBeCloseTo(view.x + view.w / 2)
+    expect(zoomed.y + zoomed.h / 2).toBeCloseTo(view.y + view.h / 2)
+  })
+
+  it('zoomViewport clamps at both zoom limits', () => {
+    expect(zoomViewport(view, 1e-9).w).toBe(MIN_VIEW_W)
+    expect(zoomViewport(view, 1e9).w).toBe(MAX_VIEW_W)
+  })
+
+  it('zoomViewport is a no-op once clamped', () => {
+    const deep = zoomViewport(view, 1e-9)
+    expect(zoomViewport(deep, 0.5)).toBe(deep)
+  })
+})
+
+describe('layout migration', () => {
+  it('reads a v1 layout and fills in the object list', () => {
+    const v1 = {
+      levels: [
+        {
+          key: 'parter',
+          name: 'parter',
+          order: 0,
+          canvas: { width: 500, height: 300 },
+          shapes: [
+            { sector: 'A', kind: 'rect', x: 0, y: 0, width: 100, height: 50 },
+          ],
+        },
+      ],
+    }
+    const out = migrateLayout(v1)
+    expect(out.version).toBe(LAYOUT_VERSION)
+    expect(out.levels).toHaveLength(1)
+    expect(out.levels[0].shapes).toHaveLength(1)
+    expect(out.levels[0].objects).toEqual([])
+  })
+
+  it('keeps v2 objects and defaults their missing fields', () => {
+    const out = migrateLayout({
+      version: 2,
+      levels: [
+        {
+          key: 'parter',
+          shapes: [],
+          objects: [
+            { id: 'o1', kind: 'stage', label: 'Pódium', x: 10, y: 20 },
+            { kind: 'area', label: 'Parket', capacity: 250 },
+          ],
+        },
+      ],
+    })
+    const [stage, area] = out.levels[0].objects
+    expect(stage).toMatchObject({ id: 'o1', kind: 'stage', x: 10, y: 20 })
+    expect(stage.rotation).toBe(0)
+    expect(stage.capacity).toBeNull()
+    // A missing id still has to be unique within the level.
+    expect(area.id).toBe('o2')
+    expect(area.capacity).toBe(250)
+    expect(area.width).toBeGreaterThanOrEqual(MIN_OBJECT_SIZE)
+  })
+
+  it('drops a stage capacity — only areas sell standing tickets', () => {
+    const out = migrateLayout({
+      levels: [
+        {
+          key: 'p',
+          objects: [{ id: 'o1', kind: 'stage', capacity: 100 }],
+        },
+      ],
+    })
+    expect(out.levels[0].objects[0].capacity).toBeNull()
+  })
+
+  it('survives junk instead of throwing', () => {
+    expect(migrateLayout(null).levels).toEqual([])
+    expect(migrateLayout({}).levels).toEqual([])
+    expect(migrateLayout({ levels: 'nope' }).levels).toEqual([])
+    expect(
+      migrateLayout({ levels: [null, { name: 'no key' }] }).levels,
+    ).toEqual([])
+  })
+})
+
+describe('geometry', () => {
+  const obj = (over: Partial<MapObject> = {}): MapObject => ({
+    id: 'o1',
+    kind: 'area',
+    label: 'Parket',
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 100,
+    rotation: 0,
+    capacity: null,
+    ...over,
+  })
+
+  it('snaps to the grid, and leaves values alone without one', () => {
+    expect(snap(23, 10)).toBe(20)
+    expect(snap(26, 10)).toBe(30)
+    expect(snap(-23, 10)).toBe(-20)
+    expect(snap(23.4, 0)).toBe(23.4)
+  })
+
+  it('rotates a point clockwise about a centre', () => {
+    const p = rotatePoint({ x: 10, y: 0 }, 90, { x: 0, y: 0 })
+    expect(p.x).toBeCloseTo(0)
+    expect(p.y).toBeCloseTo(10) // SVG y grows downwards
+  })
+
+  it('rotating a sector keeps its centroid and its shape', () => {
+    const seats = [
+      { x: 0, y: 0, cid: 'a' },
+      { x: 100, y: 0, cid: 'b' },
+      { x: 100, y: 40, cid: 'c' },
+      { x: 0, y: 40, cid: 'd' },
+    ]
+    const c = centroid(seats)
+    const turned = rotatePoints(seats, 90, c)
+    expect(centroid(turned).x).toBeCloseTo(c.x)
+    expect(centroid(turned).y).toBeCloseTo(c.y)
+    // distances from the pivot are preserved, and the extra fields ride along
+    seats.forEach((s, i) => {
+      expect(Math.hypot(turned[i].x - c.x, turned[i].y - c.y)).toBeCloseTo(
+        Math.hypot(s.x - c.x, s.y - c.y),
+      )
+      expect(turned[i].cid).toBe(s.cid)
+    })
+  })
+
+  it('four 90° turns return a sector to where it started', () => {
+    const seats = [
+      { x: 3, y: 7 },
+      { x: 55, y: 12 },
+    ]
+    const c = centroid(seats)
+    let out = seats
+    for (let i = 0; i < 4; i++) out = rotatePoints(out, 90, c)
+    out.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(seats[i].x)
+      expect(p.y).toBeCloseTo(seats[i].y)
+    })
+  })
+
+  it('objectBounds covers a rotated object', () => {
+    const b = objectBounds(obj({ rotation: 45 }))
+    const plain = objectBounds(obj())
+    // A rotated rectangle needs a wider axis-aligned box than a flat one.
+    expect(b.maxY - b.minY).toBeGreaterThan(plain.maxY - plain.minY)
+    // …and it stays centred on the object.
+    expect((b.minX + b.maxX) / 2).toBeCloseTo(200)
+    expect((b.minY + b.maxY) / 2).toBeCloseTo(150)
+  })
+
+  it('resize keeps the opposite corner nailed in place', () => {
+    const o = obj()
+    const fixed = objectCorners(o)[0] // nw stays put while se is dragged
+    const out = resizeObject(o, 'se', { x: 400, y: 260 })
+    expect(out.width).toBeCloseTo(300)
+    expect(out.height).toBeCloseTo(160)
+    const after = objectCorners(out)[0]
+    expect(after.x).toBeCloseTo(fixed.x)
+    expect(after.y).toBeCloseTo(fixed.y)
+  })
+
+  it('resize of a rotated object still pins the opposite corner', () => {
+    const o = obj({ rotation: 30 })
+    const fixed = objectCorners(o)[3] // dragging ne pins sw
+    const out = resizeObject(o, 'ne', { x: 500, y: -50 })
+    const after = objectCorners(out)[3]
+    expect(after.x).toBeCloseTo(fixed.x)
+    expect(after.y).toBeCloseTo(fixed.y)
+    expect(out.rotation).toBe(30)
+  })
+
+  it('resize snaps to the grid and refuses to collapse the object', () => {
+    const snapped = resizeObject(obj(), 'se', { x: 403, y: 258 }, 10)
+    expect(snapped.width).toBeCloseTo(300)
+    expect(snapped.height).toBeCloseTo(160)
+    // Dragging the handle onto the fixed corner keeps a grabbable minimum.
+    const tiny = resizeObject(obj(), 'se', { x: 100, y: 100 })
+    expect(tiny.width).toBe(MIN_OBJECT_SIZE)
+    expect(tiny.height).toBe(MIN_OBJECT_SIZE)
+  })
+
+  it('moveObject snaps the corner only when a grid is given', () => {
+    expect(moveObject(obj(), 3, 4, 10)).toMatchObject({ x: 100, y: 100 })
+    expect(moveObject(obj(), 7, 8, 10)).toMatchObject({ x: 110, y: 110 })
+    expect(moveObject(obj(), 3.5, 4.5, 0)).toMatchObject({ x: 103.5, y: 104.5 })
+  })
+
+  it('normalizeAngle folds into [0, 360)', () => {
+    expect(normalizeAngle(-90)).toBe(270)
+    expect(normalizeAngle(360)).toBe(0)
+    expect(normalizeAngle(725)).toBe(5)
+  })
+})
+
+describe('naming and area keys', () => {
+  it('nextObjectId skips ids already in the map', () => {
+    expect(nextObjectId([])).toBe('o1')
+    expect(nextObjectId(['o1', 'o4', 'weird'])).toBe('o5')
+  })
+
+  it('nextCopyName never collides and does not stack suffixes', () => {
+    expect(nextCopyName(['A'], 'A')).toBe('A (kópia)')
+    expect(nextCopyName(['A', 'A (kópia)'], 'A')).toBe('A (kópia 2)')
+    // Duplicating a copy stays "A (kópia N)", not "A (kópia) (kópia)".
+    expect(nextCopyName(['A', 'A (kópia)'], 'A (kópia)')).toBe('A (kópia 2)')
+  })
+
+  it('area pricing keys round-trip and stay out of the sector namespace', () => {
+    const key = areaPricingKey('o7')
+    expect(areaIdFromPricingKey(key)).toBe('o7')
+    expect(areaIdFromPricingKey('A')).toBeNull()
+  })
+
+  it('capacityAreas lists only areas that actually sell', () => {
+    const layout = migrateLayout({
+      levels: [
+        {
+          key: 'parter',
+          objects: [
+            { id: 'o1', kind: 'stage', label: 'Pódium' },
+            { id: 'o2', kind: 'area', label: 'Parket', capacity: 300 },
+            { id: 'o3', kind: 'area', label: 'Bar' }, // no capacity → not sold
+          ],
+        },
+      ],
+    })
+    expect(capacityAreas(layout)).toEqual([
+      { id: 'o2', label: 'Parket', capacity: 300, level: 'parter' },
+    ])
   })
 })
