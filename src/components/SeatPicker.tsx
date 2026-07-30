@@ -1,13 +1,28 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { EventSeatMap, BuyerSeat } from '../server/seat-map'
-import { objectCenter, objectPoints } from '../lib/seating'
+import {
+  SEAT_R,
+  objectCenter,
+  objectPoints,
+  seatHitRadius,
+  zoomPercentOf,
+} from '../lib/seating'
 import type { MapObject } from '../lib/seating'
+import { useCanvasViewport } from '../lib/use-canvas-viewport'
 import { formatEur } from '../lib/money'
 
 /**
- * Buyer seat picker: interactive SVG map (zoom/pan/pinch), colour by price
- * category + availability, tap/click to select. Screen-reader users get an
- * equivalent grouped checkbox list. Fully controlled via `selected`/`onChange`.
+ * Buyer seat picker. The map is the primary control: it pans, zooms on the
+ * cursor (wheel / pinch) and fits to screen, sharing `useCanvasViewport` with
+ * the organizer's editor so there is one implementation of that maths.
+ *
+ * Seats keep a finger-sized hit area at any zoom via a transparent stroke, so
+ * the drawn dot stays small while the target stays hittable. Dragging off a seat
+ * pans instead of selecting; only a press that stays put counts as a tap.
+ *
+ * On phones the inline map is replaced by a button that opens a fullscreen
+ * overlay, since a map squeezed into a 390 px column cannot be aimed at.
+ * Screen-reader users get the equivalent grouped checkbox list either way.
  */
 
 const PALETTE = [
@@ -18,6 +33,8 @@ const PALETTE = [
   '#ec4899',
   '#14b8a6',
 ]
+
+const TAKEN_COLOR = '#4b5563'
 
 export function SeatPicker({
   map,
@@ -31,6 +48,7 @@ export function SeatPicker({
   maxSeats?: number
 }) {
   const [levelKey, setLevelKey] = useState(map.levels[0]?.key ?? 'main')
+  const [overlay, setOverlay] = useState(false)
   const selectedSet = useMemo(() => new Set(selected), [selected])
 
   // Stable colour per ticket type (price category).
@@ -40,24 +58,56 @@ export function SeatPicker({
     return m
   }, [map.ticketTypes])
 
-  const levelSeats = map.seats.filter((s) => s.level === levelKey)
+  const nameOf = useMemo(
+    () => new Map(map.ticketTypes.map((t) => [t.id, t.name])),
+    [map.ticketTypes],
+  )
+
+  const levelSeats = useMemo(
+    () => map.seats.filter((s) => s.level === levelKey),
+    [map.seats, levelKey],
+  )
   // Stage and standing areas are part of the room, drawn under the seats.
-  const levelObjects =
-    map.layout.levels.find((l) => l.key === levelKey)?.objects ?? []
+  const levelObjects = useMemo(
+    () => map.layout.levels.find((l) => l.key === levelKey)?.objects ?? [],
+    [map.layout.levels, levelKey],
+  )
   const seatById = useMemo(
     () => new Map(map.seats.map((s) => [s.seatId, s])),
     [map.seats],
   )
 
+  const [limitHit, setLimitHit] = useState(false)
   const toggle = (seat: BuyerSeat) => {
     if (seat.availability !== 'available') return
     if (selectedSet.has(seat.seatId)) {
+      setLimitHit(false)
       onChange(selected.filter((id) => id !== seat.seatId))
-    } else {
-      if (selected.length >= maxSeats) return
-      onChange([...selected, seat.seatId])
+      return
     }
+    if (selected.length >= maxSeats) return setLimitHit(true)
+    setLimitHit(false)
+    onChange([...selected, seat.seatId])
   }
+
+  const selectedTotal = selected.reduce(
+    (sum, id) => sum + (seatById.get(id)?.priceCents ?? 0),
+    0,
+  )
+
+  const surface = (heightClass: string, wrapperClass?: string) => (
+    <SeatMapSurface
+      seats={levelSeats}
+      objects={levelObjects}
+      colorOf={colorOf}
+      nameOf={nameOf}
+      selectedSet={selectedSet}
+      onToggle={toggle}
+      fitKey={levelKey}
+      heightClass={heightClass}
+      wrapperClass={wrapperClass}
+    />
+  )
 
   return (
     <div className="space-y-3">
@@ -79,30 +129,40 @@ export function SeatPicker({
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-ink-300">
-        {map.ticketTypes.map((t) => (
-          <span key={t.id} className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block h-3 w-3 rounded-full"
-              style={{ background: colorOf.get(t.id) }}
-            />
-            {t.name} · {formatEur(t.priceCents)}
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-full bg-ink-600" />
-          obsadené
-        </span>
+      <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} />
+
+      {/* Desktop: the map is the main event. */}
+      <div className="hidden md:block">
+        {surface('h-[60vh] min-h-[420px] w-full')}
+        <p className="mt-2 text-xs text-ink-500">
+          Koliesko alebo <kbd>+</kbd>/<kbd>−</kbd> priblíži, ťahaním posuniete
+          mapu, <span aria-hidden>⤢</span> zobrazí celú halu.
+        </p>
       </div>
 
-      <ZoomableMap
-        key={levelKey}
-        seats={levelSeats}
-        objects={levelObjects}
-        colorOf={colorOf}
-        selectedSet={selectedSet}
-        onToggle={toggle}
+      {/* Phones: a button, because a map in a 390 px column cannot be aimed at. */}
+      <div className="md:hidden">
+        <button
+          onClick={() => setOverlay(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-3 text-sm font-semibold text-ink-100"
+        >
+          <span aria-hidden>🗺️</span>
+          {selected.length > 0 ? 'Upraviť výber na mape' : 'Zobraziť mapu'}
+        </button>
+      </div>
+
+      {limitHit && (
+        <p className="text-xs text-amber-400">
+          Naraz môžete kúpiť najviac {maxSeats} sedadiel.
+        </p>
+      )}
+
+      <SelectedSeats
+        ids={selected}
+        seatById={seatById}
+        nameOf={nameOf}
+        total={selectedTotal}
+        onRemove={(id) => onChange(selected.filter((x) => x !== id))}
       />
 
       {/* Screen-reader / no-pointer fallback: grouped checkbox list */}
@@ -119,146 +179,161 @@ export function SeatPicker({
         </div>
       </details>
 
-      {/* Selected summary */}
-      {selected.length > 0 && (
-        <div className="rounded-lg border border-ink-700 bg-ink-900/60 p-3 text-sm">
-          <div className="mb-1 font-medium text-ink-100">
-            Vybrané sedadlá ({selected.length})
-          </div>
-          <ul className="space-y-0.5 text-ink-300">
-            {selected.map((id) => {
-              const s = seatById.get(id)
-              if (!s) return null
-              return (
-                <li key={id} className="flex justify-between">
-                  <span>
-                    {s.sector} · rad {s.rowLabel} · miesto {s.seatNumber}
-                  </span>
-                  <span>{formatEur(s.priceCents)}</span>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+      {overlay && (
+        <MapOverlay
+          onClose={() => setOverlay(false)}
+          count={selected.length}
+          total={selectedTotal}
+        >
+          <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} compact />
+          {surface('h-full w-full', 'min-h-0 flex-1')}
+        </MapOverlay>
       )}
     </div>
   )
 }
 
-function ZoomableMap({
+function Legend({
+  ticketTypes,
+  colorOf,
+  compact,
+}: {
+  ticketTypes: { id: string; name: string; priceCents: number }[]
+  colorOf: Map<string, string>
+  compact?: boolean
+}) {
+  return (
+    <div
+      className={`flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-ink-300 ${
+        compact ? 'px-3 py-2' : ''
+      }`}
+    >
+      {ticketTypes.map((t) => (
+        <span key={t.id} className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-3 rounded-full"
+            style={{ background: colorOf.get(t.id) }}
+          />
+          {t.name} · {formatEur(t.priceCents)}
+        </span>
+      ))}
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-block h-3 w-3 rounded-full ring-2 ring-white ring-offset-1 ring-offset-ink-950" />
+        vybrané
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="inline-block h-3 w-3 rounded-full"
+          style={{ background: TAKEN_COLOR }}
+        />
+        obsadené
+      </span>
+    </div>
+  )
+}
+
+function SeatMapSurface({
   seats,
   objects,
   colorOf,
+  nameOf,
   selectedSet,
   onToggle,
+  fitKey,
+  heightClass,
+  wrapperClass = '',
 }: {
   seats: BuyerSeat[]
   objects: MapObject[]
   colorOf: Map<string, string>
+  nameOf: Map<string, string>
   selectedSet: Set<string>
   onToggle: (s: BuyerSeat) => void
+  fitKey: string
+  heightClass: string
+  wrapperClass?: string
 }) {
-  const base = useMemo(() => {
-    // Frame seats and objects together, so a stage never falls off the edge.
-    const pts = [...seats, ...objectPoints(objects)]
-    if (pts.length === 0) return { x: 0, y: 0, w: 400, h: 200 }
-    const xs = pts.map((p) => p.x)
-    const ys = pts.map((p) => p.y)
-    const x = Math.min(...xs) - 20
-    const y = Math.min(...ys) - 20
-    return { x, y, w: Math.max(...xs) - x + 20, h: Math.max(...ys) - y + 20 }
-  }, [seats, objects])
+  const seatById = useMemo(
+    () => new Map(seats.map((s) => [s.seatId, s])),
+    [seats],
+  )
+  const [tip, setTip] = useState<{
+    seat: BuyerSeat
+    x: number
+    y: number
+  } | null>(null)
 
-  const [vb, setVb] = useState(base)
-  const pointers = useRef(new Map<number, { x: number; y: number }>())
-  const pinchDist = useRef(0)
+  const points = useMemo(
+    () => [...seats, ...objectPoints(objects)],
+    [seats, objects],
+  )
+  const vp = useCanvasViewport({
+    points,
+    fitKey,
+    onTap: (target) => {
+      if (!target) return setTip(null)
+      const s = seatById.get(target)
+      if (s) onToggle(s)
+    },
+  })
 
-  const clampZoom = (w: number) => {
-    const minW = base.w * 0.2
-    const maxW = base.w * 2
-    if (w < minW) return (base.w * 0.2) / w
-    if (w > maxW) return (base.w * 2) / w
-    return 1
-  }
+  // Invisible stroke widens the target without redrawing the seat bigger.
+  const hitR = seatHitRadius(vp.view.w, vp.pxWidth)
+  const hitStroke = Math.max(0, hitR - SEAT_R) * 2
+  const zoomPercent = zoomPercentOf(vp.view.w, vp.pxWidth)
 
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault()
-    const factor = e.deltaY > 0 ? 1.1 : 0.9
-    const rect = e.currentTarget.getBoundingClientRect()
-    const px = vb.x + ((e.clientX - rect.left) / rect.width) * vb.w
-    const py = vb.y + ((e.clientY - rect.top) / rect.height) * vb.h
-    let nw = vb.w * factor
-    let nh = vb.h * factor
-    const c = clampZoom(nw)
-    nw *= c
-    nh *= c
-    setVb({
-      x: px - ((px - vb.x) * nw) / vb.w,
-      y: py - ((py - vb.y) * nh) / vb.h,
-      w: nw,
-      h: nh,
-    })
-  }
+  const color = (s: BuyerSeat) =>
+    s.availability === 'available'
+      ? (colorOf.get(s.ticketTypeId) ?? PALETTE[0])
+      : TAKEN_COLOR
 
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-  }
-  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    pointers.current.delete(e.pointerId)
-    pinchDist.current = 0
-  }
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!pointers.current.has(e.pointerId)) return
-    const prev = pointers.current.get(e.pointerId)!
-    const rect = e.currentTarget.getBoundingClientRect()
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const pts = [...pointers.current.values()]
-    if (pts.length === 2) {
-      const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
-      if (pinchDist.current) {
-        const factor = pinchDist.current / d
-        let nw = vb.w * factor
-        let nh = vb.h * factor
-        const c = clampZoom(nw)
-        nw *= c
-        nh *= c
-        const cx = vb.x + vb.w / 2
-        const cy = vb.y + vb.h / 2
-        setVb({ x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh })
-      }
-      pinchDist.current = d
-    } else if (pts.length === 1) {
-      const dx = ((e.clientX - prev.x) / rect.width) * vb.w
-      const dy = ((e.clientY - prev.y) / rect.height) * vb.h
-      setVb((v) => ({ ...v, x: v.x - dx, y: v.y - dy }))
-    }
-  }
-
-  const color = (s: BuyerSeat) => {
-    if (selectedSet.has(s.seatId)) return '#22c55e'
-    if (s.availability === 'available')
-      return colorOf.get(s.ticketTypeId) ?? '#6366f1'
-    return '#4b5563'
+  const showTip = (s: BuyerSeat, clientX: number, clientY: number) => {
+    const rect = vp.svgRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setTip({ seat: s, x: clientX - rect.left, y: clientY - rect.top })
   }
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-ink-700 bg-ink-950">
-      <button
-        onClick={() => setVb(base)}
-        className="absolute right-2 top-2 z-10 rounded-md border border-ink-700 bg-ink-900/80 px-2 py-1 text-xs text-ink-200"
-      >
-        Reset
-      </button>
+    <div
+      className={`relative overflow-hidden border-ink-700 bg-ink-950 ${
+        wrapperClass || 'rounded-lg border'
+      }`}
+    >
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+        <span className="mr-1 rounded-md border border-ink-700 bg-ink-900/80 px-2 py-1 text-xs tabular-nums text-ink-300">
+          {zoomPercent}%
+        </span>
+        <MapButton onClick={() => vp.zoomBy(1 / 1.3)} title="Priblížiť">
+          +
+        </MapButton>
+        <MapButton onClick={() => vp.zoomBy(1.3)} title="Oddialiť">
+          −
+        </MapButton>
+        <MapButton onClick={vp.fit} title="Zobraziť celú halu">
+          ⤢
+        </MapButton>
+      </div>
+
       <svg
-        viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-        className="h-[24rem] w-full touch-none select-none"
-        onWheel={onWheel}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onPointerMove={onPointerMove}
+        ref={vp.svgRef}
+        viewBox={vp.viewBox}
+        className={`touch-none select-none ${heightClass}`}
+        style={{ cursor: vp.panning ? 'grabbing' : 'default' }}
+        {...vp.handlers}
+        onPointerLeave={() => {
+          vp.handlers.onPointerLeave()
+          setTip(null)
+        }}
       >
+        {/* Catches presses on empty space so panning works away from seats. */}
+        <rect
+          x={vp.view.x}
+          y={vp.view.y}
+          width={vp.view.w}
+          height={vp.view.h}
+          fill="transparent"
+        />
+
         {objects.map((o) => {
           const c = objectCenter(o)
           const stage = o.kind === 'stage'
@@ -273,6 +348,7 @@ function ZoomableMap({
                 fill={stage ? '#475569' : 'rgba(99,102,241,0.15)'}
                 stroke={stage ? '#94a3b8' : '#818cf8'}
                 strokeWidth={1.5}
+                style={{ pointerEvents: 'none' }}
               />
               <text
                 x={c.x}
@@ -289,29 +365,203 @@ function ZoomableMap({
           )
         })}
 
-        {seats.map((s) => (
-          <circle
-            key={s.seatId}
-            cx={s.x}
-            cy={s.y}
-            r={9}
-            fill={color(s)}
-            stroke={selectedSet.has(s.seatId) ? '#fff' : 'none'}
-            strokeWidth={selectedSet.has(s.seatId) ? 1.5 : 0}
-            style={{
-              cursor:
-                s.availability === 'available' ? 'pointer' : 'not-allowed',
-            }}
-            onClick={() => onToggle(s)}
-          >
-            <title>{`${s.sector} rad ${s.rowLabel} miesto ${s.seatNumber} — ${
-              s.availability === 'available'
-                ? formatEur(s.priceCents)
-                : 'obsadené'
-            }`}</title>
-          </circle>
-        ))}
+        {seats.map((s) => {
+          const sel = selectedSet.has(s.seatId)
+          const free = s.availability === 'available'
+          return (
+            <g key={s.seatId}>
+              <circle
+                cx={s.x}
+                cy={s.y}
+                r={SEAT_R}
+                fill={color(s)}
+                stroke="transparent"
+                strokeWidth={hitStroke}
+                style={{
+                  pointerEvents: 'all',
+                  cursor: free ? 'pointer' : 'not-allowed',
+                }}
+                onPointerDown={(e) => {
+                  // Only a press that stays put selects; a drag pans the map.
+                  vp.tap(s.seatId)
+                  showTip(s, e.clientX, e.clientY)
+                }}
+                onPointerEnter={(e) => showTip(s, e.clientX, e.clientY)}
+              />
+              {sel && (
+                <circle
+                  cx={s.x}
+                  cy={s.y}
+                  r={SEAT_R + 3}
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth={2.5}
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
+            </g>
+          )
+        })}
       </svg>
+
+      {tip && (
+        <div
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-ink-700 bg-ink-900/95 px-2 py-1 text-xs text-ink-100 shadow-lg"
+          style={{ left: tip.x, top: tip.y - 10 }}
+        >
+          <div className="font-semibold">
+            {tip.seat.sector} · rad {tip.seat.rowLabel} · miesto{' '}
+            {tip.seat.seatNumber}
+          </div>
+          <div className="text-ink-300">
+            {tip.seat.availability === 'available'
+              ? `${nameOf.get(tip.seat.ticketTypeId) ?? 'Vstupenka'} · ${formatEur(
+                  tip.seat.priceCents,
+                )}`
+              : 'obsadené'}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MapButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="h-8 w-8 rounded-md border border-ink-700 bg-ink-900/80 text-sm leading-none text-ink-100 hover:bg-ink-800"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Fullscreen map for phones: the whole viewport, pinch-zoomable. */
+function MapOverlay({
+  children,
+  onClose,
+  count,
+  total,
+}: {
+  children: React.ReactNode
+  onClose: () => void
+  count: number
+  total: number
+}) {
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col bg-ink-950"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mapa sedadiel"
+    >
+      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
+        <span className="text-sm font-semibold text-ink-100">
+          Výber sedadiel
+        </span>
+        <button
+          onClick={onClose}
+          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white"
+        >
+          Hotovo
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
+      <div className="flex items-center justify-between border-t border-ink-800 px-3 py-2 text-sm">
+        <span className="text-ink-300">
+          {count === 0 ? 'Žiadne sedadlo' : `Vybrané: ${count}`}
+        </span>
+        <span className="font-display font-bold text-ink-100">
+          {formatEur(total)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function SelectedSeats({
+  ids,
+  seatById,
+  nameOf,
+  total,
+  onRemove,
+}: {
+  ids: string[]
+  seatById: Map<string, BuyerSeat>
+  nameOf: Map<string, string>
+  total: number
+  onRemove: (id: string) => void
+}) {
+  if (ids.length === 0) {
+    return (
+      <p className="text-sm text-ink-400">Vyberte sedadlá kliknutím na mapu.</p>
+    )
+  }
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-900/60 p-3 text-sm">
+      <div className="mb-1.5 font-medium text-ink-100">
+        Vybrané sedadlá ({ids.length})
+      </div>
+      <ul className="space-y-1">
+        {ids.map((id) => {
+          const s = seatById.get(id)
+          if (!s) return null
+          return (
+            <li key={id} className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-ink-300">
+                {s.sector} · rad {s.rowLabel} · miesto {s.seatNumber}
+                <span className="ml-1 text-ink-500">
+                  {nameOf.get(s.ticketTypeId) ?? ''}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="tabular-nums text-ink-200">
+                  {formatEur(s.priceCents)}
+                </span>
+                <button
+                  onClick={() => onRemove(id)}
+                  aria-label={`Odobrať sedadlo ${s.sector} ${s.rowLabel}${s.seatNumber}`}
+                  title="Odobrať"
+                  className="h-6 w-6 rounded border border-ink-700 text-xs text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                >
+                  ×
+                </button>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="mt-2 flex justify-between border-t border-ink-700 pt-2 font-medium text-ink-100">
+        <span>Sedadlá spolu</span>
+        <span className="tabular-nums">{formatEur(total)}</span>
+      </div>
     </div>
   )
 }

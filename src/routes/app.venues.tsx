@@ -15,8 +15,6 @@ import {
   angleFromCenter,
   areaPricingKey,
   centroid,
-  contentBounds,
-  fitViewport,
   generateSeats,
   migrateLayout,
   nextCopyName,
@@ -27,10 +25,12 @@ import {
   objectCorners,
   objectPoints,
   resizeObject,
+  SEAT_R,
+  zoomPercentOf,
   rotatePoints,
   snap,
-  zoomViewport,
 } from '../lib/seating'
+import { useCanvasViewport } from '../lib/use-canvas-viewport'
 import type {
   SeatType,
   GeneratedSeat,
@@ -1214,18 +1214,6 @@ function ObjectTools({
 }
 
 /** Client (screen px) → SVG user units, letterboxing included. */
-function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
-  const ctm = svg.getScreenCTM()
-  if (!ctm) return { x: clientX, y: clientY }
-  const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse())
-  return { x: p.x, y: p.y }
-}
-
-/** Rendered pixels per SVG unit — the divisor for turning drags into units. */
-function pixelsPerUnit(svg: SVGSVGElement) {
-  const ctm = svg.getScreenCTM()
-  return ctm && ctm.a !== 0 ? ctm.a : 1
-}
 /** Editor colours for the non-seated objects drawn under the seats. */
 const OBJECT_STYLE = {
   stage: { fill: '#475569', stroke: '#94a3b8', text: '#f8fafc' },
@@ -1272,64 +1260,23 @@ function Canvas({
   onMoveSector?: (sector: string, dx: number, dy: number) => void
   onPatchObject?: (id: string, patch: Partial<MapObject>) => void
 }) {
-  const svgRef = useRef<SVGSVGElement | null>(null)
-  const [view, setView] = useState<Viewport>(() =>
-    fitViewport(contentBounds(seats), 0),
+  // Pan / zoom / pinch / fit are shared with the buyer map; only the editing
+  // gestures below are specific to this canvas.
+  const points = useMemo(
+    () => [...seats, ...objectPoints(objects)],
+    [seats, objects],
   )
-  const [space, setSpace] = useState(false)
-  const [panning, setPanning] = useState(false)
-  // Rendered width in CSS px, so the zoom readout can be a real scale factor.
-  const [pxWidth, setPxWidth] = useState(0)
+  const vp = useCanvasViewport({
+    points,
+    fitKey,
+    spacePan: true,
+    // A press on empty canvas that never moved clears the selection.
+    onTap: (target) => {
+      if (target === null) onSelect(null)
+    },
+  })
+  const { view } = vp
 
-  useEffect(() => {
-    const el = svgRef.current
-    if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width
-      if (w) setPxWidth(w)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  // Live gesture state lives in refs: pointer moves must not wait for a render.
-  const gesture = useRef<
-    | { kind: 'pan'; id: number; x: number; y: number; moved: boolean }
-    | {
-        kind: 'sector'
-        id: number
-        sector: string
-        /** Client position where the drag started; deltas are measured from it
-         *  so snapping cannot swallow sub-grid movements. */
-        x: number
-        y: number
-        appliedX: number
-        appliedY: number
-      }
-    | {
-        kind: 'object'
-        id: number
-        objectId: string
-        origin: { x: number; y: number }
-        startSvg: { x: number; y: number }
-      }
-    | { kind: 'resize'; id: number; objectId: string; handle: ResizeHandle }
-    | {
-        kind: 'rotate'
-        id: number
-        objectId: string
-        startAngle: number
-        startRotation: number
-      }
-    | null
-  >(null)
-  const pointers = useRef(new Map<number, { x: number; y: number }>())
-  const pinchDist = useRef<number | null>(null)
-  const hovering = useRef(false)
-  const spaceRef = useRef(false)
-
-  const seatsRef = useRef(seats)
-  seatsRef.current = seats
   const objectsRef = useRef(objects)
   objectsRef.current = objects
   const gridRef = useRef(grid)
@@ -1338,115 +1285,6 @@ function Canvas({
   useEffect(() => {
     viewRef.current = view
   }, [view, viewRef])
-
-  /** Frame the content, matching the container's aspect so nothing letterboxes. */
-  const fit = useCallback(() => {
-    const rect = svgRef.current?.getBoundingClientRect()
-    const aspect = rect && rect.height > 0 ? rect.width / rect.height : 0
-    setView(
-      fitViewport(
-        contentBounds([
-          ...seatsRef.current,
-          ...objectPoints(objectsRef.current),
-        ]),
-        aspect,
-      ),
-    )
-  }, [])
-
-  const zoomBy = useCallback(
-    (factor: number, clientX?: number, clientY?: number) => {
-      setView((v) => {
-        const svg = svgRef.current
-        const anchor =
-          svg && clientX !== undefined && clientY !== undefined
-            ? clientToSvg(svg, clientX, clientY)
-            : undefined
-        return zoomViewport(v, factor, anchor)
-      })
-    },
-    [],
-  )
-
-  // Refit when the map or level changes, and once content first appears.
-  const contentCount = seats.length + objects.length
-  const hadContent = useRef(contentCount > 0)
-  useEffect(() => {
-    hadContent.current = seatsRef.current.length + objectsRef.current.length > 0
-    fit()
-  }, [fitKey, fit])
-  useEffect(() => {
-    if (!hadContent.current && contentCount > 0) fit()
-    hadContent.current = contentCount > 0
-  }, [contentCount, fit])
-
-  // Wheel must be a non-passive listener, otherwise preventDefault is ignored
-  // and the page scrolls instead of the map zooming.
-  useEffect(() => {
-    const el = svgRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
-      zoomBy(Math.exp(delta * 0.0015), e.clientX, e.clientY)
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [zoomBy])
-
-  // Space holds the canvas in pan mode, like every other editor.
-  useEffect(() => {
-    const isTyping = (t: EventTarget | null) =>
-      t instanceof HTMLElement &&
-      (t.tagName === 'INPUT' ||
-        t.tagName === 'TEXTAREA' ||
-        t.tagName === 'SELECT' ||
-        t.isContentEditable)
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || isTyping(e.target)) return
-      if (hovering.current) e.preventDefault()
-      spaceRef.current = true
-      setSpace(true)
-    }
-    const up = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return
-      spaceRef.current = false
-      setSpace(false)
-    }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
-    }
-  }, [])
-
-  const startPan = (e: React.PointerEvent, fromBackground: boolean) => {
-    svgRef.current?.setPointerCapture(e.pointerId)
-    gesture.current = {
-      kind: 'pan',
-      id: e.pointerId,
-      x: e.clientX,
-      y: e.clientY,
-      moved: !fromBackground,
-    }
-    setPanning(true)
-  }
-
-  const endPointer = (e: React.PointerEvent) => {
-    pointers.current.delete(e.pointerId)
-    if (pointers.current.size < 2) pinchDist.current = null
-    const g = gesture.current
-    if (g && g.id === e.pointerId) {
-      // A background press that never moved is a click: clear the selection.
-      if (g.kind === 'pan' && !g.moved) onSelect(null)
-      gesture.current = null
-      setPanning(false)
-    }
-    const svg = svgRef.current
-    if (svg?.hasPointerCapture(e.pointerId))
-      svg.releasePointerCapture(e.pointerId)
-  }
 
   // A press that never moves is only a selection, so the undo checkpoint waits
   // for the first actual change — otherwise clicking a seat would burn a step
@@ -1458,13 +1296,6 @@ function Canvas({
     onGestureStart?.()
   }
 
-  /** Shared opener for the object gestures: capture the pointer and select. */
-  const grabObject = (e: React.PointerEvent, o: WorkObject) => {
-    onSelect({ kind: 'object', id: o.id })
-    edited.current = false
-    svgRef.current?.setPointerCapture(e.pointerId)
-  }
-
   const color = (s: WorkSeat) =>
     preview
       ? s.seat_type === 'blocked'
@@ -1472,15 +1303,35 @@ function Canvas({
         : '#22c55e'
       : SEAT_COLORS[s.seat_type]
 
-  const cursor = space || panning ? 'grabbing' : 'default'
+  const grabbing = vp.space || vp.panning
   const editing = !!onPatchObject
   const selObjectId = selection?.kind === 'object' ? selection.id : null
   const selSector = selection?.kind === 'sector' ? selection.sector : null
   const selected = objects.find((o) => o.id === selObjectId) ?? null
   // Handles are sized off the viewport so they stay grabbable at any zoom.
   const hs = view.w / 90
-  // 100% = one canvas unit per CSS pixel.
-  const zoomPercent = pxWidth > 0 ? Math.round((pxWidth / view.w) * 100) : 100
+  const zoomPercent = zoomPercentOf(view.w, vp.pxWidth)
+
+  /** Drag a sector: measure from the press so snapping cannot eat small moves. */
+  const dragSector = (e: React.PointerEvent, sector: string) => {
+    const startX = e.clientX
+    const startY = e.clientY
+    let appliedX = 0
+    let appliedY = 0
+    vp.claim(e, (ev) => {
+      const g = gridRef.current
+      const upp = vp.unitsPerPixel()
+      const wantX = snap((ev.clientX - startX) * upp, g)
+      const wantY = snap((ev.clientY - startY) * upp, g)
+      const dx = wantX - appliedX
+      const dy = wantY - appliedY
+      if (dx === 0 && dy === 0) return
+      beginEdit()
+      appliedX = wantX
+      appliedY = wantY
+      onMoveSector?.(sector, dx, dy)
+    })
+  }
 
   return (
     <div className="relative rounded-md border bg-ink-950">
@@ -1491,113 +1342,23 @@ function Canvas({
         >
           {zoomPercent}%
         </span>
-        <CanvasButton onClick={() => zoomBy(1 / 1.3)} title="Priblížiť">
+        <CanvasButton onClick={() => vp.zoomBy(1 / 1.3)} title="Priblížiť">
           +
         </CanvasButton>
-        <CanvasButton onClick={() => zoomBy(1.3)} title="Oddialiť">
+        <CanvasButton onClick={() => vp.zoomBy(1.3)} title="Oddialiť">
           −
         </CanvasButton>
-        <CanvasButton onClick={fit} title="Prispôsobiť obrazovke">
+        <CanvasButton onClick={vp.fit} title="Prispôsobiť obrazovke">
           ⤢
         </CanvasButton>
       </div>
 
       <svg
-        ref={svgRef}
-        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        ref={vp.svgRef}
+        viewBox={vp.viewBox}
         className="h-[26rem] w-full touch-none select-none"
-        style={{ cursor }}
-        onPointerEnter={() => (hovering.current = true)}
-        onPointerLeave={() => (hovering.current = false)}
-        onPointerDown={(e) => {
-          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-          if (pointers.current.size >= 2) {
-            // Second finger down: hand over to pinch, drop any single-pointer
-            // gesture so a sector does not travel with the pinch.
-            gesture.current = null
-            setPanning(false)
-            return
-          }
-          // A seat or object sets its own gesture first (events bubble target-up).
-          if (!gesture.current) startPan(e, true)
-        }}
-        onPointerMove={(e) => {
-          const svg = svgRef.current
-          if (!svg) return
-          if (pointers.current.has(e.pointerId))
-            pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-
-          if (pointers.current.size >= 2) {
-            const [a, b] = [...pointers.current.values()]
-            const d = Math.hypot(a.x - b.x, a.y - b.y)
-            if (pinchDist.current && d > 0)
-              zoomBy(pinchDist.current / d, (a.x + b.x) / 2, (a.y + b.y) / 2)
-            pinchDist.current = d
-            return
-          }
-
-          const g = gesture.current
-          if (!g || g.id !== e.pointerId) return
-          const g2 = gridRef.current
-
-          if (g.kind === 'pan') {
-            const scale = pixelsPerUnit(svg)
-            const dx = (e.clientX - g.x) / scale
-            const dy = (e.clientY - g.y) / scale
-            g.x = e.clientX
-            g.y = e.clientY
-            if (dx !== 0 || dy !== 0) g.moved = true
-            setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }))
-            return
-          }
-
-          if (g.kind === 'sector') {
-            // Measure from the press, snap the total, then apply the remainder —
-            // otherwise every sub-grid move would be rounded away and lost.
-            const scale = pixelsPerUnit(svg)
-            const wantX = snap((e.clientX - g.x) / scale, g2)
-            const wantY = snap((e.clientY - g.y) / scale, g2)
-            const dx = wantX - g.appliedX
-            const dy = wantY - g.appliedY
-            if (dx === 0 && dy === 0) return
-            beginEdit()
-            g.appliedX = wantX
-            g.appliedY = wantY
-            onMoveSector?.(g.sector, dx, dy)
-            return
-          }
-
-          const target = objectsRef.current.find((o) => o.id === g.objectId)
-          if (!target || !onPatchObject) return
-          const pt = clientToSvg(svg, e.clientX, e.clientY)
-          beginEdit()
-
-          if (g.kind === 'object') {
-            onPatchObject(g.objectId, {
-              x: snap(g.origin.x + pt.x - g.startSvg.x, g2),
-              y: snap(g.origin.y + pt.y - g.startSvg.y, g2),
-            })
-          } else if (g.kind === 'resize') {
-            const { x, y, width, height } = resizeObject(
-              target,
-              g.handle,
-              pt,
-              g2,
-            )
-            onPatchObject(g.objectId, { x, y, width, height })
-          } else {
-            const delta = angleFromCenter(target, pt) - g.startAngle
-            const raw = g.startRotation + delta
-            onPatchObject(g.objectId, {
-              // With the grid on, rotation clicks into 15° steps.
-              rotation: normalizeAngle(
-                g2 > 0 ? Math.round(raw / 15) * 15 : raw,
-              ),
-            })
-          }
-        }}
-        onPointerUp={endPointer}
-        onPointerCancel={endPointer}
+        style={{ cursor: grabbing ? 'grabbing' : 'default' }}
+        {...vp.handlers}
       >
         {/* Catches presses on empty space so panning works away from seats. */}
         <rect
@@ -1626,29 +1387,26 @@ function Canvas({
                 stroke={isSel ? '#fff' : st.stroke}
                 strokeWidth={isSel ? 2.5 : 1.5}
                 style={{
-                  cursor:
-                    space || panning
-                      ? 'grabbing'
-                      : editing
-                        ? 'move'
-                        : 'default',
+                  cursor: grabbing ? 'grabbing' : editing ? 'move' : 'default',
                 }}
                 onPointerDown={(e) => {
-                  if (pointers.current.size >= 1) return // pinch starting
-                  if (spaceRef.current || e.button === 1)
-                    return startPan(e, false)
-                  if (!editing) return onSelect({ kind: 'object', id: o.id })
-                  grabObject(e, o)
-                  const svg = svgRef.current
-                  gesture.current = {
-                    kind: 'object',
-                    id: e.pointerId,
-                    objectId: o.id,
-                    origin: { x: o.x, y: o.y },
-                    startSvg: svg
-                      ? clientToSvg(svg, e.clientX, e.clientY)
-                      : { x: 0, y: 0 },
-                  }
+                  if (vp.otherPointerDown()) return // pinch starting
+                  if (vp.spaceRef.current || e.button === 1)
+                    return vp.startPan(e)
+                  onSelect({ kind: 'object', id: o.id })
+                  if (!onPatchObject) return
+                  edited.current = false
+                  const origin = { x: o.x, y: o.y }
+                  const startSvg = vp.toSvg(e.clientX, e.clientY)
+                  vp.claim(e, (ev) => {
+                    const pt = vp.toSvg(ev.clientX, ev.clientY)
+                    const g = gridRef.current
+                    beginEdit()
+                    onPatchObject(o.id, {
+                      x: snap(origin.x + pt.x - startSvg.x, g),
+                      y: snap(origin.y + pt.y - startSvg.y, g),
+                    })
+                  })
                 }}
               >
                 <title>
@@ -1677,34 +1435,20 @@ function Canvas({
             key={s.cid}
             cx={s.x}
             cy={s.y}
-            r={9}
+            r={SEAT_R}
             fill={color(s)}
             stroke={selSector === s.sector ? '#fff' : 'none'}
             strokeWidth={selSector === s.sector ? 1.5 : 0}
             style={{
-              cursor:
-                space || panning
-                  ? 'grabbing'
-                  : onMoveSector
-                    ? 'move'
-                    : 'pointer',
+              cursor: grabbing ? 'grabbing' : onMoveSector ? 'move' : 'pointer',
             }}
             onPointerDown={(e) => {
-              if (pointers.current.size >= 1) return // pinch starting
-              if (spaceRef.current || e.button === 1) return startPan(e, false)
+              if (vp.otherPointerDown()) return // pinch starting
+              if (vp.spaceRef.current || e.button === 1) return vp.startPan(e)
               onSelect({ kind: 'sector', sector: s.sector })
               if (!onMoveSector) return
               edited.current = false
-              svgRef.current?.setPointerCapture(e.pointerId)
-              gesture.current = {
-                kind: 'sector',
-                id: e.pointerId,
-                sector: s.sector,
-                x: e.clientX,
-                y: e.clientY,
-                appliedX: 0,
-                appliedY: 0,
-              }
+              dragSector(e, s.sector)
             }}
           >
             <title>{`${s.sector} ${s.row_label}${s.seat_number}`}</title>
@@ -1717,28 +1461,48 @@ function Canvas({
             object={selected}
             size={hs}
             onGrab={(e, handle) => {
-              if (pointers.current.size >= 1) return
-              if (spaceRef.current || e.button === 1) return startPan(e, false)
-              grabObject(e, selected)
-              const svg = svgRef.current
-              const pt = svg
-                ? clientToSvg(svg, e.clientX, e.clientY)
-                : { x: 0, y: 0 }
-              gesture.current =
-                handle === 'rotate'
-                  ? {
-                      kind: 'rotate',
-                      id: e.pointerId,
-                      objectId: selected.id,
-                      startAngle: angleFromCenter(selected, pt),
-                      startRotation: selected.rotation,
-                    }
-                  : {
-                      kind: 'resize',
-                      id: e.pointerId,
-                      objectId: selected.id,
-                      handle,
-                    }
+              if (vp.otherPointerDown()) return
+              if (vp.spaceRef.current || e.button === 1) return vp.startPan(e)
+              onSelect({ kind: 'object', id: selected.id })
+              edited.current = false
+              const pt = vp.toSvg(e.clientX, e.clientY)
+              if (handle === 'rotate') {
+                const startAngle = angleFromCenter(selected, pt)
+                const startRotation = selected.rotation
+                vp.claim(e, (ev) => {
+                  const live = objectsRef.current.find(
+                    (o) => o.id === selected.id,
+                  )
+                  if (!live) return
+                  const g = gridRef.current
+                  const raw =
+                    startRotation +
+                    (angleFromCenter(live, vp.toSvg(ev.clientX, ev.clientY)) -
+                      startAngle)
+                  beginEdit()
+                  onPatchObject(selected.id, {
+                    // With the grid on, rotation clicks into 15° steps.
+                    rotation: normalizeAngle(
+                      g > 0 ? Math.round(raw / 15) * 15 : raw,
+                    ),
+                  })
+                })
+                return
+              }
+              vp.claim(e, (ev) => {
+                const live = objectsRef.current.find(
+                  (o) => o.id === selected.id,
+                )
+                if (!live) return
+                const { x, y, width, height } = resizeObject(
+                  live,
+                  handle,
+                  vp.toSvg(ev.clientX, ev.clientY),
+                  gridRef.current,
+                )
+                beginEdit()
+                onPatchObject(selected.id, { x, y, width, height })
+              })
             }}
           />
         )}
@@ -1746,6 +1510,7 @@ function Canvas({
     </div>
   )
 }
+
 
 const HANDLE_ORDER: ResizeHandle[] = ['nw', 'ne', 'se', 'sw']
 const HANDLE_CURSOR: Record<ResizeHandle, string> = {

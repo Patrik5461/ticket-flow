@@ -169,6 +169,12 @@ function WaitlistWatch({
   )
 }
 
+/** 1 vstupenka · 2–4 vstupenky · 5+ vstupeniek */
+function ticketWord(n: number): string {
+  if (n === 1) return 'vstupenka'
+  return n >= 2 && n <= 4 ? 'vstupenky' : 'vstupeniek'
+}
+
 function EventPage() {
   const { slug } = Route.useParams()
   const { event, ticketTypes, seatMap, whenLabel } = Route.useLoaderData()
@@ -199,7 +205,9 @@ function EventPage() {
   )
   const total = seatedTotal + itemsTotal
   const totalItems = Object.values(qty).reduce((a, b) => a + b, 0)
-  const anySelected = seats.length > 0 || totalItems > 0
+  // Seats and quantity items are both tickets — the mobile bar counts both.
+  const ticketCount = totalItems + seats.length
+  const anySelected = ticketCount > 0
 
   const setQuantity = (id: string, value: number) => {
     setQty((prev) => ({ ...prev, [id]: value }))
@@ -311,6 +319,17 @@ function EventPage() {
 
       {/* BODY */}
       <div className="mx-auto max-w-6xl px-6 pb-32 md:pb-16">
+        {/* The map gets the full content width — it is the primary control,
+            not a widget in a sidebar. */}
+        {showMap && (
+          <section className="mb-10">
+            <h2 className="font-display text-2xl font-bold">Výber sedadiel</h2>
+            <div className="mt-4">
+              <SeatPicker map={seatMap} selected={seats} onChange={setSeats} />
+            </div>
+          </section>
+        )}
+
         <div className="grid gap-10 md:grid-cols-[1fr_380px]">
           {/* LEFT: description */}
           <div>
@@ -330,17 +349,8 @@ function EventPage() {
           <aside className="md:sticky md:top-24 md:self-start">
             <div className="card-surface p-6">
               <h2 className="font-display text-xl font-bold">
-                {showMap ? 'Výber miest' : 'Vstupenky'}
+                {showMap ? 'Vstupenky a súhrn' : 'Vstupenky'}
               </h2>
-              {showMap && (
-                <div className="mt-4">
-                  <SeatPicker
-                    map={seatMap}
-                    selected={seats}
-                    onChange={setSeats}
-                  />
-                </div>
-              )}
               {!showMap && quantityTypes.length === 0 && (
                 <p className="mt-4 text-sm text-ink-400">
                   Momentálne nie sú v predaji žiadne vstupenky.
@@ -349,7 +359,7 @@ function EventPage() {
               {quantityTypes.length > 0 && (
                 <>
                   {showMap && (
-                    <div className="mt-6 text-sm font-semibold text-ink-200">
+                    <div className="mt-4 text-sm font-semibold text-ink-200">
                       Státie a ostatné vstupenky
                     </div>
                   )}
@@ -433,7 +443,7 @@ function EventPage() {
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div>
               <div className="text-xs text-ink-400">
-                {totalItems} vstupeniek
+                {ticketCount} {ticketWord(ticketCount)}
               </div>
               <div className="font-display text-xl font-bold">
                 {formatEur(total)}
