@@ -31,55 +31,65 @@ function pick(name: string): string | undefined {
   return process.env[name] ?? process.env[`TICKETIO_${name}`]
 }
 
-const schema = z.object({
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(1),
-  // Optional at parse time: public pages run without it. Privileged code calls
-  // getServiceRoleKey(), which throws only when the service client is used.
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  // GoPay may be unconfigured during early dev; payment creation fails loudly then.
-  GOPAY_GOID: z.string().default(''),
-  GOPAY_CLIENT_ID: z.string().default(''),
-  GOPAY_CLIENT_SECRET: z.string().default(''),
-  GOPAY_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
-  APP_URL: z.string().url().default('http://localhost:3000'),
-  // Shared secret guarding internal cron endpoints (e.g. refund-queue worker).
-  CRON_SECRET: z.string().default(''),
-  // Faktero (commission invoicing). Without both, invoicing falls back to a log
-  // provider (no external call).
-  FAKTERO_API_KEY: z.string().default(''),
-  FAKTERO_API_URL: z.string().default(''),
-  // Resend (transactional email). Without a key, email falls back to the console
-  // provider (dev). EMAIL_FROM must be an address on a Resend-verified domain.
-  RESEND_API_KEY: z.string().default(''),
-  EMAIL_FROM: z.string().default('Ticketio <noreply@ticketio.sk>'),
-  // Apple Wallet (.pkpass). Without all of these the "Add to Apple Wallet" button
-  // is hidden. Certs are PEM strings (newlines as \n in the env).
-  APPLE_PASS_TYPE_ID: z.string().default(''),
-  APPLE_TEAM_ID: z.string().default(''),
-  APPLE_PASS_CERT_PEM: z.string().default(''),
-  APPLE_PASS_KEY_PEM: z.string().default(''),
-  APPLE_WWDR_PEM: z.string().default(''),
-  // Google Wallet. Without all of these the "Save to Google Wallet" button is
-  // hidden. SA key is the service account private key PEM.
-  GOOGLE_WALLET_ISSUER_ID: z.string().default(''),
-  GOOGLE_WALLET_SA_EMAIL: z.string().default(''),
-  GOOGLE_WALLET_SA_KEY: z.string().default(''),
-  // Anthropic (AI support assistant). Without it, the support chat widget is
-  // hidden. Server-only — must never reach the client bundle.
-  ANTHROPIC_API_KEY: z.string().default(''),
-  // Max Anthropic API calls per UTC day across all buyers. Once reached the
-  // assistant serves a static FAQ instead of calling the model. 0 = unlimited.
-  SUPPORT_DAILY_LIMIT: z.coerce.number().int().min(0).default(500),
-})
+/**
+ * Built lazily, NOT at module top level. A top-level `z.object({...})` is a call
+ * expression the bundler cannot prove pure, so it survives tree-shaking and the
+ * literal field list — every integration name we support — ends up in the client
+ * bundle even though no browser code ever reads it. Inside a function it is
+ * unreachable from the client graph and disappears. Guarded by
+ * `npm run verify:client-env`.
+ */
+function buildSchema() {
+  return z.object({
+    SUPABASE_URL: z.string().url(),
+    SUPABASE_ANON_KEY: z.string().min(1),
+    // Optional at parse time: public pages run without it. Privileged code calls
+    // getServiceRoleKey(), which throws only when the service client is used.
+    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+    // GoPay may be unconfigured during early dev; payment creation fails loudly then.
+    GOPAY_GOID: z.string().default(''),
+    GOPAY_CLIENT_ID: z.string().default(''),
+    GOPAY_CLIENT_SECRET: z.string().default(''),
+    GOPAY_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+    APP_URL: z.string().url().default('http://localhost:3000'),
+    // Shared secret guarding internal cron endpoints (e.g. refund-queue worker).
+    CRON_SECRET: z.string().default(''),
+    // Faktero (commission invoicing). Without both, invoicing falls back to a log
+    // provider (no external call).
+    FAKTERO_API_KEY: z.string().default(''),
+    FAKTERO_API_URL: z.string().default(''),
+    // Resend (transactional email). Without a key, email falls back to the console
+    // provider (dev). EMAIL_FROM must be an address on a Resend-verified domain.
+    RESEND_API_KEY: z.string().default(''),
+    EMAIL_FROM: z.string().default('Ticketio <noreply@ticketio.sk>'),
+    // Apple Wallet (.pkpass). Without all of these the "Add to Apple Wallet" button
+    // is hidden. Certs are PEM strings (newlines as \n in the env).
+    APPLE_PASS_TYPE_ID: z.string().default(''),
+    APPLE_TEAM_ID: z.string().default(''),
+    APPLE_PASS_CERT_PEM: z.string().default(''),
+    APPLE_PASS_KEY_PEM: z.string().default(''),
+    APPLE_WWDR_PEM: z.string().default(''),
+    // Google Wallet. Without all of these the "Save to Google Wallet" button is
+    // hidden. SA key is the service account private key PEM.
+    GOOGLE_WALLET_ISSUER_ID: z.string().default(''),
+    GOOGLE_WALLET_SA_EMAIL: z.string().default(''),
+    GOOGLE_WALLET_SA_KEY: z.string().default(''),
+    // Anthropic (AI support assistant). Without it, the support chat widget is
+    // hidden. Server-only — must never reach the client bundle.
+    ANTHROPIC_API_KEY: z.string().default(''),
+    // Max Anthropic API calls per UTC day across all buyers. Once reached the
+    // assistant serves a static FAQ instead of calling the model. 0 = unlimited.
+    SUPPORT_DAILY_LIMIT: z.coerce.number().int().min(0).default(500),
+  })
+}
 
-export type Env = z.infer<typeof schema>
+export type Env = z.infer<ReturnType<typeof buildSchema>>
 
 let cached: Env | null = null
 
 export function getEnv(): Env {
   if (!cached) {
-    cached = schema.parse({
+    cached = buildSchema().parse({
       // Order: SUPABASE_* env → TICKETIO_* alias → hardcoded public default.
       SUPABASE_URL: pick('SUPABASE_URL') ?? PUBLIC_DEFAULTS.SUPABASE_URL,
       SUPABASE_ANON_KEY:

@@ -22,6 +22,7 @@
     "db:new": "supabase migration new",
     "db:seed": "node --env-file=.env scripts/seed.ts",
     "verify:polyfill": "node scripts/verify-polyfill.mjs",
+    "verify:client-env": "node scripts/verify-client-env.mjs",
     "probe:rls": "node scripts/rls-anon-probe.mjs"
   },
   "dependencies": {

@@ -18,6 +18,7 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - Secrets žijú v `~/ticketio-secrets.env` na VM, NIE v repe. V repe len `.env.example`.
 - **OS env prebíja `--env-file`.** PM2 načítava secrets cez `node --env-file=~/ticketio-secrets.env`, ale ak tú istú premennú má vo svojom uloženom dumpe (`~/.pm2/dump.pm2`), vyhrá dump a zmena v súbore sa ticho ignoruje — vrátane prípadu, keď je v dumpe **prázdna** hodnota. `pm2 restart --update-env` to neopraví, len znova aplikuje ten istý dump. Po zmene secretu preto vždy over `tr '\0' '\n' < /proc/$(pm2 pid ticketio)/environ | grep <PREMENNÁ>` — tam sa premenná objaviť **nesmie**. Ak sa objaví, čistý reset je `pm2 delete ticketio && pm2 start ~/ecosystem.config.cjs && pm2 save`.
 - Build na VM vyžaduje `NODE_OPTIONS="--max-old-space-size=4096"`.
+- **`src/lib/env.ts` je server-only a musí ním aj zostať v bundli.** Zod schéma sa stavia lazy vo `buildSchema()`, nie na top-level — top-level `z.object({...})` je volanie, ktoré bundler nevie označiť za čisté, prežije tree-shaking a zoznam všetkých našich integrácií (GOPAY, RESEND, FAKTERO, ANTHROPIC, WALLET, CRON_SECRET) skončí v klientskom chunku. Po builde spusti `npm run verify:client-env` (`scripts/verify-client-env.mjs`) — hľadá názvy server-only premenných a service-role JWT vo všetkých `.output/public` chunkoch.
 - html2canvas / jsPDF / html-to-image: VŽDY len dynamický client-only import (SSR build inak padá).
 - Žiadne live queries na externé registre z frontendu — všetko cez server routes.
 - Peniaze: sumy VŽDY v centoch ako integer, nikdy float. Mena EUR.
@@ -104,6 +105,7 @@ cd ~/ticketio &&
   rm -rf .output &&
   NODE_OPTIONS="--max-old-space-size=4096" npm run build &&
   npm run verify:polyfill &&
+  npm run verify:client-env &&
   pm2 restart ticketio --update-env && pm2 save
 ```
 > **`npm run build` na VM = výpadok, kým nereštartuješ PM2.** Build prepíše `.output/`, ale bežiaci proces má v pamäti starý server, ktorý v SSR HTML odkazuje na staré asset hashe — a tie build práve zmazal. Verejná stránka vracia 500 na entry chunk až do `pm2 restart`. Preto:
@@ -123,6 +125,7 @@ ssh ticketio 'cd ~/ticketio &&
   rm -rf .output &&                                  # zmazať stale artefakty
   NODE_OPTIONS="--max-old-space-size=4096" npm run build &&
   npm run verify:polyfill &&                         # poistka mobilného polyfillu
+  npm run verify:client-env &&                       # nič server-only v klientskom bundli
   pm2 restart ticketio --update-env && pm2 save'
 ```
 
