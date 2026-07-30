@@ -90,6 +90,11 @@ export interface SeatGenConfig {
   curveDepth?: number
 }
 
+/** Default seat pitch across a row, in canvas units. */
+export const DEFAULT_SEAT_GAP_X = 28
+/** Default row pitch, in canvas units. */
+export const DEFAULT_ROW_GAP_Y = 32
+
 /** Spreadsheet-style column letters: 0→A, 25→Z, 26→AA, 27→AB … */
 export function alphaLabel(index0: number): string {
   let n = index0
@@ -195,8 +200,8 @@ function seatPosition(
 export function generateSeats(cfg: SeatGenConfig): GeneratedSeat[] {
   const level = cfg.level ?? 'main'
   const seatType = cfg.seatType ?? 'standard'
-  const gapX = cfg.seatGapX ?? 28
-  const gapY = cfg.rowGapY ?? 32
+  const gapX = cfg.seatGapX ?? DEFAULT_SEAT_GAP_X
+  const gapY = cfg.rowGapY ?? DEFAULT_ROW_GAP_Y
   const ox = cfg.originX ?? 0
   const oy = cfg.originY ?? 0
   const numStart = cfg.seatNumberStart ?? 1
@@ -714,4 +719,45 @@ export function capacityAreas(layout: SeatMapLayout): CapacityArea[] {
     }
   }
   return out
+}
+
+// ---------------------------------------------------------------------------
+// Rendered seat metrics
+//
+// Both maps draw a seat as a small circle, but the *touchable* area has to stay
+// finger-sized on screen no matter how far out the map is zoomed. These convert
+// between screen pixels and canvas units for that.
+// ---------------------------------------------------------------------------
+
+/** Drawn seat radius in canvas units. */
+export const SEAT_R = 9
+/** Smallest comfortable tap target, in CSS pixels (Apple/Material guidance). */
+export const MIN_HIT_PX = 24
+/**
+ * Hard ceiling on the hit radius, in canvas units: half the seat pitch. Any
+ * larger and the target would reach into the neighbouring seat, so a tap would
+ * land on the wrong one — worse than a small target. Dense maps are meant to be
+ * zoomed into; this keeps the tap honest at every zoom.
+ */
+export const MAX_HIT_R = DEFAULT_SEAT_GAP_X / 2
+
+/**
+ * Radius (canvas units) that makes a seat about `MIN_HIT_PX` wide on screen,
+ * growing as the viewport widens (i.e. as the map zooms out) but never past
+ * `MAX_HIT_R`, so the target can't swallow the seat next to it.
+ */
+export function seatHitRadius(
+  viewW: number,
+  pxWidth: number,
+  seatR = SEAT_R,
+): number {
+  if (!(viewW > 0) || !(pxWidth > 0)) return seatR
+  const unitsPerPx = viewW / pxWidth
+  return Math.min(MAX_HIT_R, Math.max(seatR, (MIN_HIT_PX / 2) * unitsPerPx))
+}
+
+/** Zoom readout: 100% is one canvas unit per CSS pixel. */
+export function zoomPercentOf(viewW: number, pxWidth: number): number {
+  if (!(viewW > 0) || !(pxWidth > 0)) return 100
+  return Math.round((pxWidth / viewW) * 100)
 }

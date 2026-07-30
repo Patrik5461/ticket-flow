@@ -23,8 +23,12 @@ import {
   resizeObject,
   rotatePoint,
   rotatePoints,
+  MAX_HIT_R,
+  seatHitRadius,
   sectorsOf,
   snap,
+  SEAT_R,
+  zoomPercentOf,
   zoomViewport,
 } from './seating'
 import type { MapObject, Viewport } from './seating'
@@ -564,5 +568,39 @@ describe('respaceSector', () => {
         curveDepth: 0,
       }),
     ).toBe(before)
+  })
+})
+
+describe('rendered seat metrics', () => {
+  it('keeps the hit target finger-sized as the map zooms out', () => {
+    // Zoomed in: a seat is already far wider than the minimum, so leave it be.
+    expect(seatHitRadius(400, 800)).toBe(SEAT_R)
+    // 800 units across 400 px is 2 units/px, so 24 px asks for r=24 → capped.
+    expect(seatHitRadius(800, 400)).toBe(MAX_HIT_R)
+    // Never smaller than the drawn circle, and safe before the first measure.
+    expect(seatHitRadius(4000, 0)).toBe(SEAT_R)
+    expect(seatHitRadius(0, 400)).toBe(SEAT_R)
+  })
+
+  it('never lets the hit area reach the neighbouring seat', () => {
+    // Default seat pitch is 28 units; a radius over 14 would overlap.
+    expect(MAX_HIT_R).toBeLessThanOrEqual(14)
+    // However far out the map is zoomed, the cap holds.
+    for (const w of [1000, 10_000, 40_000])
+      expect(seatHitRadius(w, 390)).toBeLessThanOrEqual(MAX_HIT_R)
+  })
+
+  it('the hit radius grows monotonically with the viewport width', () => {
+    const widths = [200, 800, 1600, 6400]
+    const radii = widths.map((w) => seatHitRadius(w, 500))
+    for (let i = 1; i < radii.length; i++)
+      expect(radii[i]).toBeGreaterThanOrEqual(radii[i - 1])
+  })
+
+  it('zoomPercentOf reads 100% at one unit per pixel', () => {
+    expect(zoomPercentOf(800, 800)).toBe(100)
+    expect(zoomPercentOf(400, 800)).toBe(200)
+    expect(zoomPercentOf(1600, 800)).toBe(50)
+    expect(zoomPercentOf(0, 800)).toBe(100)
   })
 })
