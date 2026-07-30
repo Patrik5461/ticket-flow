@@ -56,6 +56,12 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - Sandbox portál: `https://partner.sandbox.gopay.com/`. Prevodom platený test sa potvrdzuje na `https://partner.sandbox.gopay.com/gp-gateways/bank/gateway.action` (stav sa preklopí na Paid do ~3 min).
 - Apple Pay sa v sandboxe simulovať nedá.
 
+## E-maily (Resend)
+
+- Env premenné (hodnoty len v `~/ticketio-secrets.env`): `RESEND_API_KEY`, `EMAIL_FROM`.
+- Provider sa vyberá podľa env (`src/lib/email/index.ts`): neprázdny `RESEND_API_KEY` → `ResendEmailProvider`, inak konzolový provider (dev). `EMAIL_FROM` musí byť adresa na doméne overenej v Resende — `ticketio.sk` overená je.
+- Kľúč je **restricted (len odosielanie)**. Taký kľúč nemá právo na `GET /domains`, čo je presne to, čím sa sonduje zdravie — Resend vráti 401 s `name: "restricted_api_key"`. `checkResend()` (`src/server/health.ts`) to vyhodnocuje ako `ok`, nie ako neplatný kľúč; pokryté testami v `health.test.ts`. Ak sa kľúč vymení za plnoprávny, sonda vráti 200 a správa sa rovnako.
+
 ## Testovanie
 
 - Vitest na doménovú logiku: výpočet ceny, kupóny, HMAC podpis/verifikácia QR, kapacitné rezervácie.

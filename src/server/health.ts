@@ -125,7 +125,8 @@ async function checkGopay(): Promise<{
   return ok ? { status: 'ok' } : { status: 'down', detail: 'auth failed' }
 }
 
-async function checkResend(): Promise<{
+/** Exported for tests. */
+export async function checkResend(): Promise<{
   status: HealthStatus
   detail?: string
 }> {
@@ -136,7 +137,18 @@ async function checkResend(): Promise<{
     signal: AbortSignal.timeout(5000),
   })
   if (res.ok) return { status: 'ok' }
-  if (res.status === 401) return { status: 'down', detail: 'neplatný kľúč' }
+  if (res.status === 401) {
+    // A sending-only ("restricted") key cannot list domains — Resend answers 401
+    // with name `restricted_api_key`. That key sends mail perfectly well, so it
+    // is healthy; only a genuinely invalid key is down.
+    const name = await res
+      .json()
+      .then((body: { name?: string }) => body.name)
+      .catch(() => undefined)
+    return name === 'restricted_api_key'
+      ? { status: 'ok', detail: 'kľúč len na odosielanie' }
+      : { status: 'down', detail: 'neplatný kľúč' }
+  }
   return { status: 'degraded', detail: `HTTP ${res.status}` }
 }
 
