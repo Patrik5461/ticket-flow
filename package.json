@@ -21,7 +21,8 @@
     "db:diff": "supabase db diff",
     "db:new": "supabase migration new",
     "db:seed": "node --env-file=.env scripts/seed.ts",
-    "verify:polyfill": "node scripts/verify-polyfill.mjs"
+    "verify:polyfill": "node scripts/verify-polyfill.mjs",
+    "probe:rls": "node scripts/rls-anon-probe.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",

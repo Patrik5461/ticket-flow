@@ -16,12 +16,14 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 
 - PM2 ecosystem config žije v `~/ecosystem.config.cjs` na VM, NIE v repe.
 - Secrets žijú v `~/ticketio-secrets.env` na VM, NIE v repe. V repe len `.env.example`.
+- **OS env prebíja `--env-file`.** PM2 načítava secrets cez `node --env-file=~/ticketio-secrets.env`, ale ak tú istú premennú má vo svojom uloženom dumpe (`~/.pm2/dump.pm2`), vyhrá dump a zmena v súbore sa ticho ignoruje — vrátane prípadu, keď je v dumpe **prázdna** hodnota. `pm2 restart --update-env` to neopraví, len znova aplikuje ten istý dump. Po zmene secretu preto vždy over `tr '\0' '\n' < /proc/$(pm2 pid ticketio)/environ | grep <PREMENNÁ>` — tam sa premenná objaviť **nesmie**. Ak sa objaví, čistý reset je `pm2 delete ticketio && pm2 start ~/ecosystem.config.cjs && pm2 save`.
 - Build na VM vyžaduje `NODE_OPTIONS="--max-old-space-size=4096"`.
 - html2canvas / jsPDF / html-to-image: VŽDY len dynamický client-only import (SSR build inak padá).
 - Žiadne live queries na externé registre z frontendu — všetko cez server routes.
 - Peniaze: sumy VŽDY v centoch ako integer, nikdy float. Mena EUR.
 - Všetky mutácie cez server functions s validáciou (zod). Klient nikdy neurčuje cenu — cena sa vždy počíta na serveri z DB.
 - RLS zapnuté na všetkých tabuľkách. Service role key len na serveri.
+- **RLS filtruje riadky, nie stĺpce.** Tabuľky čítané anon kľúčom (`events`, `ticket_types`) majú preto stĺpcové granty: anon/authenticated dostávajú `GRANT SELECT (explicitný zoznam stĺpcov)`, nie tabuľkový `GRANT SELECT` (ten by prezradil aj tajné stĺpce ako `events.qr_secret`). **Každý nový stĺpec v anon-čitateľnej tabuľke sa musí explicitne pridať do column grantu** v migrácii (a nikdy tam nesmie ísť secret) — inak ho anon buď neuvidí (ak je verejný), alebo ho uvidí (ak by sa použil tabuľkový grant). Po každej takej zmene spusti `npm run probe:rls` (`scripts/rls-anon-probe.mjs`) — musí byť zelený. Secrety číta výhradne server cez `service_role`, ktorý granty aj RLS obchádza.
 - Časy v DB v UTC (timestamptz), zobrazovanie v Europe/Bratislava.
 
 ## Doménové pravidlá
@@ -37,6 +39,21 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 
 - UI a všetky texty po slovensky (i18n štruktúra pripravená na CZ/EN neskôr).
 - Kód, komentáre a commity po anglicky.
+
+## GoPay
+
+- Env premenné (hodnoty len v `~/ticketio-secrets.env`, nikdy v repe): `GOPAY_GOID`, `GOPAY_CLIENT_ID`, `GOPAY_CLIENT_SECRET`, `GOPAY_ENV`, `APP_URL`.
+- `GOPAY_ENV` je `sandbox` | `production` a **odvodzuje API URL** (`src/lib/gopay.ts`): sandbox `https://gw.sandbox.gopay.com/api`, produkcia `https://gate.gopay.cz/api`. Base URL sa nikdy nepíše ručne inde.
+- `APP_URL` je jediný zdroj pre `return_url` aj `notification_url` — a zároveň pre odkazy na objednávku v e-mailoch. Zmena `APP_URL` teda mení oboje naraz.
+- Refund potrebuje OAuth scope `payment-all`; vytvorenie platby `payment-create`.
+- Shareable key (`gopay.js`, embedded brána) sa **nepoužíva** — brána beží redirectom na `gw_url`. Ak sa embedded režim niekedy nasadí, pribudne premenná na shareable key.
+
+### Sandbox testovanie
+
+- Testovacie karty: MasterCard `5447380000000006`, VISA `4444444444444448`. CVC ľubovoľné 3 číslice, expirácia ľubovoľný budúci dátum.
+- **Výsledok autorizácie určujú posledné dve číslice sumy**, nie karta: suma končiaca na `.00` → autorizácia prejde, `.04` → zamietnutá. Testovacie ceny vstupeniek preto nastavuj na celé eurá, inak sa sandbox správa nepredvídateľne.
+- Sandbox portál: `https://partner.sandbox.gopay.com/`. Prevodom platený test sa potvrdzuje na `https://partner.sandbox.gopay.com/gp-gateways/bank/gateway.action` (stav sa preklopí na Paid do ~3 min).
+- Apple Pay sa v sandboxe simulovať nedá.
 
 ## Testovanie
 
