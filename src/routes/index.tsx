@@ -700,7 +700,7 @@ function Landing() {
             Cenník
           </div>
           <h2 className="mt-2 font-display text-4xl font-bold md:whitespace-nowrap md:text-5xl">
-            Jedna cena. Žiadne prekvapenia.
+            Jedna cena, žiadne prekvapenia!
           </h2>
         </div>
 
