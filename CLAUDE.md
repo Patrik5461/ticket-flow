@@ -42,6 +42,14 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - **Pri zmene `CRON_SECRET` alebo `APP_URL` sa musí prepísať aj `app_settings`**, inak sa mostíky ticho rozbijú (nesúlad secretov = 401, stará URL = post do prázdna).
 - Rýchla kontrola: `select key, value from app_settings order by key` — 6 riadkov, endpointy na aktuálnom `APP_URL`.
 
+### Diagnostika: ticho v logu ≠ porucha
+
+- Každá `trigger_*()` funkcia má **na začiatku gating count** a pri prázdnej fronte sa vráti **bez** volania `net.http_post`. Gating podmienky: `email_jobs` / `refund_jobs` / `webhook_deliveries` = `pending` alebo (`failed` a `attempts < max_attempts`); `settlements` = `invoice_status = 'none'` a `fee_cents > 0`; `waitlist_entries` = `waiting` na type, kde `sold_count < capacity`.
+- Preto sa **nedá diagnostikovať cez „chodia requesty do nginxu?"** — pri prázdnych frontách ich tam legitímne nie je ani jeden. Správna otázka je **„je vo fronte práca?"**: najprv zisti počty v tých piatich tabuľkách, a až keď je práca a request nechodí, hľadaj chybu v `app_settings` / pg_net.
+- Overenie appky bez zápisu do DB: POST na `${APP_URL}/api/cron/<route>` s hlavičkou `x-cron-secret`. Pri prázdnej fronte je to no-op drain — vráti `200` a `{"processed":0,…}`, nič neodošle. Otestuje nginx → route → auth, ale **nie** pg_net egress.
+- Že pg_net naozaj vyšiel zo Supabase cloudu von, sa pozná v `/var/log/nginx/access.log` podľa **User-Agent `pg_net/<verzia>`** (skupina `adm` ho číta bez sudo). Requesty z VM majú UA `node` alebo `curl`.
+- **Stav k 2026-07-31:** celá reťaz overená end-to-end jedným testovacím `email_jobs` riadkom — `status = 'sent'` do 3 s, v nginx logu `POST /api/cron/process-email … 200 "pg_net/0.20.3"`. Všetkých 5 workerov vracia `200` na aktuálny `CRON_SECRET`.
+
 ## Doménové pravidlá
 
 - Vstupenka = riadok v `tickets` s podpísaným QR: `TIK.{ticket_id}.{hmac_sha256(ticket_id + event_secret)}` (base64url, skrátený HMAC na 16 bajtov). Každý event má vlastný `qr_secret`.
