@@ -693,14 +693,15 @@ function Landing() {
 
       {/* PRICING */}
       <section id="pricing" className="mx-auto max-w-7xl px-6 py-24">
-        <div className="max-w-2xl">
+        <div className="max-w-4xl">
           <div className="text-sm font-medium uppercase tracking-widest text-accent">
             Cenník
           </div>
-          <h2 className="mt-2 font-display text-4xl font-bold md:text-5xl">
+          <h2 className="mt-2 font-display text-4xl font-bold md:whitespace-nowrap md:text-5xl">
             Jedna cena. Žiadne prekvapenia.
           </h2>
         </div>
+
 
         <div className="mt-14 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-center">
           <div
