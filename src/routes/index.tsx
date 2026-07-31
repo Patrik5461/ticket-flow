@@ -758,7 +758,68 @@ function Landing() {
           <PayoutCalculator />
 
         </div>
+
+        {/* NONPROFIT */}
+        <div
+          className="relative mt-8 overflow-hidden rounded-2xl border border-accent/30 p-8 sm:p-10"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(74,222,128,0.02) 100%), var(--gradient-card)',
+          }}
+        >
+          <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+          <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-accent">
+                Pre neziskovky
+              </div>
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="font-display text-6xl font-bold">2 %</span>
+                <span className="text-ink-400">z ceny vstupenky</span>
+              </div>
+              <p className="mt-2 text-ink-400">
+                alebo minimálne 0,20 € za predanú vstupenku
+              </p>
+              <p className="mt-4 max-w-md text-sm text-ink-300">
+                Občianske združenia, nadácie, neziskové organizácie a
+                neinvestičné fondy majú zníženú províziu. Sadzbu aktivujeme po
+                overení právnej formy — požiadať sa dá pri registrácii alebo
+                kedykoľvek v nastaveniach.
+              </p>
+              <a href="/register" className="btn-primary mt-8">
+                Registrovať neziskovku
+              </a>
+            </div>
+
+            <ul className="space-y-3 text-sm">
+              {[
+                'Občianske združenie',
+                'Nadácia',
+                'Nezisková organizácia (n. o.)',
+                'Neinvestičný fond',
+                'Účelové zariadenie cirkvi',
+              ].map((f) => (
+                <li key={f} className="flex items-center gap-3">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/20 text-accent">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <span className="text-ink-200">{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </section>
+
 
       <Footer />
     </div>
