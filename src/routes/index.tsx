@@ -103,7 +103,7 @@ function PayoutCalculator({
     })
 
   return (
-    <div className="card-surface p-7">
+    <div className="card-surface flex h-full flex-col p-8 sm:p-10">
       <div className="text-xs font-semibold uppercase tracking-widest text-accent">
         Kalkulačka výplaty
       </div>
@@ -811,9 +811,9 @@ function Landing() {
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+        <div className="mt-14 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-stretch">
           <div
-            className="relative overflow-hidden rounded-2xl border border-accent/30 p-10"
+            className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-accent/30 p-8 sm:p-10"
             style={{
               background:
                 'linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(74,222,128,0.02) 100%), var(--gradient-card)',
@@ -884,7 +884,7 @@ function Landing() {
           }}
         >
           <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
-          <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+          <div className="relative grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-start">
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-accent">
                 Pre neziskovky
