@@ -653,13 +653,14 @@ function Landing() {
       {/* HOW IT WORKS */}
       <section id="how" className="border-t border-ink-800 bg-ink-900/40">
         <div className="mx-auto max-w-7xl px-6 py-24">
-          <div className="max-w-2xl">
+          <div className="max-w-4xl">
             <div className="text-sm font-medium uppercase tracking-widest text-accent">
               Ako to funguje
             </div>
-            <h2 className="mt-2 font-display text-4xl font-bold md:text-5xl">
+            <h2 className="mt-2 font-display text-4xl font-bold md:whitespace-nowrap md:text-5xl">
               Tri kroky k vypredanému eventu.
             </h2>
+
           </div>
           <div className="mt-16 grid gap-8 md:grid-cols-3">
             {[
