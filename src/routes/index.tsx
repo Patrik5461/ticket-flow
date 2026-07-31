@@ -73,17 +73,26 @@ function Nav() {
 function PayoutCalculator({
   feePercent,
   feeMinCents,
+  nonprofitFeePercent,
+  nonprofitFeeMinCents,
 }: {
   feePercent: number
   feeMinCents: number
+  nonprofitFeePercent: number
+  nonprofitFeeMinCents: number
 }) {
   const [price, setPrice] = useState(20)
   const [count, setCount] = useState(300)
+  // Let a non-profit see its own numbers before deciding to register.
+  const [nonprofit, setNonprofit] = useState(false)
+
+  const percent = nonprofit ? nonprofitFeePercent : feePercent
+  const minCents = nonprofit ? nonprofitFeeMinCents : feeMinCents
 
   const gross = price * count
   // Same rule as the real order pricing, so the illustration cannot drift from
   // what a seller is actually charged.
-  const feePerTicket = computeFee(toCents(price), feePercent, feeMinCents) / 100
+  const feePerTicket = computeFee(toCents(price), percent, minCents) / 100
   const fee = feePerTicket * count
   const net = gross - fee
   const eur = (v: number) =>
@@ -101,6 +110,31 @@ function PayoutCalculator({
       <p className="mt-2 text-sm text-ink-400">
         Posuňte a uvidíte, koľko vám z predaja reálne príde na účet.
       </p>
+
+      <div
+        role="group"
+        aria-label="Sadzba provízie"
+        className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-ink-800 bg-ink-950/60 p-1"
+      >
+        {[
+          { np: false, label: 'Štandard', rate: feePercent },
+          { np: true, label: 'Neziskovka', rate: nonprofitFeePercent },
+        ].map((o) => (
+          <button
+            key={o.label}
+            type="button"
+            onClick={() => setNonprofit(o.np)}
+            aria-pressed={nonprofit === o.np}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              nonprofit === o.np
+                ? 'bg-accent text-ink-950'
+                : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
+            }`}
+          >
+            {o.label} · {pctStr(o.rate)} %
+          </button>
+        ))}
+      </div>
 
       <div className="mt-7 space-y-6">
         <label className="block">
@@ -142,7 +176,12 @@ function PayoutCalculator({
           <span className="text-ink-200">{eur(gross)}</span>
         </div>
         <div className="flex justify-between text-ink-400">
-          <span>Provízia Ticketio</span>
+          <span>
+            Provízia Ticketio{' '}
+            <span className="text-ink-500">
+              ({pctStr(percent)} %, min {formatEur(minCents)})
+            </span>
+          </span>
           <span className="text-ink-300">−{eur(fee)}</span>
         </div>
         <div className="mt-4 flex items-end justify-between">
@@ -156,6 +195,15 @@ function PayoutCalculator({
       <div className="mt-6 rounded-xl bg-accent/10 px-4 py-3 text-xs text-ink-300">
         Vyplácame priebežne počas predaja — nečakáte na koniec podujatia.
       </div>
+
+      {/* The lower rate is not self-service; say so where it is being shown. */}
+      {nonprofit && (
+        <p className="mt-3 text-xs text-ink-400">
+          Neziskovú sadzbu aktivujeme po overení právnej formy. Požiadať sa dá
+          pri registrácii alebo neskôr v nastaveniach — do schválenia platí
+          štandardná provízia.
+        </p>
+      )}
     </div>
   )
 }
@@ -822,6 +870,8 @@ function Landing() {
           <PayoutCalculator
             feePercent={settings.defaultFeePercent}
             feeMinCents={settings.defaultFeeMinCents}
+            nonprofitFeePercent={settings.nonprofitFeePercent}
+            nonprofitFeeMinCents={settings.nonprofitFeeMinCents}
           />
         </div>
 
