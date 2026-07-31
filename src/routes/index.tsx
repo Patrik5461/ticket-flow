@@ -3,13 +3,28 @@ import { useState } from 'react'
 
 import { Check, Scan } from 'lucide-react'
 import { listEventsFn } from '../server/fns'
+import { getPlatformSettingsFn } from '../server/platform-settings'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { formatSk } from '../lib/datetime'
+import { formatEur } from '../lib/money'
+import { LEGAL_FORMS } from '../lib/nonprofit'
 
 export const Route = createFileRoute('/')({
-  loader: async () => ({ events: await listEventsFn() }),
+  // The non-profit rate is admin-tunable, so read it from the same source
+  // /cennik does — a literal here would keep advertising the old number.
+  loader: async () => {
+    const [events, settings] = await Promise.all([
+      listEventsFn(),
+      getPlatformSettingsFn(),
+    ])
+    return { events, settings }
+  },
   component: Landing,
 })
+
+function pctStr(p: number): string {
+  return String(p).replace('.', ',')
+}
 
 function formatDateShort(iso: string, tz: string) {
   return formatSk(iso, 'dayMonth', tz)
@@ -137,7 +152,6 @@ function PayoutCalculator() {
 }
 
 function Footer() {
-
   return (
     <footer className="mt-32 border-t border-ink-800 bg-ink-950">
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 md:grid-cols-3">
@@ -207,9 +221,14 @@ function Footer() {
 
 function PhoneMockup({ compact }: { compact?: boolean }) {
   return (
-    <div className={`phone-mockup ${compact ? 'compact' : ''}`} aria-hidden="true">
+    <div
+      className={`phone-mockup ${compact ? 'compact' : ''}`}
+      aria-hidden="true"
+    >
       <div className="phone-glow" />
-      <div className={`phone-frame ${compact ? 'w-[180px] sm:w-[200px]' : 'w-[220px] md:w-[300px]'} max-w-[90vw]`}>
+      <div
+        className={`phone-frame ${compact ? 'w-[180px] sm:w-[200px]' : 'w-[220px] md:w-[300px]'} max-w-[90vw]`}
+      >
         <div className="phone-notch" />
         <div className="phone-screen">
           <div className="phone-scanner">
@@ -241,15 +260,31 @@ function PhoneMockup({ compact }: { compact?: boolean }) {
 function DashboardPreview() {
   // Static illustrative data — decorative only, not from DB.
   const points = [
-    [0, 92], [1, 88], [2, 80], [3, 78], [4, 70], [5, 66],
-    [6, 60], [7, 55], [8, 48], [9, 44], [10, 38], [11, 32],
-    [12, 28], [13, 22], [14, 18], [15, 14],
+    [0, 92],
+    [1, 88],
+    [2, 80],
+    [3, 78],
+    [4, 70],
+    [5, 66],
+    [6, 60],
+    [7, 55],
+    [8, 48],
+    [9, 44],
+    [10, 38],
+    [11, 32],
+    [12, 28],
+    [13, 22],
+    [14, 18],
+    [15, 14],
   ] as const
   const W = 640
   const H = 200
   const stepX = W / (points.length - 1)
   const line = points
-    .map(([i, y], idx) => `${idx === 0 ? 'M' : 'L'} ${(i * stepX).toFixed(1)} ${y}`)
+    .map(
+      ([i, y], idx) =>
+        `${idx === 0 ? 'M' : 'L'} ${(i * stepX).toFixed(1)} ${y}`,
+    )
     .join(' ')
   const area = `${line} L ${W} ${H} L 0 ${H} Z`
   const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00']
@@ -336,7 +371,11 @@ function DashboardPreview() {
                 >
                   <defs>
                     <linearGradient id="dashArea" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#4ade80" stopOpacity="0.35" />
+                      <stop
+                        offset="0%"
+                        stopColor="#4ade80"
+                        stopOpacity="0.35"
+                      />
                       <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
                     </linearGradient>
                   </defs>
@@ -411,7 +450,7 @@ function DashboardPreview() {
 }
 
 function Landing() {
-  const { events } = Route.useLoaderData()
+  const { events, settings } = Route.useLoaderData()
 
   return (
     <div className="min-h-screen">
@@ -435,8 +474,8 @@ function Landing() {
                 <span className="text-accent">bez starostí.</span>
               </h1>
               <p className="mt-8 max-w-2xl text-lg text-ink-300 md:text-xl">
-                Transparentný cenník bez skrytých poplatkov. Priebežný payout cez
-                GoPay — peniaze máte na účte hneď, nie až po evente. Moderné
+                Transparentný cenník bez skrytých poplatkov. Priebežný payout
+                cez GoPay — peniaze máte na účte hneď, nie až po evente. Moderné
                 odbavenie cez mobil.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
@@ -469,7 +508,9 @@ function Landing() {
                   <div className="font-display text-3xl font-bold text-ink-100">
                     4 %
                   </div>
-                  <div className="mt-1 text-xs text-ink-400">Nízka provízia</div>
+                  <div className="mt-1 text-xs text-ink-400">
+                    Nízka provízia
+                  </div>
                 </div>
                 <div>
                   <div className="font-display text-3xl font-bold text-ink-100">
@@ -495,12 +536,21 @@ function Landing() {
 
       {/* MARQUEE */}
       {events.length > 0 && (
-        <section aria-label="Podujatia" className="border-y border-ink-800/60 bg-ink-900/30 py-10">
+        <section
+          aria-label="Podujatia"
+          className="border-y border-ink-800/60 bg-ink-900/30 py-10"
+        >
           <div className="marquee">
-            <ul className="marquee-track" aria-hidden={events.length < 3 ? undefined : 'true'}>
+            <ul
+              className="marquee-track"
+              aria-hidden={events.length < 3 ? undefined : 'true'}
+            >
               {[...events, ...events].map((e, idx) => {
-                const cover = (e as unknown as { cover_url?: string | null }).cover_url
-                const fromPrice = (e as unknown as { from_price_cents?: number | null }).from_price_cents
+                const cover = (e as unknown as { cover_url?: string | null })
+                  .cover_url
+                const fromPrice = (
+                  e as unknown as { from_price_cents?: number | null }
+                ).from_price_cents
                 return (
                   <li key={`${e.id}-${idx}`} className="shrink-0">
                     <Link
@@ -527,11 +577,13 @@ function Landing() {
                         </div>
                         {typeof fromPrice === 'number' && (
                           <div className="mt-2 text-[15px] text-ink-300">
-                            od <span className="font-display text-lg font-semibold text-accent">{(fromPrice / 100).toFixed(0)} €</span>
+                            od{' '}
+                            <span className="font-display text-lg font-semibold text-accent">
+                              {(fromPrice / 100).toFixed(0)} €
+                            </span>
                           </div>
                         )}
                       </div>
-
                     </Link>
                   </li>
                 )
@@ -543,7 +595,6 @@ function Landing() {
 
       {/* EVENTS */}
       <section id="events" className="mx-auto max-w-7xl px-6 py-20">
-
         <div className="mb-10 flex items-end justify-between">
           <div>
             <div className="text-sm font-medium uppercase tracking-widest text-accent">
@@ -759,7 +810,6 @@ function Landing() {
           </div>
 
           <PayoutCalculator />
-
         </div>
 
         {/* NONPROFIT */}
@@ -777,11 +827,14 @@ function Landing() {
                 Pre neziskovky
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-display text-6xl font-bold">2 %</span>
+                <span className="font-display text-6xl font-bold">
+                  {pctStr(settings.nonprofitFeePercent)} %
+                </span>
                 <span className="text-ink-400">z ceny vstupenky</span>
               </div>
               <p className="mt-2 text-ink-400">
-                alebo minimálne 0,20 € za predanú vstupenku
+                alebo minimálne {formatEur(settings.nonprofitFeeMinCents)} za
+                predanú vstupenku
               </p>
               <p className="mt-4 max-w-md text-sm text-ink-300">
                 Občianske združenia, nadácie, neziskové organizácie a
@@ -795,34 +848,30 @@ function Landing() {
             </div>
 
             <ul className="space-y-3 text-sm">
-              {[
-                'Občianske združenie',
-                'Nadácia',
-                'Nezisková organizácia (n. o.)',
-                'Neinvestičný fond',
-                'Účelové zariadenie cirkvi',
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-3">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/20 text-accent">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    >
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                  </span>
-                  <span className="text-ink-200">{f}</span>
-                </li>
-              ))}
+              {/* Same list the registration form offers — one place to change. */}
+              {LEGAL_FORMS.filter((f) => f.value !== 'other_nonprofit').map(
+                (f) => (
+                  <li key={f.value} className="flex items-center gap-3">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/20 text-accent">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                      >
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <span className="text-ink-200">{f.label}</span>
+                  </li>
+                ),
+              )}
             </ul>
           </div>
         </div>
       </section>
-
 
       <Footer />
     </div>
