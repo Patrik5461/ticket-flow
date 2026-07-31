@@ -394,7 +394,7 @@ function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-ink-700 bg-ink-900 p-6 shadow-xl sm:rounded-2xl">
         {doneOrderId ? (
           <SaleDone orderId={doneOrderId} onCompleted={onCompleted} />
         ) : (
@@ -403,7 +403,7 @@ function CheckoutModal({
               <h2 className="text-lg font-semibold">Predaj</h2>
               <button
                 onClick={onClose}
-                className="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                className="rounded-md px-2 py-1 text-sm text-ink-400 hover:bg-ink-800"
               >
                 Zavrieť
               </button>
@@ -422,7 +422,7 @@ function CheckoutModal({
               ))}
             </ul>
 
-            <div className="mt-3 flex justify-between border-t pt-3 text-lg font-bold">
+            <div className="mt-3 flex justify-between border-t border-ink-700 pt-3 text-lg font-bold">
               <span>Spolu</span>
               <span className="tabular-nums">{formatEur(totalCents)}</span>
             </div>
@@ -433,8 +433,8 @@ function CheckoutModal({
                 onClick={() => setMethod('cash')}
                 className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
                   method === 'cash'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-ink-700 text-ink-200 hover:bg-ink-800'
                 }`}
               >
                 💶 Hotovosť
@@ -443,8 +443,8 @@ function CheckoutModal({
                 onClick={() => setMethod('terminal')}
                 className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
                   method === 'terminal'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-ink-700 text-ink-200 hover:bg-ink-800'
                 }`}
               >
                 💳 Kartou (terminál)
@@ -453,8 +453,8 @@ function CheckoutModal({
 
             {/* Cash: received + change */}
             {method === 'cash' && (
-              <div className="mt-4 rounded-lg border bg-gray-50 p-4">
-                <label className="block text-sm font-medium text-gray-600">
+              <div className="mt-4 rounded-lg border border-ink-700 bg-ink-800/60 p-4">
+                <label className="block text-sm font-medium text-ink-300">
                   Prijaté (€)
                   <input
                     type="number"
@@ -464,7 +464,7 @@ function CheckoutModal({
                     value={receivedEur}
                     onChange={(e) => setReceivedEur(e.target.value)}
                     placeholder="0,00"
-                    className="mt-1 w-full rounded-md border px-3 py-3 text-2xl font-bold tabular-nums"
+                    className="mt-1 w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-3 text-2xl font-bold tabular-nums text-ink-100"
                   />
                 </label>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -472,24 +472,24 @@ function CheckoutModal({
                     <button
                       key={c}
                       onClick={() => setReceivedEur((c / 100).toFixed(2))}
-                      className="rounded-lg border bg-white px-3 py-2 text-sm font-medium hover:bg-gray-100"
+                      className="rounded-lg border border-ink-600 bg-ink-900 px-3 py-2 text-sm font-medium text-ink-200 hover:bg-ink-800"
                     >
                       {formatEur(c)}
                     </button>
                   ))}
                 </div>
                 <div className="mt-3 flex justify-between text-lg font-bold">
-                  <span className="text-gray-600">Výdavok</span>
+                  <span className="text-ink-300">Výdavok</span>
                   <span
                     className={`tabular-nums ${
-                      changeCents < 0 ? 'text-red-600' : 'text-green-700'
+                      changeCents < 0 ? 'text-red-400' : 'text-accent'
                     }`}
                   >
                     {formatEur(Math.max(0, changeCents))}
                   </span>
                 </div>
                 {changeCents < 0 && (
-                  <p className="mt-1 text-right text-xs text-red-600">
+                  <p className="mt-1 text-right text-xs text-red-400">
                     Chýba {formatEur(-changeCents)}
                   </p>
                 )}
@@ -498,26 +498,26 @@ function CheckoutModal({
 
             {/* Optional buyer e-mail */}
             <div className="mt-4">
-              <label className="block text-sm text-gray-600">
+              <label className="block text-sm text-ink-300">
                 E-mail kupujúceho (voliteľné) — pošleme vstupenky
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="napr. jozko@example.sk"
-                  className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${
+                  className={`mt-1 w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-ink-100 ${
                     emailOk ? '' : 'border-red-400'
                   }`}
                 />
               </label>
             </div>
 
-            {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+            {err && <p className="mt-3 text-sm text-red-400">{err}</p>}
 
             <button
               onClick={complete}
               disabled={!canComplete}
-              className="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-ink-100 hover:bg-indigo-700 disabled:opacity-40"
+              className="mt-5 w-full rounded-lg bg-accent px-4 py-4 text-lg font-semibold text-ink-950 hover:bg-accent-dim disabled:opacity-40"
             >
               {busy
                 ? 'Dokončujem…'
@@ -539,11 +539,11 @@ function SaleDone({
 }) {
   return (
     <div className="py-4 text-center">
-      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-700">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-accent">
         ✓
       </div>
       <h2 className="text-xl font-bold">Predaj dokončený</h2>
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-sm text-ink-400">
         Vstupenky sú vygenerované. Vytlačte doklad a vstupenky, alebo začnite
         nový predaj.
       </p>
@@ -552,13 +552,13 @@ function SaleDone({
           href={`/pos-receipt/${orderId}`}
           target="_blank"
           rel="noreferrer"
-          className="block w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-ink-100 hover:bg-indigo-700"
+          className="block w-full rounded-lg bg-accent px-4 py-4 text-lg font-semibold text-ink-950 hover:bg-accent-dim"
         >
           🖨 Vytlačiť doklad a vstupenky
         </a>
         <button
           onClick={onCompleted}
-          className="block w-full rounded-lg border px-4 py-3 text-base font-medium hover:bg-gray-50"
+          className="block w-full rounded-lg border border-ink-700 px-4 py-3 text-base font-medium text-ink-200 hover:bg-ink-800"
         >
           Nový predaj
         </button>
