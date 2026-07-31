@@ -759,27 +759,39 @@ function Landing() {
 
         </div>
 
-        {/* Non-profit rate */}
-        <div className="mt-8 rounded-2xl border border-ink-800 bg-ink-900/40 p-7 md:p-9">
-          <div className="grid items-center gap-8 md:grid-cols-[1fr_1.1fr]">
+        {/* NONPROFIT */}
+        <div
+          className="relative mt-8 overflow-hidden rounded-2xl border border-accent/30 p-8 sm:p-10"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(74,222,128,0.02) 100%), var(--gradient-card)',
+          }}
+        >
+          <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+          <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">
+              <div className="text-xs font-semibold uppercase tracking-widest text-accent">
                 Pre neziskovky
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-display text-5xl font-bold">2 %</span>
-                <span className="text-ink-400">
-                  z ceny vstupenky · min 0,20 €
-                </span>
+                <span className="font-display text-6xl font-bold">2 %</span>
+                <span className="text-ink-400">z ceny vstupenky</span>
               </div>
-              <p className="mt-3 max-w-md text-sm text-ink-400">
-                Občianske združenia, nadácie, neziskové organizácie a
-                neinvestičné fondy majú zníženú províziu. Sadzbu aktivujeme
-                po overení právnej formy — požiadať sa dá pri registrácii
-                alebo kedykoľvek v nastaveniach.
+              <p className="mt-2 text-ink-400">
+                alebo minimálne 0,20 € za predanú vstupenku
               </p>
+              <p className="mt-4 max-w-md text-sm text-ink-300">
+                Občianske združenia, nadácie, neziskové organizácie a
+                neinvestičné fondy majú zníženú províziu. Sadzbu aktivujeme po
+                overení právnej formy — požiadať sa dá pri registrácii alebo
+                kedykoľvek v nastaveniach.
+              </p>
+              <a href="/register" className="btn-primary mt-8">
+                Registrovať neziskovku
+              </a>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+
+            <ul className="space-y-3 text-sm">
               {[
                 'Občianske združenie',
                 'Nadácia',
@@ -787,14 +799,11 @@ function Landing() {
                 'Neinvestičný fond',
                 'Účelové zariadenie cirkvi',
               ].map((f) => (
-                <div
-                  key={f}
-                  className="flex items-center gap-2.5 rounded-xl border border-ink-800 bg-ink-950/60 px-4 py-3 text-sm text-ink-300"
-                >
+                <li key={f} className="flex items-center gap-3">
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/20 text-accent">
                     <svg
-                      width="11"
-                      height="11"
+                      width="12"
+                      height="12"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -803,19 +812,14 @@ function Landing() {
                       <path d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
-                  {f}
-                </div>
+                  <span className="text-ink-200">{f}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
-          <Link
-            to="/register"
-            className="btn-ghost mt-7 text-sm"
-          >
-            Registrovať neziskovku →
-          </Link>
         </div>
       </section>
+
 
       <Footer />
     </div>
