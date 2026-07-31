@@ -3,7 +3,12 @@ import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import { loadEvents, type EventsSource } from '../lib/events'
 import { formatWhen } from '../lib/format'
-import { listOffline, purgeExpiredOffline, type OfflineMeta } from '../lib/offline'
+import {
+  clearAllOffline,
+  listOffline,
+  purgeExpiredOffline,
+  type OfflineMeta,
+} from '../lib/offline'
 import { queueCount } from '../lib/queue'
 import { OfflineRow } from '../components/OfflineRow'
 import { SyncBar } from '../components/SyncBar'
@@ -25,7 +30,10 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
       .then(setOffline)
   }, [])
 
-  // Signing out wipes the local data — including admissions not yet sent.
+  // Deliberate sign-out is the ONE place that wipes the local data — the phone
+  // may be handed back, and the bundles contain attendee names. It is done here
+  // rather than in the auth listener so that merely losing the session (expired
+  // or revoked token) cannot destroy admissions that are still queued.
   const signOut = async () => {
     const pending = await queueCount()
     if (
@@ -35,6 +43,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
       )
     )
       return
+    await clearAllOffline()
     await supabase.auth.signOut()
   }
 

@@ -16,6 +16,7 @@ const {
   getOfflineBundle,
   deleteOffline,
   clearAllOffline,
+  clearOnOperatorChange,
   purgeExpiredOffline,
   RETENTION_MS,
 } = await import('./offline')
@@ -172,5 +173,61 @@ describe('retention', () => {
       k.startsWith('offline.'),
     )
     expect(leftovers).toEqual([])
+  })
+})
+
+describe('clearOnOperatorChange', () => {
+  const ALICE = 'user-alice'
+  const BOB = 'user-bob'
+
+  async function seed() {
+    vi.mocked(fetchOfflineBundlePage).mockResolvedValueOnce(
+      page(EVENT, [ticket(1)], 1, 0),
+    )
+    await downloadOffline(EVENT)
+    await enqueueScan({
+      id: 'local-1',
+      eventId: EVENT,
+      ticketId: 'ticket-1',
+      ref: 'REF1',
+      holderName: 'Hosť 1',
+      qr: 'TIK.ticket-1.sig',
+      scannedAt: '2026-07-20T19:00:00.000Z',
+      deviceLabel: 'Ticketio Scan · TEST01',
+    })
+  }
+
+  beforeEach(() => {
+    prefStore.clear()
+    vi.mocked(fetchOfflineBundlePage).mockReset()
+  })
+
+  it('keeps the data when the same operator signs back in', async () => {
+    await seed()
+    expect(await clearOnOperatorChange(ALICE)).toBe(false)
+
+    // The session expired and Alice signed in again — her admissions survive.
+    expect(await clearOnOperatorChange(ALICE)).toBe(false)
+    expect(await readQueue()).toHaveLength(1)
+    expect(Object.keys(await listOffline())).toEqual([EVENT])
+  })
+
+  it('keeps the data on the first sign-in after a download', async () => {
+    await seed()
+    // No owner recorded yet (data downloaded before this build shipped).
+    expect(await clearOnOperatorChange(ALICE)).toBe(false)
+    expect(await readQueue()).toHaveLength(1)
+  })
+
+  it('wipes everything when a different operator signs in', async () => {
+    await seed()
+    await clearOnOperatorChange(ALICE)
+
+    expect(await clearOnOperatorChange(BOB)).toBe(true)
+    expect(await readQueue()).toHaveLength(0)
+    expect(await listOffline()).toEqual({})
+
+    // Bob is now the owner, so his own re-login keeps his data.
+    expect(await clearOnOperatorChange(BOB)).toBe(false)
   })
 })

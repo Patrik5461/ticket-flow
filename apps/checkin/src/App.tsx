@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { ensureDarkStatusBar } from './lib/chrome'
-import { clearAllOffline } from './lib/offline'
+import { clearOnOperatorChange } from './lib/offline'
 import { runSync, startAutoSync } from './lib/sync'
 import { supabase } from './lib/supabase'
 import { Login } from './screens/Login'
@@ -25,14 +25,20 @@ export function App() {
   useEffect(() => {
     void ensureDarkStatusBar()
     void SplashScreen.hide().catch(() => {})
-    void supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+    void supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      if (data.session) void clearOnOperatorChange(data.session.user.id)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       if (!s) setEvent(null)
-      // Signing out wipes every downloaded bundle: the phone may be borrowed,
-      // and the data contains attendee names. Only on an explicit SIGNED_OUT —
-      // a failed token refresh while offline must NOT destroy local data.
-      if (event === 'SIGNED_OUT') void clearAllOffline()
+      // Losing the session must NOT wipe local data. SIGNED_OUT fires for an
+      // expired or revoked token just as it does for a deliberate sign-out, and
+      // the queue holds admissions already granted at the door — sync.ts goes
+      // out of its way to preserve them ("skeny zostávajú vo fronte"), so this
+      // listener must not undo that. The wipe lives on the button that means it
+      // (EventList.signOut), plus the operator-change check below.
+      if (s) void clearOnOperatorChange(s.user.id)
     })
 
     // iOS resets the status bar on resume — re-assert it. (StatusBar only, so we

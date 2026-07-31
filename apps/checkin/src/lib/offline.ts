@@ -13,6 +13,10 @@
  *
  * A ticket sold after the last download is not in the bundle; the scanner must
  * report it as "unknown — verify online", never as invalid (block 3b).
+ *
+ * The wipe is tied to a DELIBERATE sign-out, not to losing the session. An
+ * expired or revoked token must not destroy admissions that were already
+ * granted at the door — see clearOnOperatorChange() and src/App.tsx.
  */
 import { Preferences } from '@capacitor/preferences'
 import { fetchOfflineBundlePage } from './api'
@@ -26,6 +30,7 @@ const PAGE_SIZE = 500
 
 const INDEX_KEY = 'offline.index'
 const WARNED_KEY = 'offline.warnedEvents'
+const OWNER_KEY = 'offline.owner'
 const ticketsKey = (eventId: string) => `offline.tickets.${eventId}`
 
 /** What the device knows about one downloaded event. */
@@ -175,9 +180,29 @@ export async function clearAllOffline(): Promise<void> {
   }
   await Preferences.remove({ key: INDEX_KEY })
   await Preferences.remove({ key: WARNED_KEY })
+  await Preferences.remove({ key: OWNER_KEY })
   await clearQueue()
   // Conflict reports name the holders too — they must not outlive the session.
   await dismissConflicts()
+}
+
+/**
+ * Wipe the local data if the account signing in is not the one that downloaded
+ * it, and remember the current owner either way.
+ *
+ * Losing a session no longer wipes anything (an expired token at the door must
+ * not destroy queued admissions), so this is what keeps one operator's data —
+ * attendee names, and scans that would be replayed under the new token — from
+ * being inherited by whoever signs in next on the same phone.
+ *
+ * Returns true if data was wiped.
+ */
+export async function clearOnOperatorChange(userId: string): Promise<boolean> {
+  const { value: previous } = await Preferences.get({ key: OWNER_KEY })
+  const changed = previous !== null && previous !== userId
+  if (changed) await clearAllOffline()
+  await Preferences.set({ key: OWNER_KEY, value: userId })
+  return changed
 }
 
 /**

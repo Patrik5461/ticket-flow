@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { queueCount } from '../lib/queue'
 import { ScanLogo } from '../components/ScanLogo'
+
+/** Slovak counts: 1 sken, 2-4 skeny, 5+ skenov. */
+function scansWord(n: number): string {
+  if (n === 1) return 'neodoslaný sken'
+  if (n < 5) return 'neodoslané skeny'
+  return 'neodoslaných skenov'
+}
 
 /** Screen 1 — sign in any organizer member (owner / admin / checkin role). */
 export function Login() {
@@ -8,6 +16,14 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Admissions can survive an expired session, so say so — otherwise the queue
+  // is invisible here and the operator cannot know it still matters which
+  // account they sign back in with.
+  const [pending, setPending] = useState(0)
+
+  useEffect(() => {
+    void queueCount().then(setPending)
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,6 +86,14 @@ export function Login() {
             {busy ? 'Prihlasujem…' : 'Prihlásiť sa'}
           </button>
         </form>
+
+        {pending > 0 && (
+          <p className="hint" style={{ marginTop: 20, textAlign: 'center' }}>
+            Máš <strong>{pending}</strong> {scansWord(pending)}. Prihlás sa{' '}
+            <strong>tým istým účtom</strong> — odošlú sa automaticky. Iný účet
+            ich zmaže.
+          </p>
+        )}
 
         <p className="hint" style={{ marginTop: 20, textAlign: 'center' }}>
           Prihlás sa účtom organizátora. Appka slúži len na skenovanie vstupeniek.

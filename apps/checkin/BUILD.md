@@ -231,12 +231,10 @@ Na zariadení povoľ „Inštalovať neznáme aplikácie".
 - **„Neprihlásený" pri skenovaní:** server odmietol token — appka sa odhlási a
   vráti na prihlásenie. Token sa inak auto-obnovuje a **výpadok siete sám o sebe
   odhlásenie nespôsobí** (skener vtedy prepne na stiahnuté dáta).
-  > **Pozor:** odhlásenie — aj toto automatické — **zmaže všetky offline dáta aj
-  > neodoslanú frontu skenov** (`clearAllOffline` na `SIGNED_OUT` v
-  > `src/App.tsx`). Pri ručnom odhlásení appka najprv varuje, ak fronta nie je
-  > prázdna; pri tomto automatickom nie. Ak sa to stane počas akcie, po
-  > prihlásení stiahni offline dáta znova — skeny, ktoré dovtedy neodišli na
-  > server, sú preč.
+  > Offline dáta ani neodoslaná fronta sa tým **nemažú** — prihlás sa tým istým
+  > účtom a fronta sa doposiela sama (počet čakajúcich skenov ukazuje aj
+  > prihlasovacia obrazovka). Mazanie je viazané len na vedomé „Odhlásiť sa"
+  > a na prihlásenie **iným** účtom.
 - **Offline sťahovanie zlyhá, hoci sieť ide:** chýbajúci natívny plugin — spusti
   `npm run sync` a rebuildni (časť 4c).
 - **Biely pruh v safe area (hore/dole):** natívne pozadie webview, nie CSS —

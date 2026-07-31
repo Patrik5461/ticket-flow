@@ -104,9 +104,18 @@ online"**, nikdy nie ako neplatnú (Blok 3b).
 
 Stiahnuté dáta obsahujú mená návštevníkov, takže sa mažú:
 
-- **pri odhlásení** (`SIGNED_OUT` → zmaže všetky balíky vrátane fronty),
+- **pri vedomom odhlásení** tlačidlom „Odhlásiť sa" (zmaže všetky balíky vrátane
+  fronty a reportu konfliktov),
+- **keď sa prihlási iný účet** než ten, ktorý dáta stiahol
+  (`clearOnOperatorChange`) — inak by cudzí operátor zdedil mená aj skeny,
 - **ručne** tlačidlom „Zmazať" pri evente,
 - **automaticky 24 h po skončení eventu** (kontrola pri každom otvorení zoznamu).
+
+**Čo dáta nezmaže: strata session.** Vypršaný alebo odvolaný token appku vráti
+na prihlásenie, ale balíky ani frontu neodstráni — sú v nej vstupy, ktoré už na
+mieste prebehli, a zmazať ich by znamenalo stratiť ich nenávratne. Prihlásenie
+tým istým účtom frontu automaticky doposiela; prihlasovacia obrazovka počet
+neodoslaných skenov zobrazuje.
 
 > **Odporúčanie pre organizátorov:** offline dáta sťahujte len na zariadenia,
 > ktoré máte pod kontrolou, a po evente ich zmažte (alebo sa odhláste). Na
@@ -146,7 +155,8 @@ počet odbavených sa nemôže započítať dvakrát, rovnako ako na serveri.
 - Fronta (`src/lib/queue.ts`) je v Preferences, takže **prežije reštart appky**.
   Zariadenie sa označuje stabilným `deviceLabel` (napr. „Ticketio Scan · A3F91C")
   — ten ide aj do online skenov, takže v audite vidno, ktorý telefón odbavil.
-- Odhlásenie s neodoslanými skenmi si vypýta potvrdenie (dáta sa mažú).
+- Odhlásenie s neodoslanými skenmi si vypýta potvrdenie (dáta sa mažú). Strata
+  session frontu nemaže — mazať ju smie len to vedomé odhlásenie.
 
 ### Blok 3c — synchronizácia
 
@@ -158,9 +168,10 @@ počet čakajúcich, priebeh „Odosielam 3 / 12…".
 
 - **Záznam mizne z fronty až keď naň server odpovedal.** Ak sa spojenie preruší
   v polovici, zvyšok zostáva vo fronte a ďalší pokus pokračuje tam, kde skončil.
-- **Vypršaná session počas synchronizácie appku neodhlási** — odhlásenie by
-  zmazalo práve tú frontu, ktorú sa snažíme zachrániť. Zobrazí sa hláška a dáta
-  zostávajú.
+- **Vypršaná session počas synchronizácie appku neodhlási** — zobrazí sa hláška
+  a dáta zostávajú. A keď session vyprší inde (napr. pri skenovaní), appka síce
+  na prihlásenie vráti, ale frontu **ani vtedy nezmaže** — mazanie je viazané na
+  vedomé odhlásenie, nie na `SIGNED_OUT`.
 - **Konflikty sa nikdy nezahodia.** Ak bola vstupenka medzitým použitá online
   alebo na inom zariadení, server ju neodbaví a appka to ukáže ako
   „Pri synchronizácii: 2 vstupenky boli už použité inde" **so zoznamom
@@ -223,6 +234,7 @@ mockom; `vi.resetModules()` so zachovaným úložiskom simuluje **reštart appky
 - zlyhané sťahovanie nepoškodí predošlý balík,
 - retencia: 24 h po konci eventu sa dáta zmažú, predtým nie,
 - odhlásenie zmaže vstupenky, frontu **aj report konfliktov** (sú v ňom mená),
+- prihlásenie **tým istým** účtom dáta ponechá, **iným** účtom ich zmaže,
 - fronta prežije reštart appky,
 - synchronizácia: konflikt sa ohlási s konkrétnou vstupenkou, prerušené
   spojenie ponechá zvyšok vo fronte a ďalší pokus dobehne, vypršaná session
