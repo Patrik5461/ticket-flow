@@ -55,21 +55,21 @@ function PosPage() {
           <Link
             to="/app/events/$eventId"
             params={{ eventId }}
-            className="text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
+            className="text-sm text-accent hover:text-accent-dim hover:underline"
           >
             ← Späť na podujatie
           </Link>
-          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Pokladňa — <span className="text-zinc-300">{event.title}</span>
+          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-ink-100 sm:text-3xl">
+            Pokladňa — <span className="text-ink-200">{event.title}</span>
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-ink-400">
             Rýchly predaj na mieste. Ťuknite na dlaždicu pre pridanie, potom „Predať".
           </p>
         </div>
         <Link
           to="/app/events/$eventId/pos-summary"
           params={{ eventId }}
-          className="shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900"
+          className="shrink-0 rounded-lg border border-ink-700 bg-ink-800/60 px-4 py-2 text-sm font-medium text-ink-200 hover:border-ink-600 hover:bg-ink-800"
         >
           Uzávierka →
         </Link>
@@ -80,7 +80,7 @@ function PosPage() {
         {/* LEFT — ticket tile grid */}
         <div className="lg:col-span-3 xl:col-span-3">
           {ticketTypes.length === 0 ? (
-            <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/40 p-8 text-center text-sm text-zinc-500">
+            <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-ink-700 bg-ink-900/40 p-8 text-center text-sm text-ink-400">
               Toto podujatie zatiaľ nemá žiadne typy vstupeniek. Najprv ich pridajte
               v nastaveniach podujatia.
             </div>
@@ -113,20 +113,20 @@ function PosPage() {
       </div>
 
       {/* Mobile sticky sell bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-950/95 backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">
+            <div className="text-[10px] uppercase tracking-wider text-ink-400">
               {totalQty} {totalQty === 1 ? 'vstupenka' : 'vstupeniek'} · Spolu
             </div>
-            <div className="font-display text-2xl font-bold tabular-nums text-white">
+            <div className="font-display text-2xl font-bold tabular-nums text-ink-100">
               {formatEur(totalCents)}
             </div>
           </div>
           {totalQty > 0 && (
             <button
               onClick={reset}
-              className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
+              className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-3 text-sm font-medium text-ink-200 hover:bg-ink-700"
             >
               Vyčistiť
             </button>
@@ -134,7 +134,7 @@ function PosPage() {
           <button
             onClick={() => setCheckoutOpen(true)}
             disabled={totalQty === 0}
-            className="rounded-lg bg-emerald-400 px-6 py-3.5 text-base font-semibold text-zinc-950 hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500"
+            className="rounded-lg bg-accent px-6 py-3.5 text-base font-semibold text-ink-950 hover:bg-accent-dim disabled:bg-ink-700 disabled:text-ink-400"
           >
             Predať
           </button>
@@ -172,22 +172,22 @@ function ReceiptPanel({
 }) {
   const empty = lines.length === 0
   return (
-    <div className="flex max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60 shadow-xl backdrop-blur">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-        <h2 className="font-display text-lg font-semibold text-white">
+    <div className="flex max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900/60 shadow-xl backdrop-blur">
+      <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
+        <h2 className="font-display text-lg font-semibold text-ink-100">
           Objednávka
         </h2>
-        <span className="rounded-full bg-zinc-900 px-2.5 py-0.5 text-xs font-medium tabular-nums text-zinc-400">
+        <span className="rounded-full bg-ink-800 px-2.5 py-0.5 text-xs font-medium tabular-nums text-ink-300">
           {totalQty} ks
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
         {empty ? (
-          <div className="flex h-full min-h-[180px] flex-col items-center justify-center text-center text-sm text-zinc-500">
+          <div className="flex h-full min-h-[180px] flex-col items-center justify-center text-center text-sm text-ink-400">
             <div className="mb-2 text-3xl opacity-40">🧾</div>
             Zatiaľ nič nevybrané.
-            <div className="mt-1 text-xs text-zinc-600">
+            <div className="mt-1 text-xs text-ink-400">
               Ťuknite na dlaždicu vľavo.
             </div>
           </div>
@@ -199,14 +199,14 @@ function ReceiptPanel({
                 className="flex items-start justify-between gap-3 text-sm"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium text-zinc-100">
+                  <div className="truncate font-medium text-ink-100">
                     {l.type.name}
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500 tabular-nums">
+                  <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
                     {l.quantity} × {formatEur(l.type.price_cents)}
                   </div>
                 </div>
-                <div className="shrink-0 font-semibold tabular-nums text-white">
+                <div className="shrink-0 font-semibold tabular-nums text-ink-100">
                   {formatEur(l.quantity * l.type.price_cents)}
                 </div>
               </li>
@@ -215,26 +215,26 @@ function ReceiptPanel({
         )}
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900/40 px-5 py-4">
+      <div className="border-t border-ink-700 bg-ink-800/40 px-5 py-4">
         <div className="flex items-baseline justify-between">
-          <span className="text-sm uppercase tracking-wider text-zinc-500">
+          <span className="text-sm uppercase tracking-wider text-ink-400">
             Spolu
           </span>
-          <span className="font-display text-4xl font-bold tabular-nums text-emerald-400">
+          <span className="font-display text-4xl font-bold tabular-nums text-accent">
             {formatEur(totalCents)}
           </span>
         </div>
         <button
           onClick={onSell}
           disabled={empty}
-          className="mt-4 w-full rounded-xl bg-emerald-400 px-4 py-4 text-lg font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-500"
+          className="mt-4 w-full rounded-xl bg-accent px-4 py-4 text-lg font-semibold text-ink-950 transition hover:bg-accent-dim disabled:bg-ink-700 disabled:text-ink-400"
         >
           Predať
         </button>
         <button
           onClick={onReset}
           disabled={empty}
-          className="mt-2 w-full rounded-xl border border-zinc-800 bg-transparent px-4 py-2.5 text-sm font-medium text-zinc-400 hover:bg-zinc-900 disabled:opacity-40"
+          className="mt-2 w-full rounded-xl border border-ink-700 bg-transparent px-4 py-2.5 text-sm font-medium text-ink-300 hover:bg-ink-800 disabled:opacity-40"
         >
           Vyčistiť
         </button>
@@ -260,10 +260,10 @@ function TicketTile({
     <div
       className={`group relative flex flex-col rounded-xl border p-4 transition ${
         soldOut
-          ? 'border-zinc-900 bg-zinc-950/40 opacity-50'
+          ? 'border-ink-800 bg-ink-900/40 opacity-50'
           : active
-            ? 'border-emerald-400/70 bg-zinc-900'
-            : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-900'
+            ? 'border-accent/70 bg-ink-800'
+            : 'border-ink-700 bg-ink-800/60 hover:border-ink-600 hover:bg-ink-800'
       }`}
     >
       {/* Tap the body to add one — big, fast target */}
@@ -274,19 +274,19 @@ function TicketTile({
         className="text-left"
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="font-display text-base font-semibold leading-tight text-white">
+          <div className="font-display text-base font-semibold leading-tight text-ink-100">
             {type.name}
           </div>
           {type.hidden && (
-            <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
+            <span className="shrink-0 rounded bg-ink-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-300">
               skrytý
             </span>
           )}
         </div>
-        <div className="mt-1.5 font-display text-2xl font-bold tabular-nums text-white">
+        <div className="mt-1.5 font-display text-2xl font-bold tabular-nums text-ink-100">
           {formatEur(type.price_cents)}
         </div>
-        <div className="mt-0.5 text-xs uppercase tracking-wider text-zinc-500">
+        <div className="mt-0.5 text-xs uppercase tracking-wider text-ink-400">
           {soldOut ? 'Vypredané' : `zostáva ${available}`}
         </div>
       </button>
@@ -297,14 +297,14 @@ function TicketTile({
           type="button"
           onClick={() => onChange(quantity - 1)}
           disabled={quantity === 0}
-          className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-2xl font-bold text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800 disabled:opacity-25"
+          className="flex h-12 w-12 items-center justify-center rounded-lg border border-ink-600 bg-ink-950 text-2xl font-bold text-ink-200 hover:border-ink-500 hover:bg-ink-700 disabled:opacity-25"
           aria-label="Odobrať"
         >
           −
         </button>
         <span
           className={`min-w-[3ch] text-center font-display text-2xl font-bold tabular-nums ${
-            active ? 'text-emerald-400' : 'text-zinc-300'
+            active ? 'text-accent' : 'text-ink-200'
           }`}
         >
           {quantity}
@@ -313,7 +313,7 @@ function TicketTile({
           type="button"
           onClick={() => onChange(quantity + 1)}
           disabled={soldOut || quantity >= available}
-          className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400 text-2xl font-bold text-zinc-950 hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-600"
+          className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent text-2xl font-bold text-ink-950 hover:bg-accent-dim disabled:bg-ink-700 disabled:text-ink-400"
           aria-label="Pridať"
         >
           +
@@ -394,7 +394,7 @@ function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-ink-700 bg-ink-900 p-6 shadow-xl sm:rounded-2xl">
         {doneOrderId ? (
           <SaleDone orderId={doneOrderId} onCompleted={onCompleted} />
         ) : (
@@ -403,7 +403,7 @@ function CheckoutModal({
               <h2 className="text-lg font-semibold">Predaj</h2>
               <button
                 onClick={onClose}
-                className="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                className="rounded-md px-2 py-1 text-sm text-ink-400 hover:bg-ink-800"
               >
                 Zavrieť
               </button>
@@ -422,7 +422,7 @@ function CheckoutModal({
               ))}
             </ul>
 
-            <div className="mt-3 flex justify-between border-t pt-3 text-lg font-bold">
+            <div className="mt-3 flex justify-between border-t border-ink-700 pt-3 text-lg font-bold">
               <span>Spolu</span>
               <span className="tabular-nums">{formatEur(totalCents)}</span>
             </div>
@@ -433,8 +433,8 @@ function CheckoutModal({
                 onClick={() => setMethod('cash')}
                 className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
                   method === 'cash'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-ink-700 text-ink-200 hover:bg-ink-800'
                 }`}
               >
                 💶 Hotovosť
@@ -443,8 +443,8 @@ function CheckoutModal({
                 onClick={() => setMethod('terminal')}
                 className={`rounded-xl border-2 px-4 py-5 text-center font-semibold ${
                   method === 'terminal'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-ink-700 text-ink-200 hover:bg-ink-800'
                 }`}
               >
                 💳 Kartou (terminál)
@@ -453,8 +453,8 @@ function CheckoutModal({
 
             {/* Cash: received + change */}
             {method === 'cash' && (
-              <div className="mt-4 rounded-lg border bg-gray-50 p-4">
-                <label className="block text-sm font-medium text-gray-600">
+              <div className="mt-4 rounded-lg border border-ink-700 bg-ink-800/60 p-4">
+                <label className="block text-sm font-medium text-ink-300">
                   Prijaté (€)
                   <input
                     type="number"
@@ -464,7 +464,7 @@ function CheckoutModal({
                     value={receivedEur}
                     onChange={(e) => setReceivedEur(e.target.value)}
                     placeholder="0,00"
-                    className="mt-1 w-full rounded-md border px-3 py-3 text-2xl font-bold tabular-nums"
+                    className="mt-1 w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-3 text-2xl font-bold tabular-nums text-ink-100"
                   />
                 </label>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -472,24 +472,24 @@ function CheckoutModal({
                     <button
                       key={c}
                       onClick={() => setReceivedEur((c / 100).toFixed(2))}
-                      className="rounded-lg border bg-white px-3 py-2 text-sm font-medium hover:bg-gray-100"
+                      className="rounded-lg border border-ink-600 bg-ink-900 px-3 py-2 text-sm font-medium text-ink-200 hover:bg-ink-800"
                     >
                       {formatEur(c)}
                     </button>
                   ))}
                 </div>
                 <div className="mt-3 flex justify-between text-lg font-bold">
-                  <span className="text-gray-600">Výdavok</span>
+                  <span className="text-ink-300">Výdavok</span>
                   <span
                     className={`tabular-nums ${
-                      changeCents < 0 ? 'text-red-600' : 'text-green-700'
+                      changeCents < 0 ? 'text-red-400' : 'text-accent'
                     }`}
                   >
                     {formatEur(Math.max(0, changeCents))}
                   </span>
                 </div>
                 {changeCents < 0 && (
-                  <p className="mt-1 text-right text-xs text-red-600">
+                  <p className="mt-1 text-right text-xs text-red-400">
                     Chýba {formatEur(-changeCents)}
                   </p>
                 )}
@@ -498,26 +498,26 @@ function CheckoutModal({
 
             {/* Optional buyer e-mail */}
             <div className="mt-4">
-              <label className="block text-sm text-gray-600">
+              <label className="block text-sm text-ink-300">
                 E-mail kupujúceho (voliteľné) — pošleme vstupenky
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="napr. jozko@example.sk"
-                  className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${
+                  className={`mt-1 w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-ink-100 ${
                     emailOk ? '' : 'border-red-400'
                   }`}
                 />
               </label>
             </div>
 
-            {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+            {err && <p className="mt-3 text-sm text-red-400">{err}</p>}
 
             <button
               onClick={complete}
               disabled={!canComplete}
-              className="mt-5 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+              className="mt-5 w-full rounded-lg bg-accent px-4 py-4 text-lg font-semibold text-ink-950 hover:bg-accent-dim disabled:opacity-40"
             >
               {busy
                 ? 'Dokončujem…'
@@ -539,11 +539,11 @@ function SaleDone({
 }) {
   return (
     <div className="py-4 text-center">
-      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-700">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-accent">
         ✓
       </div>
       <h2 className="text-xl font-bold">Predaj dokončený</h2>
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-sm text-ink-400">
         Vstupenky sú vygenerované. Vytlačte doklad a vstupenky, alebo začnite
         nový predaj.
       </p>
@@ -552,13 +552,13 @@ function SaleDone({
           href={`/pos-receipt/${orderId}`}
           target="_blank"
           rel="noreferrer"
-          className="block w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white hover:bg-indigo-700"
+          className="block w-full rounded-lg bg-accent px-4 py-4 text-lg font-semibold text-ink-950 hover:bg-accent-dim"
         >
           🖨 Vytlačiť doklad a vstupenky
         </a>
         <button
           onClick={onCompleted}
-          className="block w-full rounded-lg border px-4 py-3 text-base font-medium hover:bg-gray-50"
+          className="block w-full rounded-lg border border-ink-700 px-4 py-3 text-base font-medium text-ink-200 hover:bg-ink-800"
         >
           Nový predaj
         </button>

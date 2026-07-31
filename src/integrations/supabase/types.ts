@@ -763,7 +763,13 @@ export type Database = {
           ic_dph: string | null
           ico: string | null
           id: string
+          legal_form: string | null
           name: string
+          nonprofit_decided_at: string | null
+          nonprofit_decided_by: string | null
+          nonprofit_note: string | null
+          nonprofit_requested_at: string | null
+          nonprofit_status: string
           phone: string | null
           slug: string
           status: string
@@ -784,7 +790,13 @@ export type Database = {
           ic_dph?: string | null
           ico?: string | null
           id?: string
+          legal_form?: string | null
           name: string
+          nonprofit_decided_at?: string | null
+          nonprofit_decided_by?: string | null
+          nonprofit_note?: string | null
+          nonprofit_requested_at?: string | null
+          nonprofit_status?: string
           phone?: string | null
           slug: string
           status?: string
@@ -805,7 +817,13 @@ export type Database = {
           ic_dph?: string | null
           ico?: string | null
           id?: string
+          legal_form?: string | null
           name?: string
+          nonprofit_decided_at?: string | null
+          nonprofit_decided_by?: string | null
+          nonprofit_note?: string | null
+          nonprofit_requested_at?: string | null
+          nonprofit_status?: string
           phone?: string | null
           slug?: string
           status?: string
@@ -914,6 +932,8 @@ export type Database = {
           default_fee_min_cents: number
           default_fee_percent: number
           id: boolean
+          nonprofit_fee_min_cents: number
+          nonprofit_fee_percent: number
           updated_at: string
           updated_by: string | null
         }
@@ -921,6 +941,8 @@ export type Database = {
           default_fee_min_cents?: number
           default_fee_percent?: number
           id?: boolean
+          nonprofit_fee_min_cents?: number
+          nonprofit_fee_percent?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -928,6 +950,8 @@ export type Database = {
           default_fee_min_cents?: number
           default_fee_percent?: number
           id?: boolean
+          nonprofit_fee_min_cents?: number
+          nonprofit_fee_percent?: number
           updated_at?: string
           updated_by?: string | null
         }
