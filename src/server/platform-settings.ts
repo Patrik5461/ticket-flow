@@ -15,11 +15,16 @@ import { requirePlatformAdmin, runAdmin, writeAuditLog } from './admin'
 export interface PlatformSettings {
   defaultFeePercent: number
   defaultFeeMinCents: number
+  /** Granted when a non-profit claim is approved — see src/server/nonprofit.ts. */
+  nonprofitFeePercent: number
+  nonprofitFeeMinCents: number
 }
 
 const FALLBACK: PlatformSettings = {
   defaultFeePercent: 4,
   defaultFeeMinCents: 40,
+  nonprofitFeePercent: 2,
+  nonprofitFeeMinCents: 20,
 }
 
 // Short cache; the fee changes very rarely. Invalidated on write.
@@ -29,17 +34,23 @@ let cached: { at: number; value: PlatformSettings } | null = null
 async function readSettings(): Promise<PlatformSettings> {
   const { data } = await serviceClient()
     .from('platform_settings')
-    .select('default_fee_percent, default_fee_min_cents')
+    .select(
+      'default_fee_percent, default_fee_min_cents, nonprofit_fee_percent, nonprofit_fee_min_cents',
+    )
     .limit(1)
     .maybeSingle<{
       default_fee_percent: number | string
       default_fee_min_cents: number
+      nonprofit_fee_percent: number | string
+      nonprofit_fee_min_cents: number
     }>()
   if (!data) return FALLBACK
   return {
     // numeric comes back as string over PostgREST — coerce.
     defaultFeePercent: Number(data.default_fee_percent),
     defaultFeeMinCents: Number(data.default_fee_min_cents),
+    nonprofitFeePercent: Number(data.nonprofit_fee_percent),
+    nonprofitFeeMinCents: Number(data.nonprofit_fee_min_cents),
   }
 }
 
@@ -58,6 +69,8 @@ export const updatePlatformSettingsFn = createServerFn({ method: 'POST' })
       .object({
         defaultFeePercent: z.number().min(0).max(100),
         defaultFeeMinCents: z.number().int().min(0).max(100_000),
+        nonprofitFeePercent: z.number().min(0).max(100),
+        nonprofitFeeMinCents: z.number().int().min(0).max(100_000),
       })
       .parse(d),
   )
@@ -69,6 +82,8 @@ export const updatePlatformSettingsFn = createServerFn({ method: 'POST' })
         .update({
           default_fee_percent: data.defaultFeePercent,
           default_fee_min_cents: data.defaultFeeMinCents,
+          nonprofit_fee_percent: data.nonprofitFeePercent,
+          nonprofit_fee_min_cents: data.nonprofitFeeMinCents,
           updated_at: new Date().toISOString(),
           updated_by: actor.userId,
         })

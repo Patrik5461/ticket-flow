@@ -22,6 +22,8 @@ import { SalesChart } from '../components/SalesChart'
 const DEFAULT_SETTINGS: PlatformSettings = {
   defaultFeePercent: 4,
   defaultFeeMinCents: 40,
+  nonprofitFeePercent: 2,
+  nonprofitFeeMinCents: 20,
 }
 
 // Resilient: each panel loads independently, so one slow/failing server fn
@@ -150,6 +152,12 @@ function PlatformFeeSettings({ initial }: { initial: PlatformSettings }) {
   const [minEur, setMinEur] = useState(
     (initial.defaultFeeMinCents / 100).toFixed(2),
   )
+  const [npPercent, setNpPercent] = useState(
+    String(initial.nonprofitFeePercent),
+  )
+  const [npMinEur, setNpMinEur] = useState(
+    (initial.nonprofitFeeMinCents / 100).toFixed(2),
+  )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -157,6 +165,8 @@ function PlatformFeeSettings({ initial }: { initial: PlatformSettings }) {
     setMsg(null)
     const p = parseFloat(percent.replace(',', '.'))
     const minCents = Math.round(parseFloat(minEur.replace(',', '.')) * 100)
+    const np = parseFloat(npPercent.replace(',', '.'))
+    const npMinCents = Math.round(parseFloat(npMinEur.replace(',', '.')) * 100)
     if (!Number.isFinite(p) || p < 0 || p > 100) {
       setMsg('Percento musí byť 0–100.')
       return
@@ -165,9 +175,22 @@ function PlatformFeeSettings({ initial }: { initial: PlatformSettings }) {
       setMsg('Minimum musí byť nezáporné.')
       return
     }
+    if (!Number.isFinite(np) || np < 0 || np > 100) {
+      setMsg('Nezisková provízia musí byť 0–100 %.')
+      return
+    }
+    if (!Number.isFinite(npMinCents) || npMinCents < 0) {
+      setMsg('Neziskové minimum musí byť nezáporné.')
+      return
+    }
     setSaving(true)
     const res = await updatePlatformSettingsFn({
-      data: { defaultFeePercent: p, defaultFeeMinCents: minCents },
+      data: {
+        defaultFeePercent: p,
+        defaultFeeMinCents: minCents,
+        nonprofitFeePercent: np,
+        nonprofitFeeMinCents: npMinCents,
+      },
     })
     setSaving(false)
     setMsg(
@@ -208,6 +231,38 @@ function PlatformFeeSettings({ initial }: { initial: PlatformSettings }) {
             step="0.01"
             value={minEur}
             onChange={(e) => setMinEur(e.target.value)}
+            className="w-28 rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+      </div>
+
+      <h3 className="mb-1 mt-5 text-sm font-semibold">Nezisková sadzba</h3>
+      <p className="mb-3 text-xs text-gray-500">
+        Uplatní sa pri schválení žiadosti v sekcii „Neziskové sadzby". Zmena tu
+        neprepočítava už schválených organizátorov — tým sadzba ostáva taká, akú
+        dostali pri schválení.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Percento (%)</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={npPercent}
+            onChange={(e) => setNpPercent(e.target.value)}
+            className="w-28 rounded-md border px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-gray-600">Minimum (€)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={npMinEur}
+            onChange={(e) => setNpMinEur(e.target.value)}
             className="w-28 rounded-md border px-3 py-2 text-sm"
           />
         </label>
@@ -361,8 +416,7 @@ function ExportData() {
 
 function OpsPanel({ ops }: { ops: AdminOps }) {
   const fmtDate = (iso: string) => formatSk(iso, 'date', 'Europe/Bratislava')
-  const fmtDateTime = (iso: string, tz: string) =>
-    formatSk(iso, 'dateTime', tz)
+  const fmtDateTime = (iso: string, tz: string) => formatSk(iso, 'dateTime', tz)
 
   const es = ops.health.eventsByStatus
 

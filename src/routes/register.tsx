@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { signUpFn } from '../server/auth'
+import { LEGAL_FORMS, isValidIco } from '../lib/nonprofit'
+import type { LegalForm } from '../lib/nonprofit'
 
 export const Route = createFileRoute('/register')({ component: RegisterPage })
 
@@ -9,6 +11,9 @@ function RegisterPage() {
   const [organizerName, setOrganizerName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [nonprofit, setNonprofit] = useState(false)
+  const [legalForm, setLegalForm] = useState<LegalForm>('civic_association')
+  const [ico, setIco] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -17,9 +22,18 @@ function RegisterPage() {
     e.preventDefault()
     setError(null)
     setInfo(null)
+    if (nonprofit && !isValidIco(ico)) {
+      setError('IČO musí mať 8 číslic.')
+      return
+    }
     setSubmitting(true)
     const res = await signUpFn({
-      data: { email: email.trim(), password, organizerName: organizerName.trim() },
+      data: {
+        email: email.trim(),
+        password,
+        organizerName: organizerName.trim(),
+        ...(nonprofit ? { nonprofit: { legalForm, ico: ico.trim() } } : {}),
+      },
     })
     if (res.error) {
       setError(res.error)
@@ -54,7 +68,10 @@ function RegisterPage() {
           </p>
         </div>
 
-        <div className="card-surface p-8" style={{ boxShadow: 'var(--shadow-glow)' }}>
+        <div
+          className="card-surface p-8"
+          style={{ boxShadow: 'var(--shadow-glow)' }}
+        >
           <form onSubmit={submit} className="space-y-5">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">
@@ -99,6 +116,64 @@ function RegisterPage() {
               <p className="mt-1.5 text-xs text-ink-500">Aspoň 8 znakov.</p>
             </div>
 
+            <div className="rounded-lg border border-ink-600 bg-ink-900/60 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={nonprofit}
+                  onChange={(e) => setNonprofit(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+                />
+                <span className="text-sm text-ink-200">
+                  Sme nezisková organizácia
+                  <span className="mt-0.5 block text-xs text-ink-400">
+                    Občianske združenie, nadácia, n. o., neinvestičný fond —
+                    môžete požiadať o zníženú províziu.
+                  </span>
+                </span>
+              </label>
+
+              {nonprofit && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">
+                      Právna forma
+                    </label>
+                    <select
+                      value={legalForm}
+                      onChange={(e) =>
+                        setLegalForm(e.target.value as LegalForm)
+                      }
+                      className="w-full rounded-lg border border-ink-600 bg-ink-900 px-4 py-2.5 text-ink-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                    >
+                      {LEGAL_FORMS.map((f) => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">
+                      IČO
+                    </label>
+                    <input
+                      required
+                      inputMode="numeric"
+                      value={ico}
+                      onChange={(e) => setIco(e.target.value)}
+                      className="w-full rounded-lg border border-ink-600 bg-ink-900 px-4 py-2.5 text-ink-100 placeholder:text-ink-500 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+                      placeholder="12345678"
+                    />
+                  </div>
+                  <p className="text-xs text-ink-500">
+                    Žiadosť posúdime a ozveme sa. Do schválenia predávate za
+                    štandardnú províziu — znížená sadzba sa uplatní až potom.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {error && (
               <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
                 {error}
@@ -108,8 +183,10 @@ function RegisterPage() {
               <p
                 className="rounded-lg border p-3 text-sm"
                 style={{
-                  borderColor: 'color-mix(in oklab, var(--color-accent) 30%, transparent)',
-                  background: 'color-mix(in oklab, var(--color-accent) 10%, transparent)',
+                  borderColor:
+                    'color-mix(in oklab, var(--color-accent) 30%, transparent)',
+                  background:
+                    'color-mix(in oklab, var(--color-accent) 10%, transparent)',
                   color: 'var(--color-accent)',
                 }}
               >

@@ -93,6 +93,31 @@ function PricingPage() {
           </p>
         </div>
 
+        <div className="mt-6 rounded-2xl border border-ink-800 bg-ink-900/50 p-6">
+          <div className="text-xs font-medium uppercase tracking-wider text-ink-400">
+            Neziskový sektor
+          </div>
+          <div className="mt-2 text-2xl font-bold">
+            {pctStr(settings.nonprofitFeePercent)}
+            <span className="text-accent"> %</span>
+            <span className="text-base font-normal text-ink-300">
+              {' '}
+              / min {formatEur(settings.nonprofitFeeMinCents)}
+            </span>
+          </div>
+          <p className="mt-3 max-w-xl text-sm text-ink-400">
+            Občianske združenia, nadácie, neziskové organizácie a neinvestičné
+            fondy majú zníženú províziu. Požiadať sa dá pri registrácii alebo
+            kedykoľvek neskôr v nastaveniach — sadzbu aktivujeme po overení.
+          </p>
+          <Link
+            to="/register"
+            className="mt-4 inline-block text-sm font-medium text-accent hover:underline"
+          >
+            Registrovať neziskovku →
+          </Link>
+        </div>
+
         {/* Calculator */}
         <div className="mt-8 rounded-2xl border border-ink-800 bg-ink-900/50 p-6 sm:p-8">
           <div className="flex items-center gap-2">

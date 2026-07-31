@@ -37,6 +37,7 @@ import { Route as ApiCheckinRouteImport } from './routes/api.checkin'
 import { Route as AdminSearchRouteImport } from './routes/admin.search'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminObsahRouteImport } from './routes/admin.obsah'
+import { Route as AdminNonprofitRouteImport } from './routes/admin.nonprofit'
 import { Route as AdminHealthRouteImport } from './routes/admin.health'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
@@ -217,6 +218,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
 const AdminObsahRoute = AdminObsahRouteImport.update({
   id: '/obsah',
   path: '/obsah',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminNonprofitRoute = AdminNonprofitRouteImport.update({
+  id: '/nonprofit',
+  path: '/nonprofit',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminHealthRoute = AdminHealthRouteImport.update({
@@ -456,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
   '/admin/health': typeof AdminHealthRoute
+  '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
@@ -525,6 +532,7 @@ export interface FileRoutesByTo {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
   '/admin/health': typeof AdminHealthRoute
+  '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
@@ -596,6 +604,7 @@ export interface FileRoutesById {
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
   '/admin/health': typeof AdminHealthRoute
+  '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/search': typeof AdminSearchRoute
@@ -669,6 +678,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/events'
     | '/admin/health'
+    | '/admin/nonprofit'
     | '/admin/obsah'
     | '/admin/payouts'
     | '/admin/search'
@@ -738,6 +748,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/events'
     | '/admin/health'
+    | '/admin/nonprofit'
     | '/admin/obsah'
     | '/admin/payouts'
     | '/admin/search'
@@ -808,6 +819,7 @@ export interface FileRouteTypes {
     | '/admin/admins'
     | '/admin/events'
     | '/admin/health'
+    | '/admin/nonprofit'
     | '/admin/obsah'
     | '/admin/payouts'
     | '/admin/search'
@@ -1101,6 +1113,13 @@ declare module '@tanstack/react-router' {
       path: '/obsah'
       fullPath: '/admin/obsah'
       preLoaderRoute: typeof AdminObsahRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/nonprofit': {
+      id: '/admin/nonprofit'
+      path: '/nonprofit'
+      fullPath: '/admin/nonprofit'
+      preLoaderRoute: typeof AdminNonprofitRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/health': {
@@ -1397,6 +1416,7 @@ interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminEventsRoute: typeof AdminEventsRoute
   AdminHealthRoute: typeof AdminHealthRoute
+  AdminNonprofitRoute: typeof AdminNonprofitRoute
   AdminObsahRoute: typeof AdminObsahRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminSearchRoute: typeof AdminSearchRoute
@@ -1411,6 +1431,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAdminsRoute: AdminAdminsRoute,
   AdminEventsRoute: AdminEventsRoute,
   AdminHealthRoute: AdminHealthRoute,
+  AdminNonprofitRoute: AdminNonprofitRoute,
   AdminObsahRoute: AdminObsahRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminSearchRoute: AdminSearchRoute,

@@ -14,19 +14,29 @@ import type {
   OrganizerCompany,
   TeamMember,
 } from '../server/dashboard'
+import { formatEur } from '../lib/money'
+import { LEGAL_FORMS } from '../lib/nonprofit'
+import type { LegalForm } from '../lib/nonprofit'
+import {
+  getNonprofitStateFn,
+  requestNonprofitRateFn,
+} from '../server/nonprofit'
+import type { NonprofitState } from '../server/nonprofit'
 
 export const Route = createFileRoute('/app/settings')({
   loader: async (): Promise<{
     branding: OrganizerBranding
     company: OrganizerCompany
     team: TeamMember[]
+    nonprofit: NonprofitState
   }> => {
-    const [branding, company, team] = await Promise.all([
+    const [branding, company, team, nonprofit] = await Promise.all([
       getOrganizerBrandingFn(),
       getOrganizerCompanyFn(),
       listTeamMembersFn(),
+      getNonprofitStateFn(),
     ])
-    return { branding, company, team }
+    return { branding, company, team, nonprofit }
   },
   component: SettingsPage,
 })
@@ -43,7 +53,7 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 function SettingsPage() {
-  const { branding, company, team } = Route.useLoaderData()
+  const { branding, company, team, nonprofit } = Route.useLoaderData()
   const router = useRouter()
 
   const [color, setColor] = useState(branding.brandColor ?? '#4f46e5')
@@ -118,6 +128,8 @@ function SettingsPage() {
       <h1 className="text-2xl font-bold">Nastavenia</h1>
 
       <CompanySection company={company} />
+
+      <NonprofitSection state={nonprofit} />
 
       <section className="space-y-6">
         <div>
@@ -412,6 +424,177 @@ const ROLE_SK: Record<TeamMember['role'], string> = {
   owner: 'Vlastník',
   admin: 'Admin',
   checkin: 'Check-in',
+}
+
+/**
+ * Applying for the non-profit commission. The organizer only ever CLAIMS the
+ * status here — the rate changes when a platform admin approves it, so this
+ * section shows state and never promises the discount itself.
+ */
+function NonprofitSection({ state }: { state: NonprofitState }) {
+  const router = useRouter()
+  const [legalForm, setLegalForm] = useState<LegalForm>(
+    state.legalForm ?? 'civic_association',
+  )
+  const [ico, setIco] = useState(state.ico ?? '')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const field =
+    'w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400'
+  const rate = (percent: number, minCents: number) =>
+    `${percent} % / min ${formatEur(minCents)}`
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await requestNonprofitRateFn({
+        data: { legalForm, ico, note: note.trim() || undefined },
+      })
+      if ('error' in res) {
+        setMsg({ ok: false, text: res.error })
+        return
+      }
+      setMsg({ ok: true, text: 'Žiadosť odoslaná. Ozveme sa po posúdení.' })
+      router.invalidate()
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">Nezisková sadzba</h2>
+        <p className="text-sm text-gray-500">
+          Občianske združenia, nadácie a neziskové organizácie platia zníženú
+          províziu {rate(state.offerPercent, state.offerMinCents)} namiesto
+          štandardnej. Vaša aktuálna sadzba je{' '}
+          <strong>{rate(state.feePercent, state.feeMinCents)}</strong>.
+        </p>
+      </div>
+
+      {msg && (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            msg.ok
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {msg.text}
+        </div>
+      )}
+
+      {state.status === 'approved' && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+          <p className="font-medium">
+            Nezisková sadzba je schválená
+            {state.legalFormLabel ? ` (${state.legalFormLabel})` : ''}.
+          </p>
+          <p className="mt-1">
+            Účtujeme vám {rate(state.feePercent, state.feeMinCents)}. Sadzba sa
+            uplatňuje na objednávky vytvorené po schválení — staršie vyúčtovania
+            sa spätne neprepočítavajú.
+          </p>
+        </div>
+      )}
+
+      {state.status === 'pending' && (
+        <div className="rounded-lg border bg-white p-4 text-sm">
+          <p className="font-medium">Žiadosť čaká na posúdenie.</p>
+          <p className="mt-1 text-gray-600">
+            {state.legalFormLabel}
+            {state.ico ? ` · IČO ${state.ico}` : ''}
+            {state.requestedAt
+              ? ` · podaná ${new Date(state.requestedAt).toLocaleDateString('sk-SK')}`
+              : ''}
+          </p>
+          <p className="mt-2 text-gray-600">
+            Do schválenia predávate za doterajšiu sadzbu{' '}
+            {rate(state.feePercent, state.feeMinCents)}.
+          </p>
+        </div>
+      )}
+
+      {state.status === 'rejected' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-medium">Žiadosť bola zamietnutá.</p>
+          {state.note && <p className="mt-1">Dôvod: {state.note}</p>}
+          <p className="mt-1">Údaje môžete doplniť a požiadať znova nižšie.</p>
+        </div>
+      )}
+
+      {(state.status === 'none' || state.status === 'rejected') && (
+        <form
+          onSubmit={submit}
+          className="grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-2"
+        >
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">
+              Právna forma *
+            </span>
+            <select
+              value={legalForm}
+              onChange={(e) => setLegalForm(e.target.value as LegalForm)}
+              disabled={!state.canApply || busy}
+              className={field}
+            >
+              {LEGAL_FORMS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">IČO *</span>
+            <input
+              required
+              inputMode="numeric"
+              value={ico}
+              onChange={(e) => setIco(e.target.value)}
+              disabled={!state.canApply || busy}
+              className={field}
+              placeholder="12345678"
+            />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-sm font-medium">
+              Doplňujúce informácie
+            </span>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={!state.canApply || busy}
+              className={field}
+              placeholder="Napr. odkaz na zápis v registri alebo číslo registrácie."
+            />
+          </label>
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              disabled={!state.canApply || busy}
+              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {busy ? 'Odosielam…' : 'Požiadať o neziskovú sadzbu'}
+            </button>
+            <p className="mt-2 text-xs text-gray-500">
+              {state.canApply
+                ? 'Žiadosť posúdi Ticketio. Sadzba sa zmení až po schválení.'
+                : 'Na podanie žiadosti nemáte oprávnenie.'}
+            </p>
+          </div>
+        </form>
+      )}
+    </section>
+  )
 }
 
 function TeamSection({ team }: { team: TeamMember[] }) {

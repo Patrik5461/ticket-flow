@@ -13,6 +13,7 @@ import { createAuthClient, getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
 import { slugify } from '../lib/slug'
 import { clientIpFromHeaders } from '../lib/client-ip'
+import { LEGAL_FORM_VALUES, normalizeIco, isValidIco } from '../lib/nonprofit'
 import { authLimiter } from './rate-guards'
 import { getImpersonation } from './impersonation-session'
 
@@ -43,6 +44,7 @@ async function uniqueOrganizerSlug(base: string): Promise<string> {
 async function ensureOrganizerForUser(
   userId: string,
   organizerName: string,
+  nonprofit?: { legalForm: string; ico: string },
 ): Promise<string> {
   const db = serviceClient()
 
@@ -55,9 +57,23 @@ async function ensureOrganizerForUser(
   if (existing) return existing.organizer_id
 
   const slug = await uniqueOrganizerSlug(organizerName)
+  // A non-profit claim made at registration only opens a request — the fee
+  // columns stay at the platform default until an admin approves it, so signing
+  // up cannot grant anyone the lower rate. See src/server/nonprofit.ts.
   const { data: org, error } = await db
     .from('organizers')
-    .insert({ name: organizerName, slug })
+    .insert({
+      name: organizerName,
+      slug,
+      ...(nonprofit
+        ? {
+            legal_form: nonprofit.legalForm,
+            ico: nonprofit.ico,
+            nonprofit_status: 'pending',
+            nonprofit_requested_at: new Date().toISOString(),
+          }
+        : {}),
+    })
     .select('id')
     .single<{ id: string }>()
   if (error) {
@@ -77,6 +93,17 @@ export const signUpFn = createServerFn({ method: 'POST' })
         email: z.string().email(),
         password: z.string().min(8, 'Heslo musí mať aspoň 8 znakov.'),
         organizerName: z.string().trim().min(2).max(120),
+        // Optional non-profit claim; opens a request, grants nothing.
+        nonprofit: z
+          .object({
+            legalForm: z.enum(LEGAL_FORM_VALUES),
+            ico: z
+              .string()
+              .trim()
+              .transform(normalizeIco)
+              .refine(isValidIco, 'IČO musí mať 8 číslic.'),
+          })
+          .optional(),
       })
       .parse(d),
   )
@@ -92,7 +119,11 @@ export const signUpFn = createServerFn({ method: 'POST' })
     if (error) return { error: error.message } as const
     if (!signUp.user) return { error: 'Registrácia zlyhala.' } as const
 
-    await ensureOrganizerForUser(signUp.user.id, data.organizerName)
+    await ensureOrganizerForUser(
+      signUp.user.id,
+      data.organizerName,
+      data.nonprofit,
+    )
 
     // With email confirmation enabled, no session is returned until the user
     // confirms; otherwise they are logged in immediately.
