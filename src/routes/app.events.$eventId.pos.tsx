@@ -539,7 +539,7 @@ function SaleDone({
 }) {
   return (
     <div className="py-4 text-center">
-      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-accent">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-accent/15 text-3xl text-accent">
         ✓
       </div>
       <h2 className="text-xl font-bold">Predaj dokončený</h2>
