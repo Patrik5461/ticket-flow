@@ -263,9 +263,10 @@ function DashboardPreview() {
             <div className="text-sm font-medium uppercase tracking-widest text-accent">
               Prehľad naživo
             </div>
-            <h2 className="mt-2 font-display text-4xl font-bold leading-tight md:text-5xl">
+            <h2 className="mt-2 font-display text-4xl font-bold leading-tight md:whitespace-nowrap md:text-5xl">
               Vidíš, ako sa predáva.
             </h2>
+
             <p className="mt-5 text-lg text-ink-300">
               Sledovanie predaja a odbavovania v reálnom čase — kým event beží,
               aj po ňom.
