@@ -143,9 +143,10 @@ týkajú zostavenia a distribúcie:
 - **Test pred vydaním sa nedá odbiť simulátorom bez siete.** Minimálny scenár na
   reálnom zariadení: stiahni offline dáta → zapni letový režim → naskenuj platnú
   vstupenku (musí prejsť) → naskenuj ju druhýkrát (musí hlásiť už použitú) →
-  naskenuj vstupenku predanú až po stiahnutí (musí hlásiť „Neznáma vstupenka —
-  over online", **nie** neplatnú) → vypni letový režim → over, že sa fronta
-  odoslala a prípadné konflikty sa zobrazili.
+  naskenuj vstupenku predanú až po stiahnutí (musí ukázať žltú **„Neznáma
+  vstupenka"** s vysvetlením „Nie je v stiahnutých dátach — over ju online",
+  **nie** červenú neplatnú) → vypni letový režim → over, že sa fronta odoslala a
+  prípadné konflikty sa zobrazili.
 
 ---
 
