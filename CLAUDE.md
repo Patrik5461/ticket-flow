@@ -27,6 +27,21 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - **RLS filtruje riadky, nie stĺpce.** Tabuľky čítané anon kľúčom (`events`, `ticket_types`) majú preto stĺpcové granty: anon/authenticated dostávajú `GRANT SELECT (explicitný zoznam stĺpcov)`, nie tabuľkový `GRANT SELECT` (ten by prezradil aj tajné stĺpce ako `events.qr_secret`). **Každý nový stĺpec v anon-čitateľnej tabuľke sa musí explicitne pridať do column grantu** v migrácii (a nikdy tam nesmie ísť secret) — inak ho anon buď neuvidí (ak je verejný), alebo ho uvidí (ak by sa použil tabuľkový grant). Po každej takej zmene spusti `npm run probe:rls` (`scripts/rls-anon-probe.mjs`) — musí byť zelený. Secrety číta výhradne server cez `service_role`, ktorý granty aj RLS obchádza.
 - Časy v DB v UTC (timestamptz), zobrazovanie v Europe/Bratislava.
 
+## Supabase — ktorý projekt a ako ho sondovať
+
+- **Ticketio je cloud projekt `upymwphlrkxcegnyslky`** (`SUPABASE_URL` v `~/ticketio-secrets.env`). Overuj ref, nie meno.
+- **Pripojený MCP server `claude.ai Supabase Tendrik` mieri na `tmssxnluhjhzqmutflbl` — to je Tendrik, CUDZÍ projekt.** Je to connector z claude.ai účtu (nie `.mcp.json`, nie `mcpServers` v `~/.claude.json`), takže sa dedí do každej session bez ohľadu na adresár a v Ticketiu vyzerá dostupne. **Nikdy cezeň nič proti Ticketiu nespúšťaj** — `execute_sql` by šiel do Tendriku. Ak MCP potrebuješ, najprv over ref (`get_project_url`); ak nesedí, nepoužiť.
+- Ticketio DB sa sonduje **service-role kľúčom cez PostgREST**: `node --env-file=~/ticketio-secrets.env <skript>` a `fetch(`${SUPABASE_URL}/rest/v1/…`)` s hlavičkami `apikey` + `Authorization: Bearer`. Service role obchádza RLS aj granty, takže vidí aj server-only tabuľky (`app_settings`, `email_jobs`).
+- Čo takto **nevidno**: schéma `cron` (PostgREST ju nevystavuje), čiže existenciu pg_cron jobov sa cez REST overiť nedá — len nepriamo z toho, že migrácia prebehla celá. Na priamy pohľad treba SQL editor v Supabase dashboarde (CLI ani `psql` na VM nie sú).
+
+## app_settings — konfigurácia pg_cron mostíkov
+
+- Všetky pozadové úlohy idú cez most **pg_cron → `trigger_*()` → pg_net → `/api/cron/*` v appke**. Cieľovú URL a secret si `trigger_*` funkcie čítajú z tabuľky `app_settings`, ktorá sa **zámerne needituje migráciami** (aby secret nebol v repe) — seeduje sa ručne proti produkčnej DB.
+- **Kým je riadok prázdny, funkcia ticho vráti `return` a úloha sa nikdy nevykoná.** Žiadna chyba, žiadny log — len sa nič nedeje. Takto boli od začiatku mŕtve všetky mostíky; naplnené 2026-07-31.
+- Potrebných je 6 kľúčov: `cron_secret` (musí sa **presne zhodovať** s `CRON_SECRET` zo `~/ticketio-secrets.env`, inak route vráti 401), `cron_endpoint` (refundy), `email_cron_endpoint`, `invoice_cron_endpoint`, `waitlist_cron_endpoint`, `webhook_cron_endpoint` — všetky ako `${APP_URL}/api/cron/<route>`.
+- **Pri zmene `CRON_SECRET` alebo `APP_URL` sa musí prepísať aj `app_settings`**, inak sa mostíky ticho rozbijú (nesúlad secretov = 401, stará URL = post do prázdna).
+- Rýchla kontrola: `select key, value from app_settings order by key` — 6 riadkov, endpointy na aktuálnom `APP_URL`.
+
 ## Doménové pravidlá
 
 - Vstupenka = riadok v `tickets` s podpísaným QR: `TIK.{ticket_id}.{hmac_sha256(ticket_id + event_secret)}` (base64url, skrátený HMAC na 16 bajtov). Každý event má vlastný `qr_secret`.
