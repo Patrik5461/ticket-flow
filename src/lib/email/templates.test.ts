@@ -9,6 +9,7 @@ import {
   eventChangedEmail,
   reminderEmail,
   bulkMessageEmail,
+  nonprofitStatusEmail,
 } from './templates'
 
 describe('escapeHtml', () => {
@@ -117,5 +118,49 @@ describe('templates', () => {
     })
     expect(subject).toBe('Dôležité')
     expect(html).toContain('riadok 1<br/>riadok 2 &lt;b&gt;')
+  })
+
+  it('nonprofitStatusEmail states the granted rate and that it is not retroactive', () => {
+    const { subject, html } = nonprofitStatusEmail({
+      approved: true,
+      organizerName: 'OZ Pomoc',
+      percentLabel: '2 %',
+      minLabel: '0,20 €',
+      legalFormLabel: 'Občianske združenie',
+      settingsUrl: 'https://x/app/settings',
+    })
+    expect(subject).toContain('2 %')
+    expect(html).toContain('OZ Pomoc')
+    expect(html).toContain('Občianske združenie')
+    expect(html).toContain('0,20 €')
+    expect(html).toContain('https://x/app/settings')
+    // The applicant must not expect past settlements to be recalculated.
+    expect(html).toContain('spätne neprepočítavajú')
+  })
+
+  it('nonprofitStatusEmail rejection carries the reason and promises no rate', () => {
+    const { subject, html } = nonprofitStatusEmail({
+      approved: false,
+      organizerName: 'OZ Pomoc',
+      percentLabel: '2 %',
+      minLabel: '0,20 €',
+      reason: 'IČO nesedí s registrom.',
+    })
+    expect(subject).toContain('zamietnutá')
+    expect(html).toContain('IČO nesedí s registrom.')
+    expect(html).not.toContain('0,20 €')
+  })
+
+  it('nonprofitStatusEmail escapes the organizer name and reason', () => {
+    const { html } = nonprofitStatusEmail({
+      approved: false,
+      organizerName: '<script>x</script>',
+      percentLabel: '2 %',
+      minLabel: '0,20 €',
+      reason: 'a <b> b',
+    })
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).toContain('a &lt;b&gt; b')
+    expect(html).not.toContain('<script>')
   })
 })

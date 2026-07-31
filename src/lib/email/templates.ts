@@ -291,6 +291,63 @@ export function payoutStatusEmail(d: {
   }
 }
 
+/**
+ * Outcome of a non-profit rate application. The approved variant states the new
+ * rate explicitly — it is the whole point of the message — and that it applies
+ * to orders from now on, so nobody expects past settlements to be recalculated.
+ */
+export function nonprofitStatusEmail(d: {
+  approved: boolean
+  organizerName: string
+  /** e.g. "2 %" — already formatted by the caller. */
+  percentLabel: string
+  /** e.g. "0,20 €" — already formatted by the caller. */
+  minLabel: string
+  legalFormLabel?: string | null
+  reason?: string | null
+  settingsUrl?: string | null
+}): RenderedEmail {
+  if (!d.approved) {
+    return {
+      subject: 'Žiadosť o neziskovú sadzbu — zamietnutá',
+      html: emailLayout({
+        heading: 'Žiadosť o neziskovú sadzbu zamietnutá',
+        preheader: 'Vašu žiadosť o zníženú províziu sme zamietli.',
+        contentHtml:
+          p(
+            `Žiadosť o zníženú províziu pre <strong>${escapeHtml(d.organizerName)}</strong> sme zamietli. Vaša doterajšia provízia sa nemení.`,
+          ) +
+          (d.reason ? p(`Dôvod: ${escapeHtml(d.reason)}`) : '') +
+          muted(
+            'Údaje môžete doplniť a požiadať znova v nastaveniach organizátora.',
+          ),
+      }),
+    }
+  }
+
+  return {
+    subject: `Nezisková sadzba schválená — ${d.percentLabel}`,
+    html: emailLayout({
+      heading: 'Nezisková sadzba schválená ✅',
+      preheader: `Vaša provízia je odteraz ${d.percentLabel}.`,
+      contentHtml:
+        p(
+          `Overili sme vašu žiadosť pre <strong>${escapeHtml(d.organizerName)}</strong>${
+            d.legalFormLabel ? ` (${escapeHtml(d.legalFormLabel)})` : ''
+          } a znížili sme vám províziu.`,
+        ) +
+        p(
+          `Nová sadzba: <strong>${escapeHtml(d.percentLabel)} z ceny vstupenky, minimálne ${escapeHtml(d.minLabel)}</strong> za predanú vstupenku.`,
+        ) +
+        p(
+          'Sadzba platí na objednávky vytvorené od tejto chvíle. Skôr vytvorené objednávky a vyúčtovania sa spätne neprepočítavajú.',
+        ) +
+        (d.settingsUrl ? button(d.settingsUrl, 'Otvoriť nastavenia') : '') +
+        muted('Ďakujeme, že predávate cez Ticketio.'),
+    }),
+  }
+}
+
 export function bulkMessageEmail(d: {
   eventTitle: string
   subject: string

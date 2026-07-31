@@ -32,6 +32,10 @@ import {
 } from '../lib/nonprofit'
 import type { LegalForm, NonprofitStatus } from '../lib/nonprofit'
 import { canRequestFrom, canDecide, decisionPatch } from './nonprofit-rules'
+import { getEmailProvider } from '../lib/email'
+import { nonprofitStatusEmail } from '../lib/email/templates'
+import { formatEur } from '../lib/money'
+import { getEnv } from '../lib/env'
 
 export class NonprofitError extends Error {}
 
@@ -89,6 +93,31 @@ async function requireOrganizer(): Promise<Actor> {
 
 function canApply(actor: Actor): boolean {
   return !actor.impersonating && actor.role !== 'checkin'
+}
+
+/**
+ * Organizer notification address: contact_email, else an owner's auth email.
+ * Twin of the helper in admin-payouts.ts — same fallback, same reason.
+ */
+async function organizerEmail(organizerId: string): Promise<string | null> {
+  const db = serviceClient()
+  const { data: org } = await db
+    .from('organizers')
+    .select('contact_email')
+    .eq('id', organizerId)
+    .maybeSingle<{ contact_email: string | null }>()
+  if (org?.contact_email) return org.contact_email
+
+  const { data: owner } = await db
+    .from('organizer_members')
+    .select('user_id')
+    .eq('organizer_id', organizerId)
+    .eq('role', 'owner')
+    .limit(1)
+    .maybeSingle<{ user_id: string }>()
+  if (!owner) return null
+  const { data } = await db.auth.admin.getUserById(owner.user_id)
+  return data.user?.email ?? null
 }
 
 async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -276,20 +305,21 @@ export const decideNonprofitRequestFn = createServerFn({ method: 'POST' })
 
       const { data: before } = await db
         .from('organizers')
-        .select(SELECT_COLS)
+        .select(`name, ${SELECT_COLS}`)
         .eq('id', data.organizerId)
-        .maybeSingle<OrganizerNonprofitRow>()
+        .maybeSingle<OrganizerNonprofitRow & { name: string }>()
       // AdminError, not NonprofitError — runAdmin only turns the former into
       // { error } instead of a 500.
       if (!before) throw new AdminError('Organizátor sa nenašiel.')
       const open = canDecide(before.nonprofit_status)
       if (!open.ok) throw new AdminError(open.error)
 
+      const offer = await nonprofitOffer()
       const patch = decisionPatch({
         approve: data.approve,
         adminId: admin.userId,
         decidedAt: new Date().toISOString(),
-        offer: await nonprofitOffer(),
+        offer,
         reason: data.reason,
       })
 
@@ -313,6 +343,29 @@ export const decideNonprofitRequestFn = createServerFn({ method: 'POST' })
         },
         newValue: patch,
       })
+
+      // Tell the applicant. Best-effort, exactly like the payout decision: the
+      // decision is already committed and audited, so a mail failure must not
+      // roll it back or surface as a failed approval.
+      const to = await organizerEmail(data.organizerId)
+      if (to) {
+        const { subject, html } = nonprofitStatusEmail({
+          approved: data.approve,
+          organizerName: before.name,
+          percentLabel: `${String(offer.percent).replace('.', ',')} %`,
+          minLabel: formatEur(offer.minCents),
+          legalFormLabel: legalFormLabel(before.legal_form),
+          reason: data.reason ?? null,
+          settingsUrl: `${getEnv().APP_URL}/app/settings`,
+        })
+        await getEmailProvider()
+          .send({ to, subject, html })
+          .then(
+            () => undefined,
+            () => undefined,
+          )
+      }
+
       return { ok: true } as const
     })
   })
