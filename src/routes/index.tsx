@@ -6,7 +6,8 @@ import { listEventsFn } from '../server/fns'
 import { getPlatformSettingsFn } from '../server/platform-settings'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { formatSk } from '../lib/datetime'
-import { formatEur } from '../lib/money'
+import { formatEur, toCents } from '../lib/money'
+import { computeFee } from '../lib/pricing'
 import { LEGAL_FORMS } from '../lib/nonprofit'
 
 export const Route = createFileRoute('/')({
@@ -69,12 +70,20 @@ function Nav() {
 }
 
 /** Interaktívny prepočet výplaty organizátorovi (ilustračný, UI-only). */
-function PayoutCalculator() {
+function PayoutCalculator({
+  feePercent,
+  feeMinCents,
+}: {
+  feePercent: number
+  feeMinCents: number
+}) {
   const [price, setPrice] = useState(20)
   const [count, setCount] = useState(300)
 
   const gross = price * count
-  const feePerTicket = Math.max(price * 0.04, 0.4)
+  // Same rule as the real order pricing, so the illustration cannot drift from
+  // what a seller is actually charged.
+  const feePerTicket = computeFee(toCents(price), feePercent, feeMinCents) / 100
   const fee = feePerTicket * count
   const net = gross - fee
   const eur = (v: number) =>
@@ -506,7 +515,7 @@ function Landing() {
               <div className="mt-10 grid max-w-2xl grid-cols-3 gap-6 border-t border-ink-800 pt-8 md:mt-16">
                 <div>
                   <div className="font-display text-3xl font-bold text-ink-100">
-                    4 %
+                    {pctStr(settings.defaultFeePercent)} %
                   </div>
                   <div className="mt-1 text-xs text-ink-400">
                     Nízka provízia
@@ -712,7 +721,6 @@ function Landing() {
             <h2 className="mt-2 font-display text-4xl font-bold md:whitespace-nowrap md:text-5xl">
               Tri kroky k vypredanému eventu.
             </h2>
-
           </div>
           <div className="mt-16 grid gap-8 md:grid-cols-3">
             {[
@@ -755,7 +763,6 @@ function Landing() {
           </h2>
         </div>
 
-
         <div className="mt-14 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-center">
           <div
             className="relative overflow-hidden rounded-2xl border border-accent/30 p-10"
@@ -770,11 +777,14 @@ function Landing() {
                 Štandard
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-display text-7xl font-bold">4 %</span>
+                <span className="font-display text-7xl font-bold">
+                  {pctStr(settings.defaultFeePercent)} %
+                </span>
                 <span className="text-ink-400">z ceny vstupenky</span>
               </div>
               <p className="mt-2 text-ink-400">
-                alebo minimálne 0,40 € za predanú vstupenku
+                alebo minimálne {formatEur(settings.defaultFeeMinCents)} za
+                predanú vstupenku
               </p>
 
               <ul className="mt-8 space-y-3 text-sm">
@@ -809,7 +819,10 @@ function Landing() {
             </div>
           </div>
 
-          <PayoutCalculator />
+          <PayoutCalculator
+            feePercent={settings.defaultFeePercent}
+            feeMinCents={settings.defaultFeeMinCents}
+          />
         </div>
 
         {/* NONPROFIT */}
