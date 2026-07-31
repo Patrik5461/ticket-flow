@@ -103,7 +103,7 @@ function PayoutCalculator({
     })
 
   return (
-    <div className="card-surface p-7">
+    <div className="card-surface flex h-full flex-col p-8 sm:p-10">
       <div className="text-xs font-semibold uppercase tracking-widest text-accent">
         Kalkulačka výplaty
       </div>
