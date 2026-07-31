@@ -607,3 +607,26 @@ body {
 :root.light .app-shell .text-white:not([class*='bg-']) { color: var(--color-ink-100) !important; }
 
 
+
+/* Status/alert text in light mode: keep the deep Tailwind shades so tinted
+ * surfaces stay high-contrast instead of using the dark-mode pastels. */
+:root.light .app-shell .text-green-900,
+:root.light .app-shell .text-green-800 { color: #166534 !important; }
+:root.light .app-shell .text-green-700,
+:root.light .app-shell .text-green-600 { color: #15803d !important; }
+:root.light .app-shell .text-red-900,
+:root.light .app-shell .text-red-800 { color: #7f1d1d !important; }
+:root.light .app-shell .text-red-700,
+:root.light .app-shell .text-red-600 { color: #b91c1c !important; }
+:root.light .app-shell .text-amber-900,
+:root.light .app-shell .text-yellow-900,
+:root.light .app-shell .text-amber-800,
+:root.light .app-shell .text-yellow-800 { color: #78350f !important; }
+:root.light .app-shell .text-amber-700,
+:root.light .app-shell .text-yellow-700 { color: #b45309 !important; }
+:root.light .app-shell .text-blue-900,
+:root.light .app-shell .text-blue-800 { color: #1e3a8a !important; }
+:root.light .app-shell .text-blue-700 { color: #1d4ed8 !important; }
+:root.light .app-shell .text-purple-900,
+:root.light .app-shell .text-purple-800 { color: #581c87 !important; }
+:root.light .app-shell .text-purple-700 { color: #7e22ce !important; }
