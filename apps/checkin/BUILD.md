@@ -1,9 +1,13 @@
 # Ticketio Scan — build & distribúcia
 
 Kompletný postup na zostavenie a vydanie appky pre iOS (TestFlight) a Android
-(APK / Play Console). Verzia **v1 je online-only** (offline režim je odložený na
-v2). Všetky natívne kroky sa robia lokálne — potrebuješ macOS + Xcode (iOS) a
-Android Studio + JDK 17 (Android).
+(APK / Play Console). Všetky natívne kroky sa robia lokálne — potrebuješ
+macOS + Xcode (iOS) a Android Studio + JDK 17 (Android).
+
+**Offline režim je súčasťou appky** (sťahovanie zoznamu vstupeniek, skenovanie
+bez siete, fronta skenov so synchronizáciou). Ako sa používa a aké má
+prevádzkové limity je v `README.md`, sekcia „Offline režim — prevádzkové
+odporúčania"; čo z neho vyplýva pre build a vydanie je nižšie v časti 4c.
 
 ---
 
@@ -116,6 +120,35 @@ a v `android/app/src/main/res/values/styles.xml` maj `windowBackground` = `#0909
 
 ---
 
+## 4c. Offline režim — čo z neho vyplýva pre build a vydanie
+
+Funkčne je popísaný v `README.md` (bloky 3a–3e). Sem patria len veci, ktoré sa
+týkajú zostavenia a distribúcie:
+
+- **Žiadne nové natívne povolenia.** Offline dáta ležia v
+  `@capacitor/preferences` (iOS UserDefaults / Android SharedPreferences, v
+  sandboxe appky), nie v localStorage webview. Kamera ostáva jediné povolenie,
+  ktoré treba deklarovať (časť 4).
+- **`npx cap sync` je po zmene závislostí povinný**, nie voliteľný — plugin
+  `@capacitor/preferences` sa musí zaregistrovať v natívnom projekte. Bez toho
+  build prejde, ale sťahovanie offline dát na zariadení zlyhá. `npm run sync`
+  robí build aj sync naraz.
+- **Súkromné údaje v deklaráciách pre obchody.** Bundle obsahuje mená držiteľov
+  vstupeniek — v App Store Connect (App Privacy) aj v Play Console (Data safety)
+  to treba priznať ako údaje uložené v zariadení. **Nikdy neobsahuje
+  `qr_secret`** — len SHA-256 digest tokenu každej vstupenky, takže z ukradnutého
+  telefónu sa platná vstupenka vyrobiť nedá. Dáta sa mažú pri odhlásení, ručne
+  po podujatí a automaticky **24 h po skončení** podujatia (`RETENTION_MS` v
+  `src/lib/offline.ts`).
+- **Test pred vydaním sa nedá odbiť simulátorom bez siete.** Minimálny scenár na
+  reálnom zariadení: stiahni offline dáta → zapni letový režim → naskenuj platnú
+  vstupenku (musí prejsť) → naskenuj ju druhýkrát (musí hlásiť už použitú) →
+  naskenuj vstupenku predanú až po stiahnutí (musí hlásiť „Neznáma vstupenka —
+  over online", **nie** neplatnú) → vypni letový režim → over, že sa fronta
+  odoslala a prípadné konflikty sa zobrazili.
+
+---
+
 ## 5. iOS → TestFlight
 
 1. `npm run sync && npm run open:ios`
@@ -194,8 +227,17 @@ Na zariadení povoľ „Inštalovať neznáme aplikácie".
 - **Android: skener chvíľu „nič nevidí" po inštalácii:** chýba `meta-data`
   DEPENDENCIES (časť 4) — MLKit model sa sťahoval za behu. Po doplnení sa
   predinštaluje.
-- **„Neprihlásený" pri skenovaní:** vypršala session bez siete — prihlás sa
-  znova (v1 je online-only). Token sa inak auto-obnovuje.
+- **„Neprihlásený" pri skenovaní:** server odmietol token — appka sa odhlási a
+  vráti na prihlásenie. Token sa inak auto-obnovuje a **výpadok siete sám o sebe
+  odhlásenie nespôsobí** (skener vtedy prepne na stiahnuté dáta).
+  > **Pozor:** odhlásenie — aj toto automatické — **zmaže všetky offline dáta aj
+  > neodoslanú frontu skenov** (`clearAllOffline` na `SIGNED_OUT` v
+  > `src/App.tsx`). Pri ručnom odhlásení appka najprv varuje, ak fronta nie je
+  > prázdna; pri tomto automatickom nie. Ak sa to stane počas akcie, po
+  > prihlásení stiahni offline dáta znova — skeny, ktoré dovtedy neodišli na
+  > server, sú preč.
+- **Offline sťahovanie zlyhá, hoci sieť ide:** chýbajúci natívny plugin — spusti
+  `npm run sync` a rebuildni (časť 4c).
 - **Biely pruh v safe area (hore/dole):** natívne pozadie webview, nie CSS —
   pozri časť 4b. Ak sa vráti, over, že storyboard ukazuje na `MainViewController`
   a že `contentInset` je `never`.
