@@ -884,7 +884,7 @@ function Landing() {
           }}
         >
           <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
-          <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+          <div className="relative grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-start">
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-accent">
                 Pre neziskovky
