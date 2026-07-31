@@ -192,18 +192,19 @@ function PayoutCalculator({
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl bg-accent/10 px-4 py-3 text-xs text-ink-300">
+      <div className="mt-6 rounded-xl border border-accent/30 bg-accent/15 px-4 py-3 text-xs font-medium text-ink-100">
         Vyplácame priebežne počas predaja — nečakáte na koniec podujatia.
       </div>
 
       {/* The lower rate is not self-service; say so where it is being shown. */}
       {nonprofit && (
-        <p className="mt-3 text-xs text-ink-400">
+        <p className="mt-3 text-xs leading-relaxed text-ink-200">
           Neziskovú sadzbu aktivujeme po overení právnej formy. Požiadať sa dá
           pri registrácii alebo neskôr v nastaveniach — do schválenia platí
           štandardná provízia.
         </p>
       )}
+
     </div>
   )
 }
