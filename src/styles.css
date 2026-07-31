@@ -393,18 +393,44 @@ body {
 
 .app-shell .bg-green-100,
 .app-shell .bg-green-50 { background-color: color-mix(in oklab, var(--color-accent) 15%, transparent) !important; }
+.app-shell .text-green-900,
+.app-shell .text-green-800,
 .app-shell .text-green-700,
 .app-shell .text-green-600 { color: var(--color-accent) !important; }
+.app-shell .border-green-200,
+.app-shell .border-green-300 { border-color: color-mix(in oklab, var(--color-accent) 40%, transparent) !important; }
 .app-shell .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; }
 .app-shell .bg-red-100 { background-color: rgba(239, 68, 68, 0.15) !important; }
+.app-shell .text-red-900,
+.app-shell .text-red-800,
 .app-shell .text-red-700,
 .app-shell .text-red-600 { color: #fca5a5 !important; }
 .app-shell .border-red-200,
 .app-shell .border-red-300 { border-color: rgba(239, 68, 68, 0.35) !important; }
 .app-shell .bg-yellow-50 { background-color: rgba(234, 179, 8, 0.1) !important; }
-.app-shell .text-yellow-700 { color: #fcd34d !important; }
+.app-shell .bg-amber-50 { background-color: rgba(245, 158, 11, 0.12) !important; }
+.app-shell .bg-amber-100 { background-color: rgba(245, 158, 11, 0.18) !important; }
+.app-shell .text-yellow-900,
+.app-shell .text-yellow-800,
+.app-shell .text-yellow-700,
+.app-shell .text-amber-900,
+.app-shell .text-amber-800,
+.app-shell .text-amber-700 { color: #fcd34d !important; }
+.app-shell .border-amber-200,
+.app-shell .border-amber-300,
+.app-shell .border-yellow-200 { border-color: rgba(245, 158, 11, 0.35) !important; }
 .app-shell .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1) !important; }
+.app-shell .text-blue-900,
+.app-shell .text-blue-800,
 .app-shell .text-blue-700 { color: #93c5fd !important; }
+.app-shell .border-blue-200 { border-color: rgba(59, 130, 246, 0.35) !important; }
+.app-shell .bg-purple-50 { background-color: rgba(168, 85, 247, 0.12) !important; }
+.app-shell .bg-purple-100 { background-color: rgba(168, 85, 247, 0.18) !important; }
+.app-shell .text-purple-900,
+.app-shell .text-purple-800,
+.app-shell .text-purple-700 { color: #d8b4fe !important; }
+.app-shell .border-purple-200 { border-color: rgba(168, 85, 247, 0.35) !important; }
+
 
 .app-shell .hover\:bg-gray-50:hover,
 .app-shell .hover\:bg-gray-100:hover { background-color: var(--color-ink-700) !important; }
@@ -581,3 +607,26 @@ body {
 :root.light .app-shell .text-white:not([class*='bg-']) { color: var(--color-ink-100) !important; }
 
 
+
+/* Status/alert text in light mode: keep the deep Tailwind shades so tinted
+ * surfaces stay high-contrast instead of using the dark-mode pastels. */
+:root.light .app-shell .text-green-900,
+:root.light .app-shell .text-green-800 { color: #166534 !important; }
+:root.light .app-shell .text-green-700,
+:root.light .app-shell .text-green-600 { color: #15803d !important; }
+:root.light .app-shell .text-red-900,
+:root.light .app-shell .text-red-800 { color: #7f1d1d !important; }
+:root.light .app-shell .text-red-700,
+:root.light .app-shell .text-red-600 { color: #b91c1c !important; }
+:root.light .app-shell .text-amber-900,
+:root.light .app-shell .text-yellow-900,
+:root.light .app-shell .text-amber-800,
+:root.light .app-shell .text-yellow-800 { color: #78350f !important; }
+:root.light .app-shell .text-amber-700,
+:root.light .app-shell .text-yellow-700 { color: #b45309 !important; }
+:root.light .app-shell .text-blue-900,
+:root.light .app-shell .text-blue-800 { color: #1e3a8a !important; }
+:root.light .app-shell .text-blue-700 { color: #1d4ed8 !important; }
+:root.light .app-shell .text-purple-900,
+:root.light .app-shell .text-purple-800 { color: #581c87 !important; }
+:root.light .app-shell .text-purple-700 { color: #7e22ce !important; }
