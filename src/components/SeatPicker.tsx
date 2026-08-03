@@ -2,14 +2,53 @@ import { useEffect, useMemo, useState } from 'react'
 import type { EventSeatMap, BuyerSeat } from '../server/seat-map'
 import {
   SEAT_R,
-  objectCenter,
   objectPoints,
   seatHitRadius,
   zoomPercentOf,
 } from '../lib/seating'
 import type { MapObject } from '../lib/seating'
+import {
+  AreaHatchPattern,
+  MapObjectShape,
+  isStandingArea,
+} from './MapObjectShape'
 import { useCanvasViewport } from '../lib/use-canvas-viewport'
 import { formatEur } from '../lib/money'
+
+/**
+ * A wheelchair place, marked by shape (square + glyph) because colour already
+ * codes availability and price category.
+ */
+function WheelchairGlyph({
+  x,
+  y,
+  r,
+}: {
+  x: number
+  y: number
+  r: number
+}) {
+  const s = r * 1.15
+  return (
+    <g
+      transform={`translate(${x - s / 2} ${y - s / 2}) scale(${s / 24})`}
+      style={{ pointerEvents: 'none' }}
+    >
+      <g
+        fill="none"
+        stroke="#fff"
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx={11} cy={3.5} r={2.2} />
+        <path d="M10 8v6h6l3 6" />
+        <path d="M16 14a5.5 5.5 0 1 1-6-4" />
+      </g>
+    </g>
+  )
+}
+
 
 /**
  * Buyer seat picker. The map is the primary control: it pans, zooms on the
