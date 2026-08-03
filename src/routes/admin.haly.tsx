@@ -7,8 +7,14 @@ import {
   adminSaveSeatMapFn,
   adminDeleteSeatMapFn,
   adminUpdateVenueFn,
+  adminUnlockVenueFn,
+  adminVenueHistoryFn,
 } from '../server/admin-venues'
-import type { AdminVenueList, AdminVenueDetail } from '../server/admin-venues'
+import type {
+  AdminVenueList,
+  AdminVenueDetail,
+  AdminVenueHistoryEntry,
+} from '../server/admin-venues'
 import { SeatMapEditor } from '../components/SeatMapEditor'
 import type { SeatMapEditorApi } from '../components/SeatMapEditor'
 
@@ -32,7 +38,19 @@ const adminApi: SeatMapEditorApi = {
 }
 
 const IMPORT_NOTE =
-  'Zmena platí hneď pre všetkých organizátorov. Opätovné spustenie importu (scripts/import-halls.ts) ju ale prepíše — trvalú opravu treba spraviť aj v zdrojovom exporte.'
+  'Zmena platí hneď pre všetkých organizátorov a je trvalá: po uložení sa hala uzamkne, takže ju ďalší import z MaxiTicketu neprepíše.'
+
+/** Bratislava time, the way the rest of the admin shows timestamps. */
+function formatAt(iso: string): string {
+  return new Date(iso).toLocaleString('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 function AdminVenuesPage() {
   const initial = Route.useLoaderData()
@@ -138,13 +156,24 @@ function AdminVenuesPage() {
                   {v.seatCount.toLocaleString('sk-SK')}
                 </td>
                 <td className="px-4 py-3">
-                  {v.inUseMaps > 0 ? (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {v.inUseMaps} mapa v podujatí
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">voľná</span>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {v.importLockedAt && (
+                      <span
+                        title={`Ručne upravená ${formatAt(v.importLockedAt)} — import ju preskakuje`}
+                        className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700"
+                      >
+                        🔒 upravená
+                      </span>
+                    )}
+                    {v.inUseMaps > 0 && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        {v.inUseMaps} mapa v podujatí
+                      </span>
+                    )}
+                    {!v.importLockedAt && v.inUseMaps === 0 && (
+                      <span className="text-xs text-gray-400">voľná</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
@@ -182,6 +211,8 @@ function VenueDetail({
   const [address, setAddress] = useState('')
   const [editing, setEditing] = useState<{ id: string | null } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
+  const [history, setHistory] = useState<AdminVenueHistoryEntry[]>([])
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -192,10 +223,35 @@ function VenueDetail({
     setVenue(res)
     setName(res.name)
     setAddress(res.address ?? '')
+    const hist = await adminVenueHistoryFn({ data: { id: venueId } })
+    if (!('error' in hist)) setHistory(hist)
   }
   useEffect(() => {
     void load()
   }, [venueId])
+
+  const unlock = async () => {
+    if (
+      !confirm(
+        'Vrátiť halu pod import?\n\nPri najbližšom spustení importu sa prepíše z MaxiTicket exportu a ručné úpravy sa stratia.',
+      )
+    ) {
+      return
+    }
+    setUnlocking(true)
+    setNote(null)
+    try {
+      const res = await adminUnlockVenueFn({ data: { id: venueId } })
+      if ('error' in res) return setError(res.error)
+      setError(null)
+      setNote('Hala je opäť pod importom.')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uvoľnenie zlyhalo.')
+    } finally {
+      setUnlocking(false)
+    }
+  }
 
   const saveVenue = async () => {
     setSaving(true)
@@ -289,6 +345,31 @@ function VenueDetail({
                 Zdroj importu: {venue.externalRef}
               </p>
             )}
+
+            {venue.importLockedAt ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                <p className="text-sm text-indigo-900">
+                  <span className="font-medium">
+                    🔒 Ručne upravená {formatAt(venue.importLockedAt)}.
+                  </span>{' '}
+                  Import z MaxiTicketu túto halu preskakuje, takže úpravy sú
+                  trvalé. Uvoľnením ju vrátiš pod import — pri najbližšom behu
+                  sa prepíše z exportu a tieto zmeny sa stratia.
+                </p>
+                <button
+                  onClick={unlock}
+                  disabled={unlocking}
+                  className="shrink-0 rounded-md border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  {unlocking ? 'Uvoľňujem…' : 'Vrátiť pod import'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Halu spravuje import z MaxiTicketu. Prvou úpravou sa uzamkne a
+                ďalší import ju už neprepíše.
+              </p>
+            )}
           </section>
 
           <section className="rounded-lg border bg-white p-4">
@@ -316,6 +397,14 @@ function VenueDetail({
                         {m.seatCount.toLocaleString('sk-SK')} sedadiel ·{' '}
                         {m.objectCount} objektov
                       </span>
+                      {m.importLockedAt && (
+                        <span
+                          title={`Ručne upravená ${formatAt(m.importLockedAt)}`}
+                          className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700"
+                        >
+                          🔒 upravená
+                        </span>
+                      )}
                       {m.inUse && (
                         <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                           používa sa v podujatí
@@ -331,6 +420,36 @@ function VenueDetail({
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+
+          <section className="rounded-lg border bg-white p-4">
+            <h2 className="mb-1 text-lg font-semibold">História úprav</h2>
+            <p className="mb-3 text-xs text-gray-500">
+              Kto a kedy halu menil. Vidno ju len tu v admine — organizátorom sa
+              nezobrazuje nikde.
+            </p>
+            {history.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Zatiaľ žiadne úpravy — hala je presne taká, aká prišla z importu.
+              </p>
+            ) : (
+              <ol className="divide-y text-sm">
+                {history.map((h) => (
+                  <li key={h.id} className="flex flex-wrap gap-x-3 py-2">
+                    <span className="w-36 shrink-0 tabular-nums text-xs text-gray-400">
+                      {formatAt(h.at)}
+                    </span>
+                    <span className="font-medium">{h.label}</span>
+                    {h.detail && (
+                      <span className="text-gray-600">{h.detail}</span>
+                    )}
+                    <span className="ml-auto text-xs text-gray-400">
+                      {h.actorEmail}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             )}
           </section>
         </>

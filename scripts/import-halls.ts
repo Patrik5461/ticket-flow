@@ -4,7 +4,13 @@
  * Input is the export directory: one subdirectory per hall, each holding a
  * `hall.json` (485 of them in the reference export). Imported halls land in the
  * shared venue library — organizer_id null, is_public true — so every organizer
- * can pick them and nobody can edit them (see 20260803114741_shared_venue_library).
+ * can pick them and none of them can edit one (see
+ * 20260803114741_shared_venue_library). Repairs go through /admin/haly.
+ *
+ * Re-running this is idempotent and rewrites in place, WITH ONE EXCEPTION: a
+ * hall or map carrying `import_locked_at` was corrected by hand in the admin
+ * and is left exactly as it is, seats included. The run lists what it skipped.
+ * To let a hall track the export again, release the lock in /admin/haly.
  *
  * Run (dry run, no DB needed):
  *   node scripts/import-halls.ts ~/maxiticket-export-hall
@@ -1581,16 +1587,26 @@ function connect(): Db {
  * insert or update. Only `seats` is upserted, on its full table constraint,
  * which infers fine.
  */
-async function upsertVenue(db: Db, hall: ImportHall): Promise<string> {
+/**
+ * A hall an admin has corrected by hand in /admin/haly carries
+ * `import_locked_at`, and this import leaves it exactly as it is. Without that
+ * the re-run would silently revert the fix — the whole reason the flag exists
+ * (see 20260803210000_library_import_lock).
+ */
+async function upsertVenue(
+  db: Db,
+  hall: ImportHall,
+): Promise<{ id: string; locked: boolean }> {
   const { data: existing, error: selErr } = await db
     .from('venues')
-    .select('id')
+    .select('id, import_locked_at')
     .eq('external_ref', hall.venueRef)
     .is('organizer_id', null)
-    .maybeSingle<{ id: string }>()
+    .maybeSingle<{ id: string; import_locked_at: string | null }>()
   if (selErr) throw new HallError(`čítanie venue zlyhalo: ${selErr.message}`)
 
   if (existing) {
+    if (existing.import_locked_at) return { id: existing.id, locked: true }
     const { error } = await db
       .from('venues')
       .update({
@@ -1601,7 +1617,7 @@ async function upsertVenue(db: Db, hall: ImportHall): Promise<string> {
       })
       .eq('id', existing.id)
     if (error) throw new HallError(`update venue zlyhal: ${error.message}`)
-    return existing.id
+    return { id: existing.id, locked: false }
   }
 
   const { data: created, error } = await db
@@ -1618,23 +1634,29 @@ async function upsertVenue(db: Db, hall: ImportHall): Promise<string> {
   if (error || !created) {
     throw new HallError(`insert venue zlyhal: ${error?.message ?? 'bez id'}`)
   }
-  return created.id
+  return { id: created.id, locked: false }
 }
 
 async function upsertSeatMap(
   db: Db,
   venueId: string,
   hall: ImportHall,
-): Promise<{ id: string; existed: boolean }> {
+): Promise<{ id: string; existed: boolean; locked: boolean }> {
   const { data: existing, error: selErr } = await db
     .from('seat_maps')
-    .select('id')
+    .select('id, import_locked_at')
     .eq('venue_id', venueId)
     .eq('external_ref', hall.mapRef)
-    .maybeSingle<{ id: string }>()
+    .maybeSingle<{ id: string; import_locked_at: string | null }>()
   if (selErr) throw new HallError(`čítanie mapy zlyhalo: ${selErr.message}`)
 
   if (existing) {
+    // Hand-corrected: keep the layout AND the seats. Returning before the
+    // event_seat_maps check is deliberate — a locked map is not touched at all,
+    // so whether an event uses it is not this run's business.
+    if (existing.import_locked_at) {
+      return { id: existing.id, existed: true, locked: true }
+    }
     // A map already bound to an event owns live event_seats; rewriting its
     // seats would cascade them away, taking sold tickets with them.
     const { count } = await db
@@ -1655,7 +1677,7 @@ async function upsertSeatMap(
       })
       .eq('id', existing.id)
     if (error) throw new HallError(`update mapy zlyhal: ${error.message}`)
-    return { id: existing.id, existed: true }
+    return { id: existing.id, existed: true, locked: false }
   }
 
   const { data: created, error } = await db
@@ -1671,7 +1693,7 @@ async function upsertSeatMap(
   if (error || !created) {
     throw new HallError(`insert mapy zlyhal: ${error?.message ?? 'bez id'}`)
   }
-  return { id: created.id, existed: false }
+  return { id: created.id, existed: false, locked: false }
 }
 
 async function writeSeats(
@@ -1709,14 +1731,26 @@ async function writeSeats(
 async function importHall(
   db: Db,
   hall: ImportHall,
-): Promise<{ venueId: string; seatMapId: string; what: string }> {
-  const venueId = await upsertVenue(db, hall)
-  const map = await upsertSeatMap(db, venueId, hall)
-  await writeSeats(db, map.id, hall, map.existed)
+): Promise<{
+  venueId: string
+  seatMapId: string
+  what: string
+  locked: boolean
+}> {
+  const venue = await upsertVenue(db, hall)
+  const map = await upsertSeatMap(db, venue.id, hall)
+  // A locked map keeps its seats too: writeSeats would delete and re-insert
+  // them, which is exactly the revert the lock exists to prevent.
+  if (!map.locked) await writeSeats(db, map.id, hall, map.existed)
   return {
-    venueId,
+    venueId: venue.id,
     seatMapId: map.id,
-    what: map.existed ? 'aktualizovaná' : 'vytvorená',
+    what: map.locked
+      ? 'ponechaná (ručne upravená)'
+      : map.existed
+        ? 'aktualizovaná'
+        : 'vytvorená',
+    locked: map.locked || venue.locked,
   }
 }
 
@@ -1855,6 +1889,7 @@ async function main(): Promise<void> {
   }[] = []
   let spreadGrandTotal = 0
 
+  let lockedHalls: string[] = []
   let processed = 0
   for (const id of pending) {
     // Pause between batches so a 456-hall run does not hammer PostgREST for
@@ -1922,6 +1957,7 @@ async function main(): Promise<void> {
     if (db) {
       try {
         const result = await importHall(db, hall)
+        if (result.locked) lockedHalls.push(`${id} — ${hall.venueName}`)
         appendProgress(opts.log, {
           id,
           venueId: result.venueId,
@@ -2001,6 +2037,12 @@ async function main(): Promise<void> {
     console.log(
       `  ! nad limit: organizátor si takú halu skopíruje, ale uložiť ju už nedokáže`,
     )
+  }
+  if (lockedHalls.length > 0) {
+    console.log(
+      `\nPonechané bez zmeny, lebo sú ručne upravené v admine (${lockedHalls.length}):`,
+    )
+    for (const h of lockedHalls) console.log(`  \u{1F512} ${h}`)
   }
   console.log(`Rozostrených nastackovaných miest: ${spreadGrandTotal}`)
   const wheelchairTotal = wheelchairHalls.reduce((n, w) => n + w.seats, 0)

@@ -25,6 +25,10 @@ import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
 import { requirePlatformAdmin, runAdmin, writeAuditLog, AdminError } from './admin'
 import { migrateLayout } from '../lib/seating'
+import {
+  AUDIT_ACTION_LABEL,
+  summarizeAuditChange,
+} from '../lib/audit-summary'
 import { filterVenues, isLibraryVenue } from '../lib/venue-library'
 import { saveSeatMapInput, MAX_OBJECTS } from './venues'
 import type { SeatMapDetail } from './venues'
@@ -46,6 +50,8 @@ export interface AdminVenueRow {
   seatCount: number
   /** Maps of this hall that an event already uses — those cannot be rewritten. */
   inUseMaps: number
+  /** Set once an admin corrected the hall; the importer then skips it. */
+  importLockedAt: string | null
 }
 
 export interface AdminVenueList {
@@ -63,16 +69,20 @@ async function libraryVenue(venueId: string): Promise<{
   name: string
   address: string | null
   externalRef: string | null
+  importLockedAt: string | null
 }> {
   const { data } = await serviceClient()
     .from('venues')
-    .select('id, name, address, external_ref, organizer_id, is_public')
+    .select(
+      'id, name, address, external_ref, import_locked_at, organizer_id, is_public',
+    )
     .eq('id', venueId)
     .maybeSingle<{
       id: string
       name: string
       address: string | null
       external_ref: string | null
+      import_locked_at: string | null
       organizer_id: string | null
       is_public: boolean
     }>()
@@ -87,6 +97,36 @@ async function libraryVenue(venueId: string): Promise<{
     name: data.name,
     address: data.address,
     externalRef: data.external_ref,
+    importLockedAt: data.import_locked_at,
+  }
+}
+
+/**
+ * Mark a hall (and optionally one of its maps) as hand-corrected, so the next
+ * run of scripts/import-halls.ts leaves it alone. Called on every admin write —
+ * a fix that the importer can revert is not a fix.
+ *
+ * Idempotent: the timestamp is the FIRST correction, not the latest one. "Since
+ * when has this diverged from the export" is the useful question; "when was it
+ * last touched" is already in audit_log and in updated_at.
+ */
+async function lockFromImport(
+  venueId: string,
+  seatMapId?: string | null,
+): Promise<void> {
+  const db = serviceClient()
+  const now = new Date().toISOString()
+  await db
+    .from('venues')
+    .update({ import_locked_at: now })
+    .eq('id', venueId)
+    .is('import_locked_at', null)
+  if (seatMapId) {
+    await db
+      .from('seat_maps')
+      .update({ import_locked_at: now })
+      .eq('id', seatMapId)
+      .is('import_locked_at', null)
   }
 }
 
@@ -140,7 +180,7 @@ export const adminListVenuesFn = createServerFn({ method: 'GET' })
       const db = serviceClient()
       const { data: all } = await db
         .from('venues')
-        .select('id, name, address, external_ref')
+        .select('id, name, address, external_ref, import_locked_at')
         .is('organizer_id', null)
         .eq('is_public', true)
         .order('name', { ascending: true })
@@ -151,6 +191,7 @@ export const adminListVenuesFn = createServerFn({ method: 'GET' })
             name: string
             address: string | null
             external_ref: string | null
+            import_locked_at: string | null
           }[]
         >()
       const matched = data.q
@@ -205,6 +246,7 @@ export const adminListVenuesFn = createServerFn({ method: 'GET' })
             mapCount: own.length,
             seatCount: own.reduce((n, m) => n + (seatCounts.get(m.id) ?? 0), 0),
             inUseMaps: own.filter((m) => inUse.has(m.id)).length,
+            importLockedAt: v.import_locked_at,
           }
         }),
         total: matched.length,
@@ -217,12 +259,15 @@ export interface AdminVenueDetail {
   name: string
   address: string | null
   externalRef: string | null
+  /** Set once an admin corrected this hall; the importer then skips it. */
+  importLockedAt: string | null
   maps: {
     id: string
     name: string
     seatCount: number
     objectCount: number
     inUse: boolean
+    importLockedAt: string | null
   }[]
 }
 
@@ -235,10 +280,17 @@ export const adminGetVenueFn = createServerFn({ method: 'GET' })
       const db = serviceClient()
       const { data: maps } = await db
         .from('seat_maps')
-        .select('id, name, layout')
+        .select('id, name, layout, import_locked_at')
         .eq('venue_id', data.id)
         .order('name', { ascending: true })
-        .returns<{ id: string; name: string; layout: unknown }[]>()
+        .returns<
+          {
+            id: string
+            name: string
+            layout: unknown
+            import_locked_at: string | null
+          }[]
+        >()
 
       const out: AdminVenueDetail['maps'] = []
       for (const m of maps ?? []) {
@@ -257,6 +309,7 @@ export const adminGetVenueFn = createServerFn({ method: 'GET' })
           seatCount: seatCount ?? 0,
           objectCount: layout.levels.reduce((n, lv) => n + lv.objects.length, 0),
           inUse: (uses ?? 0) > 0,
+          importLockedAt: m.import_locked_at,
         })
       }
       return {
@@ -264,6 +317,7 @@ export const adminGetVenueFn = createServerFn({ method: 'GET' })
         name: venue.name,
         address: venue.address,
         externalRef: venue.externalRef,
+        importLockedAt: venue.importLockedAt,
         maps: out,
       }
     })
@@ -420,6 +474,7 @@ export const adminSaveSeatMapFn = createServerFn({ method: 'POST' })
         }
       }
 
+      await lockFromImport(data.venueId, mapId)
       await writeAuditLog({
         actorId: admin.userId,
         action: before ? 'admin.venue_map_update' : 'admin.venue_map_create',
@@ -451,6 +506,9 @@ export const adminDeleteSeatMapFn = createServerFn({ method: 'POST' })
         .delete()
         .eq('id', data.seatMapId)
       if (error) throw new AdminError('Mapu sa nepodarilo zmazať.')
+      // Lock the hall, not the map — the map is gone. Without this the next
+      // import would re-create it from the export and undo the deletion.
+      await lockFromImport(map.venueId)
       await writeAuditLog({
         actorId: admin.userId,
         action: 'admin.venue_map_delete',
@@ -462,6 +520,120 @@ export const adminDeleteSeatMapFn = createServerFn({ method: 'POST' })
       return { ok: true as const }
     })
   })
+
+/**
+ * Give a hall back to the importer: the next run overwrites its name, address,
+ * layout and seats from the export again, and the hand corrections are gone.
+ * The only way out of the lock, and the reason it is a separate, named action
+ * rather than a checkbox on the save form.
+ */
+export const adminUnlockVenueFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true } | { error: string }> => {
+    return runAdmin(async () => {
+      const admin = await requirePlatformAdmin()
+      const venue = await libraryVenue(data.id)
+      const db = serviceClient()
+      const { error } = await db
+        .from('venues')
+        .update({ import_locked_at: null })
+        .eq('id', data.id)
+      if (error) throw new AdminError('Zámok sa nepodarilo uvoľniť.')
+      const { error: mapErr } = await db
+        .from('seat_maps')
+        .update({ import_locked_at: null })
+        .eq('venue_id', data.id)
+      if (mapErr) throw new AdminError('Zámok máp sa nepodarilo uvoľniť.')
+      await writeAuditLog({
+        actorId: admin.userId,
+        action: 'admin.venue_import_unlock',
+        entityType: 'venue',
+        entityId: data.id,
+        oldValue: { importLockedAt: venue.importLockedAt },
+        newValue: { importLockedAt: null },
+      })
+      return { ok: true as const }
+    })
+  })
+
+export interface AdminVenueHistoryEntry {
+  id: string
+  at: string
+  /** What happened, in Slovak — the raw action code stays server-side. */
+  label: string
+  /** What actually changed, e.g. „sedadlá 390 → 388". Empty when there is none. */
+  detail: string
+  actorEmail: string
+}
+
+/**
+ * What has been done to this hall and its maps, newest first.
+ *
+ * Read straight out of audit_log — the trail every mutation in this module
+ * already writes — rather than a second table that could disagree with it.
+ * audit_log has RLS on and NO policies at all, so it is service-role only:
+ * this history cannot leak to an organizer even if a route were mis-wired.
+ */
+export const adminVenueHistoryFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z
+      .object({ id: z.string().uuid(), limit: z.number().int().min(1).max(200).default(50) })
+      .parse(d),
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<AdminVenueHistoryEntry[] | { error: string }> => {
+      return runAdmin(async () => {
+        await requirePlatformAdmin()
+        await libraryVenue(data.id)
+        const db = serviceClient()
+
+        // A map that was deleted still has history, so the ids come from the
+        // trail itself as well as from the maps that exist right now.
+        const { data: maps } = await db
+          .from('seat_maps')
+          .select('id')
+          .eq('venue_id', data.id)
+          .returns<{ id: string }[]>()
+        const ids = [data.id, ...(maps ?? []).map((m) => m.id)]
+        const { data: rows } = await db
+          .from('audit_log')
+          .select('id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at')
+          .in('entity_id', ids)
+          .order('created_at', { ascending: false })
+          .limit(data.limit)
+          .returns<
+            {
+              id: string
+              actor_id: string | null
+              action: string
+              entity_type: string
+              entity_id: string | null
+              old_value: unknown
+              new_value: unknown
+              created_at: string
+            }[]
+          >()
+
+        // Resolve each actor once; a hall's history is a handful of admins.
+        const emails = new Map<string, string>()
+        for (const r of rows ?? []) {
+          if (!r.actor_id || emails.has(r.actor_id)) continue
+          const { data: user } = await db.auth.admin.getUserById(r.actor_id)
+          emails.set(r.actor_id, user.user?.email ?? '—')
+        }
+
+        return (rows ?? []).map((r) => ({
+          id: r.id,
+          at: r.created_at,
+          label: AUDIT_ACTION_LABEL[r.action] ?? r.action,
+          detail: summarizeAuditChange(r.old_value, r.new_value),
+          actorEmail: r.actor_id ? (emails.get(r.actor_id) ?? '—') : 'systém',
+        }))
+      })
+    },
+  )
 
 /** Rename a library hall / fix its address. */
 export const adminUpdateVenueFn = createServerFn({ method: 'POST' })
@@ -487,6 +659,7 @@ export const adminUpdateVenueFn = createServerFn({ method: 'POST' })
         })
         .eq('id', data.id)
       if (error) throw new AdminError('Halu sa nepodarilo uložiť.')
+      await lockFromImport(data.id)
       await writeAuditLog({
         actorId: admin.userId,
         action: 'admin.venue_update',
