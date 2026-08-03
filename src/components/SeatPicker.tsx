@@ -672,6 +672,10 @@ function SelectedSeats({
             <li key={id} className="flex items-center justify-between gap-2">
               <span className="min-w-0 truncate text-ink-300">
                 {s.sector} · rad {s.rowLabel} · miesto {s.seatNumber}
+                {s.seatType === 'wheelchair' && (
+                  <span className="ml-1 text-sky-400">· bezbariérové</span>
+                )}
+
                 <span className="ml-1 text-ink-500">
                   {nameOf.get(s.ticketTypeId) ?? ''}
                 </span>
