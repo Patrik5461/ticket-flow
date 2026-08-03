@@ -32,7 +32,12 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - **Ticketio je cloud projekt `upymwphlrkxcegnyslky`** (`SUPABASE_URL` v `~/ticketio-secrets.env`). Overuj ref, nie meno.
 - **Pripojený MCP server `claude.ai Supabase Tendrik` mieri na `tmssxnluhjhzqmutflbl` — to je Tendrik, CUDZÍ projekt.** Je to connector z claude.ai účtu (nie `.mcp.json`, nie `mcpServers` v `~/.claude.json`), takže sa dedí do každej session bez ohľadu na adresár a v Ticketiu vyzerá dostupne. **Nikdy cezeň nič proti Ticketiu nespúšťaj** — `execute_sql` by šiel do Tendriku. Ak MCP potrebuješ, najprv over ref (`get_project_url`); ak nesedí, nepoužiť.
 - Ticketio DB sa sonduje **service-role kľúčom cez PostgREST**: `node --env-file=~/ticketio-secrets.env <skript>` a `fetch(`${SUPABASE_URL}/rest/v1/…`)` s hlavičkami `apikey` + `Authorization: Bearer`. Service role obchádza RLS aj granty, takže vidí aj server-only tabuľky (`app_settings`, `email_jobs`).
-- Čo takto **nevidno**: schéma `cron` (PostgREST ju nevystavuje), čiže existenciu pg_cron jobov sa cez REST overiť nedá — len nepriamo z toho, že migrácia prebehla celá. Na priamy pohľad treba SQL editor v Supabase dashboarde (CLI ani `psql` na VM nie sú).
+- Čo takto **nevidno**: PostgREST vystavuje len schémy `public` a `graphql_public` (`PGRST106 — Invalid schema` na čokoľvek iné). Cez REST teda neuvidíš:
+  - schému `cron` — existenciu pg_cron jobov sa overiť nedá, len nepriamo z toho, že migrácia prebehla celá;
+  - `supabase_migrations.schema_migrations` — stav migrácií na remote;
+  - `pg_catalog` — indexy, constrainty, RLS policies. **OpenAPI spec na `/rest/v1/` ukáže len stĺpce, typy, defaulty a nullability (`required`), nič viac.**
+- **Schému a stav migrácií si preto nehádaj — vypýtaj si ich od Patrika**, má na projekt priamy prístup (SQL editor v dashboarde). Odvodzovať existenciu indexu/constraintu z toho, čo je v repe alebo čo REST ukazuje, vedie k falošným poplachom: takto vznikol nahlásený „chýbajúci" partial index `venues_external_ref_public`, ktorý na produkcii celý čas bol.
+- **Supabase CLI na VM je** — `npx supabase` (2.109.1, v `node_modules/.bin`), globálne na PATH nie je. **Repo ale nie je nalinkované** (`supabase/.temp/` neexistuje) a `SUPABASE_ACCESS_TOKEN` ani heslo k DB v `~/ticketio-secrets.env` nie sú, takže každý príkaz siahajúci na remote (`migration list`, `db push`, `db pull`) padne na `LegacyProjectNotLinkedError`. Link vyžaduje interaktívny `npx supabase login` — to spúšťa Patrik, nie Claude. `psql` na VM nie je.
 
 ## app_settings — konfigurácia pg_cron mostíkov
 

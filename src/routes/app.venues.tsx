@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   listVenuesFn,
   createVenueFn,
+  duplicateVenueFn,
   listSeatMapsFn,
   getSeatMapFn,
   saveSeatMapFn,
   deleteSeatMapFn,
 } from '../server/venues'
 import type { VenueRow, SeatMapSummary } from '../server/venues'
+import { VenueCombobox } from '../components/VenueCombobox'
 import {
   GRID_SIZE,
   LAYOUT_VERSION,
@@ -96,14 +98,43 @@ function VenuesPage() {
   const [venueId, setVenueId] = useState<string | null>(initial[0]?.id ?? null)
   const [newVenue, setNewVenue] = useState('')
   const [saving, setSaving] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Venue whose editor should open by itself right after creation, so that
   // "+ Pridať miesto" lands the user straight in the seat-map editor.
   const [autoNewMapFor, setAutoNewMapFor] = useState<string | null>(null)
 
+  const selected = venues.find((v) => v.id === venueId) ?? null
+  // Library halls belong to nobody: no rename, no delete, no map edits. The
+  // way in is a private copy.
+  const readOnly = selected?.readOnly ?? false
+
   const selectVenue = (id: string | null) => {
     setAutoNewMapFor(null)
     setVenueId(id)
+  }
+
+  const duplicate = async () => {
+    if (!selected) return
+    setError(null)
+    setDuplicating(true)
+    try {
+      const res = await duplicateVenueFn({ data: { id: selected.id } })
+      if ('error' in res) return setError(res.error)
+      const list = await listVenuesFn()
+      if (!('error' in list)) setVenues(list)
+      setVenueId(res.id)
+      setAutoNewMapFor(null)
+      void router.invalidate()
+    } catch (e) {
+      setError(
+        `Kópiu sa nepodarilo vytvoriť: ${
+          e instanceof Error ? e.message : 'neznáma chyba'
+        }`,
+      )
+    } finally {
+      setDuplicating(false)
+    }
   }
 
   const addVenue = async () => {
@@ -119,7 +150,20 @@ function VenuesPage() {
       const list = await listVenuesFn()
       setVenues(
         'error' in list
-          ? [...venues, { id: res.id, name, address: null, createdAt: '' }]
+          ? [
+              ...venues,
+              // Display-only stand-in until the next successful refetch; a
+              // just-created venue is always the caller's own and editable.
+              {
+                id: res.id,
+                name,
+                address: null,
+                createdAt: '',
+                organizerId: null,
+                isPublic: false,
+                readOnly: false,
+              },
+            ]
           : list,
       )
       setVenueId(res.id)
@@ -149,21 +193,11 @@ function VenuesPage() {
 
       <section className="rounded-lg border bg-white p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block text-gray-600">Miesto konania</span>
-            <select
-              value={venueId ?? ''}
-              onChange={(e) => selectVenue(e.target.value || null)}
-              className="rounded-md border px-3 py-2 text-sm"
-            >
-              <option value="">— vyberte —</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <VenueCombobox
+            venues={venues}
+            value={venueId}
+            onChange={selectVenue}
+          />
           <label className="text-sm">
             <span className="mb-1 block text-gray-600">Nové miesto</span>
             <input
@@ -189,12 +223,31 @@ function VenuesPage() {
             {error}
           </p>
         )}
+
+        {readOnly && selected && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+            <p className="text-sm text-blue-900">
+              <span className="font-medium">Verejná hala.</span> Je spoločná pre
+              všetkých organizátorov, preto ju nemožno premenovať, zmazať ani
+              upraviť jej mapu. Jej mapu môžete bez kopírovania priradiť
+              podujatiu — kópiu potrebujete len na úpravy.
+            </p>
+            <button
+              onClick={duplicate}
+              disabled={duplicating}
+              className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {duplicating ? 'Kopírujem…' : 'Duplikovať do mojich miest'}
+            </button>
+          </div>
+        )}
       </section>
 
       {venueId && (
         <SeatMaps
           key={venueId}
           venueId={venueId}
+          readOnly={readOnly}
           autoNewMap={autoNewMapFor === venueId}
         />
       )}
@@ -204,9 +257,11 @@ function VenuesPage() {
 
 function SeatMaps({
   venueId,
+  readOnly,
   autoNewMap,
 }: {
   venueId: string
+  readOnly: boolean
   autoNewMap: boolean
 }) {
   const [maps, setMaps] = useState<SeatMapSummary[]>([])
@@ -240,6 +295,7 @@ function SeatMaps({
       <MapEditor
         venueId={venueId}
         seatMapId={editing.id}
+        readOnly={readOnly}
         onClose={() => {
           setEditing(null)
           void load()
@@ -252,12 +308,14 @@ function SeatMaps({
     <section className="rounded-lg border bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Mapy</h2>
-        <button
-          onClick={() => setEditing({ id: null })}
-          className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          + Nová mapa
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => setEditing({ id: null })}
+            className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700"
+          >
+            + Nová mapa
+          </button>
+        )}
       </div>
       {error && (
         <p className="mb-3 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-700">
@@ -280,7 +338,7 @@ function SeatMaps({
                 onClick={() => setEditing({ id: m.id })}
                 className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-gray-50"
               >
-                Otvoriť
+                {readOnly ? 'Zobraziť' : 'Otvoriť'}
               </button>
             </li>
           ))}
@@ -293,10 +351,13 @@ function SeatMaps({
 function MapEditor({
   venueId,
   seatMapId,
+  readOnly,
   onClose,
 }: {
   venueId: string
   seatMapId: string | null
+  /** Library hall: the editor becomes a viewer — no tools, no save, no delete. */
+  readOnly: boolean
   onClose: () => void
 }) {
   const [name, setName] = useState('')
@@ -456,7 +517,9 @@ function MapEditor({
 
   const levelSeats = seats.filter((s) => s.level === level)
   const levelObjects = objects.filter((o) => o.level === level)
-  const editable = !preview && !inUse
+  // One gate for every mutation in this component — the tool panels, the canvas
+  // drag handlers and the Delete key all key off it.
+  const editable = !preview && !inUse && !readOnly
 
   const selSector = sel?.kind === 'sector' ? sel.sector : null
   const selObject =
@@ -640,11 +703,15 @@ function MapEditor({
   return (
     <section className="space-y-4 rounded-lg border bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="rounded-md border px-3 py-2 text-lg font-semibold"
-        />
+        {readOnly ? (
+          <h2 className="px-1 py-2 text-lg font-semibold">{name}</h2>
+        ) : (
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded-md border px-3 py-2 text-lg font-semibold"
+          />
+        )}
         <div className="flex gap-2">
           {editable && (
             <div className="flex gap-1">
@@ -674,7 +741,7 @@ function MapEditor({
           >
             {preview ? 'Editor' : 'Náhľad kupujúceho'}
           </button>
-          {seatMapId && !inUse && (
+          {seatMapId && !inUse && !readOnly && (
             <button
               onClick={removeMap}
               className="rounded-md border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -682,14 +749,16 @@ function MapEditor({
               Zmazať
             </button>
           )}
-          <button
-            onClick={save}
-            disabled={saving || inUse}
-            className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-            title={inUse ? 'Mapa sa používa v podujatí' : ''}
-          >
-            {saving ? 'Ukladám…' : 'Uložiť'}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={save}
+              disabled={saving || inUse}
+              className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              title={inUse ? 'Mapa sa používa v podujatí' : ''}
+            >
+              {saving ? 'Ukladám…' : 'Uložiť'}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
@@ -705,10 +774,18 @@ function MapEditor({
         </p>
       )}
 
-      {inUse && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          Mapa sa používa v podujatí — štruktúru nemožno meniť. Vytvorte kópiu.
+      {readOnly ? (
+        <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+          Mapa verejnej haly — len na prezeranie. Priradiť ju podujatiu môžete
+          aj takto; na úpravy si halu duplikujte do svojich miest.
         </p>
+      ) : (
+        inUse && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+            Mapa sa používa v podujatí — štruktúru nemožno meniť. Vytvorte
+            kópiu.
+          </p>
+        )
       )}
 
       {/* Level tabs */}
@@ -1510,7 +1587,6 @@ function Canvas({
     </div>
   )
 }
-
 
 const HANDLE_ORDER: ResizeHandle[] = ['nw', 'ne', 'se', 'sw']
 const HANDLE_CURSOR: Record<ResizeHandle, string> = {

@@ -11,6 +11,7 @@ import { serviceClient } from '../lib/supabase/server'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { getImpersonation } from './impersonation-session'
 import { migrateLayout } from '../lib/seating'
+import { isLibraryVenue } from '../lib/venue-library'
 import type { SeatType, SeatMapLayout } from '../lib/seating'
 
 export class VenueError extends Error {}
@@ -66,14 +67,65 @@ async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
   }
 }
 
-async function ownVenue(actor: Actor, venueId: string): Promise<void> {
+// ---------------------------------------------------------------------------
+// Venue access
+// ---------------------------------------------------------------------------
+// Reading spans two sets: the organizer's own venues and the shared library
+// (organizer_id null + is_public true). Writing never does — a library hall has
+// no owner who could authorize the write, so every mutation stays own-venues
+// only and an organizer who wants a variant duplicates it first.
+interface VenueAccess {
+  id: string
+  organizerId: string | null
+  isPublic: boolean
+  /** True for library halls: readable by everyone, editable by nobody. */
+  readOnly: boolean
+}
+
+const READ_ONLY_VENUE =
+  'Verejná hala je len na čítanie — najprv si ju duplikujte do svojich miest.'
+
+async function loadVenue(venueId: string): Promise<VenueAccess | null> {
   const { data } = await serviceClient()
     .from('venues')
-    .select('id')
+    .select('id, organizer_id, is_public')
     .eq('id', venueId)
-    .eq('organizer_id', actor.organizerId)
-    .maybeSingle<{ id: string }>()
-  if (!data) throw new VenueError('Miesto konania sa nenašlo.')
+    .maybeSingle<{
+      id: string
+      organizer_id: string | null
+      is_public: boolean
+    }>()
+  if (!data) return null
+  return {
+    id: data.id,
+    organizerId: data.organizer_id,
+    isPublic: data.is_public,
+    readOnly: isLibraryVenue({
+      organizerId: data.organizer_id,
+      isPublic: data.is_public,
+    }),
+  }
+}
+
+/** Own venue or a library hall — enough to read its maps and use them. */
+async function readableVenue(
+  actor: Actor,
+  venueId: string,
+): Promise<VenueAccess> {
+  const venue = await loadVenue(venueId)
+  if (!venue || (venue.organizerId !== actor.organizerId && !venue.readOnly)) {
+    throw new VenueError('Miesto konania sa nenašlo.')
+  }
+  return venue
+}
+
+/** Own venue — required for every write. Library halls are refused by name. */
+async function ownVenue(actor: Actor, venueId: string): Promise<VenueAccess> {
+  const venue = await readableVenue(actor, venueId)
+  if (venue.organizerId !== actor.organizerId) {
+    throw new VenueError(READ_ONLY_VENUE)
+  }
+  return venue
 }
 
 // ---------------------------------------------------------------------------
@@ -84,16 +136,24 @@ export interface VenueRow {
   name: string
   address: string | null
   createdAt: string
+  organizerId: string | null
+  isPublic: boolean
+  /** True for library halls — the picker groups on this and locks the editor. */
+  readOnly: boolean
 }
 
+/**
+ * Own venues plus the shared library. The app reads venues through the service
+ * role, so RLS does not narrow this — the filter here IS the access rule.
+ */
 export const listVenuesFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<VenueRow[] | { error: string }> => {
     return run(async () => {
       const actor = await requireOrganizer()
       const { data } = await serviceClient()
         .from('venues')
-        .select('id, name, address, created_at')
-        .eq('organizer_id', actor.organizerId)
+        .select('id, name, address, created_at, organizer_id, is_public')
+        .or(`organizer_id.eq.${actor.organizerId},is_public.is.true`)
         .order('name', { ascending: true })
         .returns<
           {
@@ -101,6 +161,8 @@ export const listVenuesFn = createServerFn({ method: 'GET' }).handler(
             name: string
             address: string | null
             created_at: string
+            organizer_id: string | null
+            is_public: boolean
           }[]
         >()
       return (data ?? []).map((v) => ({
@@ -108,6 +170,12 @@ export const listVenuesFn = createServerFn({ method: 'GET' }).handler(
         name: v.name,
         address: v.address,
         createdAt: v.created_at,
+        organizerId: v.organizer_id,
+        isPublic: v.is_public,
+        readOnly: isLibraryVenue({
+          organizerId: v.organizer_id,
+          isPublic: v.is_public,
+        }),
       }))
     })
   },
@@ -179,6 +247,126 @@ export const deleteVenueFn = createServerFn({ method: 'POST' })
     })
   })
 
+/** PostgREST pages large reads; a full-size hall needs more than one page. */
+const SEAT_PAGE = 1000
+
+interface SeatCopyRow {
+  level: string
+  level_order: number
+  sector: string
+  row_label: string
+  seat_number: string
+  x: number
+  y: number
+  seat_type: SeatType
+}
+
+/**
+ * Copy a venue — with all its seat maps and seats — into the caller's own
+ * venues. This is the escape hatch for library halls: they cannot be edited, so
+ * an organizer who needs a variant takes a private copy and edits that.
+ *
+ * external_ref is dropped on every copied row. The copy is the organizer's own
+ * data and must not collide with (or be overwritten by) the next library import.
+ */
+export const duplicateVenueFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<{ id: string } | { error: string }> => {
+    return run(async () => {
+      const actor = await requireOrganizer()
+      assertCanEdit(actor)
+      // Duplicating only ever READS the source, so a library hall qualifies —
+      // which is the entire point of the button.
+      await readableVenue(actor, data.id)
+      const db = serviceClient()
+
+      const { data: src } = await db
+        .from('venues')
+        .select('name, address')
+        .eq('id', data.id)
+        .maybeSingle<{ name: string; address: string | null }>()
+      if (!src) throw new VenueError('Miesto konania sa nenašlo.')
+
+      const { data: venue, error: venueErr } = await db
+        .from('venues')
+        .insert({
+          organizer_id: actor.organizerId,
+          name: data.name?.trim() || `${src.name} (kópia)`,
+          address: src.address,
+          external_ref: null,
+          is_public: false,
+        })
+        .select('id')
+        .single<{ id: string }>()
+      if (venueErr) throw new VenueError('Kópiu sa nepodarilo vytvoriť.')
+
+      try {
+        const { data: maps } = await db
+          .from('seat_maps')
+          .select('id, name, layout')
+          .eq('venue_id', data.id)
+          .order('name', { ascending: true })
+          .returns<
+            { id: string; name: string; layout: SeatMapLayout | null }[]
+          >()
+
+        for (const map of maps ?? []) {
+          const { data: copy, error: mapErr } = await db
+            .from('seat_maps')
+            .insert({
+              venue_id: venue.id,
+              name: map.name,
+              layout: migrateLayout(map.layout),
+              external_ref: null,
+            })
+            .select('id')
+            .single<{ id: string }>()
+          if (mapErr) throw new VenueError('Mapu sa nepodarilo skopírovať.')
+
+          // A full hall runs to thousands of seats: page the read and chunk the
+          // write, the same way saveSeatMapFn does.
+          for (let from = 0; ; from += SEAT_PAGE) {
+            const { data: seats } = await db
+              .from('seats')
+              .select(
+                'level, level_order, sector, row_label, seat_number, x, y, seat_type',
+              )
+              .eq('seat_map_id', map.id)
+              .order('id', { ascending: true })
+              .range(from, from + SEAT_PAGE - 1)
+              .returns<SeatCopyRow[]>()
+            if (!seats || seats.length === 0) break
+            const { error } = await db.from('seats').insert(
+              seats.map((s) => ({
+                ...s,
+                seat_map_id: copy.id,
+                external_ref: null,
+              })),
+            )
+            if (error) {
+              throw new VenueError('Sedadlá sa nepodarilo skopírovať.')
+            }
+            if (seats.length < SEAT_PAGE) break
+          }
+        }
+      } catch (e) {
+        // Never leave a half-copied venue behind; the cascade takes the maps
+        // and seats with it.
+        await db.from('venues').delete().eq('id', venue.id)
+        throw e
+      }
+
+      return { id: venue.id }
+    })
+  })
+
 // ---------------------------------------------------------------------------
 // Seat maps
 // ---------------------------------------------------------------------------
@@ -187,6 +375,8 @@ export interface SeatMapSummary {
   name: string
   seatCount: number
   inUse: boolean
+  /** True when the map belongs to a library hall — read-only for everyone. */
+  readOnly: boolean
 }
 
 /** Objects a single map may hold — a guard against a runaway client payload. */
@@ -216,7 +406,7 @@ export const listSeatMapsFn = createServerFn({ method: 'GET' })
   .handler(async ({ data }): Promise<SeatMapSummary[] | { error: string }> => {
     return run(async () => {
       const actor = await requireOrganizer()
-      await ownVenue(actor, data.venueId)
+      const venue = await readableVenue(actor, data.venueId)
       const db = serviceClient()
       const { data: maps } = await db
         .from('seat_maps')
@@ -239,6 +429,7 @@ export const listSeatMapsFn = createServerFn({ method: 'GET' })
           name: m.name,
           seatCount: seatCount ?? 0,
           inUse: (uses ?? 0) > 0,
+          readOnly: venue.readOnly,
         })
       }
       return out
@@ -251,6 +442,8 @@ export interface SeatMapDetail {
   name: string
   layout: SeatMapLayout
   inUse: boolean
+  /** True when the map belongs to a library hall — the editor opens locked. */
+  readOnly: boolean
   seats: {
     id: string
     level: string
@@ -274,16 +467,29 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
       const db = serviceClient()
       const { data: map } = await db
         .from('seat_maps')
-        .select('id, venue_id, name, layout, venues(organizer_id)')
+        .select('id, venue_id, name, layout, venues(organizer_id, is_public)')
         .eq('id', data.seatMapId)
         .maybeSingle<{
           id: string
           venue_id: string
           name: string
           layout: SeatMapLayout | null
-          venues: { organizer_id: string } | null
+          venues: { organizer_id: string | null; is_public: boolean } | null
         }>()
-      if (!map || map.venues?.organizer_id !== actor.organizerId) {
+      // Own maps and library maps are both readable; only the library ones come
+      // back locked.
+      const owner = map?.venues
+      const readOnly = owner
+        ? isLibraryVenue({
+            organizerId: owner.organizer_id,
+            isPublic: owner.is_public,
+          })
+        : false
+      if (
+        !map ||
+        !owner ||
+        (owner.organizer_id !== actor.organizerId && !readOnly)
+      ) {
         throw new VenueError('Mapa sa nenašla.')
       }
       const { data: seats } = await db
@@ -317,6 +523,7 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
         // Normalize on read: pre-object maps carry no version and no objects.
         layout: migrateLayout(map.layout),
         inUse: (uses ?? 0) > 0,
+        readOnly,
         seats: (seats ?? []).map((s) => ({
           id: s.id,
           level: s.level,
@@ -365,6 +572,18 @@ export const saveSeatMapFn = createServerFn({ method: 'POST' })
 
       let mapId = data.seatMapId ?? null
       if (mapId) {
+        // The client sends venueId and seatMapId separately, so pin them
+        // together here: without this an organizer could pass one of their own
+        // venues alongside somebody else's (or a library hall's) map id and
+        // overwrite it through the venue check they do pass.
+        const { data: owner } = await db
+          .from('seat_maps')
+          .select('venue_id')
+          .eq('id', mapId)
+          .maybeSingle<{ venue_id: string }>()
+        if (!owner || owner.venue_id !== data.venueId) {
+          throw new VenueError('Mapa sa nenašla.')
+        }
         // Editing an existing map: block structural changes while it is assigned
         // to an event (its event_seats would cascade away). Duplicate to edit.
         const { count: uses } = await db
@@ -436,11 +655,24 @@ export const deleteSeatMapFn = createServerFn({ method: 'POST' })
       const db = serviceClient()
       const { data: map } = await db
         .from('seat_maps')
-        .select('id, venues(organizer_id)')
+        .select('id, venues(organizer_id, is_public)')
         .eq('id', data.seatMapId)
-        .maybeSingle<{ id: string; venues: { organizer_id: string } | null }>()
-      if (!map || map.venues?.organizer_id !== actor.organizerId) {
-        throw new VenueError('Mapa sa nenašla.')
+        .maybeSingle<{
+          id: string
+          venues: { organizer_id: string | null; is_public: boolean } | null
+        }>()
+      const owner = map?.venues
+      if (!map || !owner) throw new VenueError('Mapa sa nenašla.')
+      if (owner.organizer_id !== actor.organizerId) {
+        // Library maps are visible to this organizer but not theirs to delete.
+        throw new VenueError(
+          isLibraryVenue({
+            organizerId: owner.organizer_id,
+            isPublic: owner.is_public,
+          })
+            ? READ_ONLY_VENUE
+            : 'Mapa sa nenašla.',
+        )
       }
       const { count: uses } = await db
         .from('event_seat_maps')

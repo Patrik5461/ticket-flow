@@ -42,6 +42,8 @@ import {
 } from '../server/event-seating'
 import type { EventSeatingView } from '../server/event-seating'
 import { listVenuesFn, listSeatMapsFn, getSeatMapFn } from '../server/venues'
+import type { VenueRow } from '../server/venues'
+import { VenueCombobox } from '../components/VenueCombobox'
 import { capacityAreas, migrateLayout } from '../lib/seating'
 import type { CapacityArea } from '../lib/seating'
 import { utcIsoToZonedLocal, formatSk } from '../lib/datetime'
@@ -501,7 +503,7 @@ function SeatMapPicker({
   onCancel?: () => void
   onAssigned: () => void
 }) {
-  const [venues, setVenues] = useState<{ id: string; name: string }[]>([])
+  const [venues, setVenues] = useState<VenueRow[]>([])
   const [venueId, setVenueId] = useState('')
   const [maps, setMaps] = useState<{ id: string; name: string }[]>([])
   const [mapId, setMapId] = useState('')
@@ -513,7 +515,7 @@ function SeatMapPicker({
 
   useEffect(() => {
     void listVenuesFn().then((r) => {
-      if (!('error' in r)) setVenues(r.map((v) => ({ id: v.id, name: v.name })))
+      if (!('error' in r)) setVenues(r)
     })
   }, [])
   useEffect(() => {
@@ -575,22 +577,15 @@ function SeatMapPicker({
           sedadiel".
         </p>
       ) : (
-        <div className="flex flex-wrap gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block text-gray-600">Miesto</span>
-            <select
-              value={venueId}
-              onChange={(e) => setVenueId(e.target.value)}
-              className="rounded-md border px-3 py-2 text-sm"
-            >
-              <option value="">— vyberte —</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="flex flex-wrap items-start gap-3">
+          {/* Public halls are pickable here exactly like own venues — using a
+              library seat map for an event needs no copy. */}
+          <VenueCombobox
+            venues={venues}
+            value={venueId || null}
+            onChange={(id) => setVenueId(id ?? '')}
+            label="Miesto"
+          />
           <label className="text-sm">
             <span className="mb-1 block text-gray-600">Mapa</span>
             <select

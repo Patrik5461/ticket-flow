@@ -22,6 +22,7 @@ import {
   isAreaPricingKey,
   migrateLayout,
 } from '../lib/seating'
+import { isLibraryVenue } from '../lib/venue-library'
 import type { CapacityArea } from '../lib/seating'
 
 async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -219,13 +220,23 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
 
         const { data: map } = await db
           .from('seat_maps')
-          .select('id, venues(organizer_id)')
+          .select('id, venues(organizer_id, is_public)')
           .eq('id', data.seatMapId)
           .maybeSingle<{
             id: string
-            venues: { organizer_id: string } | null
+            venues: { organizer_id: string | null; is_public: boolean } | null
           }>()
-        if (!map || map.venues?.organizer_id !== ev.organizer_id) {
+        // Own maps, plus the shared library — a library hall has no owner to
+        // compare against, so it is usable by every organizer.
+        const owner = map?.venues
+        const usable =
+          owner &&
+          (owner.organizer_id === ev.organizer_id ||
+            isLibraryVenue({
+              organizerId: owner.organizer_id,
+              isPublic: owner.is_public,
+            }))
+        if (!map || !usable) {
           throw new EventAuthzError('Mapa nepatrí tomuto organizátorovi.')
         }
 
