@@ -236,14 +236,18 @@ function Legend({
   ticketTypes,
   colorOf,
   compact,
+  hasWheelchair,
+  hasArea,
 }: {
   ticketTypes: { id: string; name: string; priceCents: number }[]
   colorOf: Map<string, string>
   compact?: boolean
+  hasWheelchair?: boolean
+  hasArea?: boolean
 }) {
   return (
     <div
-      className={`flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-ink-300 ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-ink-300 ${
         compact ? 'px-3 py-2' : ''
       }`}
     >
@@ -267,7 +271,54 @@ function Legend({
         />
         obsadené
       </span>
+      {hasWheelchair && (
+        <span className="inline-flex items-center gap-1.5">
+          <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden>
+            <rect
+              x={0.5}
+              y={0.5}
+              width={13}
+              height={13}
+              rx={1.5}
+              fill={TAKEN_COLOR}
+              opacity={0.35}
+              stroke="currentColor"
+            />
+            <WheelchairGlyph x={7} y={7} r={6} />
+          </svg>
+          bezbariérové miesto
+        </span>
+      )}
+      {hasArea && (
+        <span className="inline-flex items-center gap-1.5">
+          <svg width={16} height={12} viewBox="0 0 16 12" aria-hidden>
+            <defs>
+              <AreaHatchPattern />
+            </defs>
+            <rect
+              x={0.75}
+              y={0.75}
+              width={14.5}
+              height={10.5}
+              rx={2}
+              fill="rgba(99,102,241,0.15)"
+              stroke="#818cf8"
+              strokeDasharray="3 2"
+            />
+            <rect
+              x={0.75}
+              y={0.75}
+              width={14.5}
+              height={10.5}
+              rx={2}
+              fill="url(#areaHatch)"
+            />
+          </svg>
+          plocha — počet zadáte v paneli
+        </span>
+      )}
     </div>
+
   )
 }
 
