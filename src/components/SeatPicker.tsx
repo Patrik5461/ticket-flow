@@ -168,7 +168,13 @@ export function SeatPicker({
         </div>
       )}
 
-      <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} />
+      <Legend
+        ticketTypes={map.ticketTypes}
+        colorOf={colorOf}
+        hasWheelchair={levelSeats.some((s) => s.seatType === 'wheelchair')}
+        hasArea={levelObjects.some(isStandingArea)}
+      />
+
 
       {/* Desktop: the map is the main event. */}
       <div className="hidden md:block">
