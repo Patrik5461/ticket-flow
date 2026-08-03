@@ -15,9 +15,9 @@
  *
  *   seats[] {ts, x, y, c, n, l1, l2}   ts = source seat id, c = category,
  *                                      l1 = sector (loc1), n = seat number
- *   elements[] {t, x, y, w, h, ang, text}   t: E = stage (imported), T/R/W/D/I/C
- *                                      = decor (left in the source, see
- *                                      ELEMENT_KIND)
+ *   elements[] {t, x, y, w, h, ang, text}   t: E = stage, W/D/T/I/C = decor,
+ *                                      all imported; R = row caption, dropped
+ *                                      (see ELEMENT_KIND)
  *
  * x/y is the TOP-LEFT corner of a default_seat_width × default_seat_height box,
  * for seats and elements alike; our model stores a seat by its centre, so every
@@ -102,6 +102,13 @@ const DEFAULT_BATCH_HALLS = 50
 const DEFAULT_BATCH_PAUSE_MS = 2000
 /** Default progress log: append-only, one finished hall per line. */
 const DEFAULT_PROGRESS_LOG = 'import-halls-progress.jsonl'
+/**
+ * MAX_OBJECTS in saveSeatMapFn. The importer writes with the service role and
+ * is not bound by it, but an organizer who duplicates a library hall then edits
+ * the copy is — so a map over the limit is reported rather than discovered by a
+ * user who cannot save.
+ */
+const MAX_EDITOR_OBJECTS = 500
 
 /** Column limits from the `seats` table / the editor's validator. */
 const MAX_SECTOR_LEN = 60
@@ -112,27 +119,31 @@ const MAX_SEAT_NO_LEN = 20
 const TEST_HALL_PATTERN = /maxiticket|nepouž|nepouz|test|vzor/i
 
 /**
- * Source element type -> layout object kind. Only the stage is imported.
+ * Source element type -> layout object kind.
  *
- * The export also carries walls (W), doors (D), free text (T), icons (I) and
- * plain shapes (C) — 2210 of them across 307 halls. They are dropped ON PURPOSE.
- * The app's MapObjectKind is 'stage' | 'area' and migrateLayout() folds anything
- * else into 'area', so importing them would put 2210 indigo standing-area
- * rectangles onto maps that are otherwise clean — worse than not having them.
+ * The stage (E) plus the decoration the halls draw around their seats: walls
+ * (W), doors (D), free text (T), icons (I) and plain shapes (C) — 2471 elements
+ * across 307 halls. All of it is orientation only; MapObjectShape draws each
+ * kind as itself and capacityAreas() takes 'area' alone, so none of it can ever
+ * be sold.
  *
- * TO ADD THEM LATER: when the renderer can draw walls/doors/captions, extend
- * this map (W->'wall', D->'door', T->'text', I->'icon', C->'shape') and re-run
- * the import over the same export. Re-import is idempotent and rewrites the
- * layout in place, so nothing else has to be redone. Note that R (row-number
- * captions) stays out even then — the editor draws row labels from row_label
- * and would print every number twice.
+ * R (row-number captions) stays out: the editor and the picker draw row labels
+ * from row_label, so importing R would print every row number twice.
  */
 const ELEMENT_KIND: Record<string, MapObjectKind | undefined> = {
   E: 'stage',
+  W: 'wall',
+  D: 'door',
+  T: 'text',
+  I: 'icon',
+  C: 'shape',
 }
 
-/** Decoration types the export carries that we knowingly leave behind. */
-const SKIPPED_ELEMENT_TYPES = new Set(['W', 'D', 'T', 'I', 'C'])
+/** Element types the export carries that we knowingly leave behind. */
+const SKIPPED_ELEMENT_TYPES = new Set(['R'])
+
+/** Longest decoration caption kept; the source's own longest is 36 characters. */
+const MAX_LABEL_LEN = 120
 
 // ---------------------------------------------------------------------------
 // Wheelchair spaces
@@ -294,7 +305,9 @@ interface ImportHall {
     suffixedSectors: number
     renumberedSeats: number
     stages: number
-    /** Decorations left in the source, by element type — see ELEMENT_KIND. */
+    /** Elements written as objects, by source type — see ELEMENT_KIND. */
+    decor: Record<string, number>
+    /** Elements left in the source, by type (row captions only). */
     skippedDecor: Record<string, number>
     /** Empty vertical bands squeezed out of the map. */
     collapsedBands: number
@@ -1109,14 +1122,47 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     )
   }
 
-  // --- stage objects ------------------------------------------------------
-  // Only t = E. See ELEMENT_KIND for why the rest of elements[] is left behind
-  // and what has to happen before it can come in.
-  const stages = (raw.elements ?? []).flatMap((e) => {
+  // --- stage and decoration ------------------------------------------------
+  // Everything ELEMENT_KIND names, resolved to final canvas sizes here so the
+  // extent below and the objects further down measure the same boxes. Sizes are
+  // clamped to the editor's floor around the element's CENTRE: migrateLayout
+  // clamps too, but it grows the box off its top-left corner, which would walk
+  // a thin wall half its new width away from where the hall drew it.
+  interface DecorElement {
+    kind: MapObjectKind
+    sourceType: string
+    /** Centre of the box, in source units. */
+    cx: number
+    cy: number
+    /** Final canvas-unit size. */
+    width: number
+    height: number
+    rotation: number
+    label: string
+  }
+  const decor: DecorElement[] = (raw.elements ?? []).flatMap((e) => {
     if (e === null) return []
     const kind = ELEMENT_KIND[e.t]
-    return kind ? [{ element: e, kind }] : []
+    if (!kind) return []
+    const sw = Math.max(0, Number(e.w) || 0)
+    const sh = Math.max(0, Number(e.h) || 0)
+    return [
+      {
+        kind,
+        sourceType: e.t,
+        cx: (Number(e.x) || 0) + sw / 2,
+        cy: (Number(e.y) || 0) + sh / 2,
+        width: Math.max(MIN_OBJECT_SIZE, round2(sw * scale)),
+        height: Math.max(MIN_OBJECT_SIZE, round2(sh * scale)),
+        rotation: (((Number(e.ang) || 0) % 360) + 360) % 360,
+        label: clean(e.text).replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN),
+      },
+    ]
   })
+  const decorCounts = decor.reduce<Record<string, number>>((acc, d) => {
+    acc[d.sourceType] = (acc[d.sourceType] ?? 0) + 1
+    return acc
+  }, {})
   const skippedDecor = (raw.elements ?? []).reduce<Record<string, number>>(
     (acc, e) => {
       if (e && SKIPPED_ELEMENT_TYPES.has(e.t)) acc[e.t] = (acc[e.t] ?? 0) + 1
@@ -1127,8 +1173,10 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
 
   // --- extent -------------------------------------------------------------
   // Measured from the content, never from the export's own bbox, which is
-  // cropped. Areas are centred on the stack they replace, so their boxes
-  // stretch the extent by half a box on each side.
+  // cropped. Everything that gets drawn is counted — seats, standing areas AND
+  // the decoration: a caption or a wall outside this extent would be pushed off
+  // the canvas. Areas are centred on the stack they replace and decorations on
+  // their own box, so both stretch the extent by half a box on each side.
   const pointsX: number[] = []
   const pointsY: number[] = []
   for (const s of seatsOut) {
@@ -1141,9 +1189,11 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     pointsX.push(c.sx - halfAreaW, c.sx + halfAreaW)
     pointsY.push(c.sy - halfAreaH, c.sy + halfAreaH)
   }
-  for (const { element: e } of stages) {
-    pointsX.push(e.x, e.x + (Number(e.w) || 0))
-    pointsY.push(e.y, e.y + (Number(e.h) || 0))
+  for (const d of decor) {
+    const halfW = d.width / 2 / scale
+    const halfH = d.height / 2 / scale
+    pointsX.push(d.cx - halfW, d.cx + halfW)
+    pointsY.push(d.cy - halfH, d.cy + halfH)
   }
   if (pointsX.length === 0) {
     throw new HallError('hala nemá ani sedadlá, ani státie, ani pódium')
@@ -1159,10 +1209,11 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   }
 
   // --- layout objects -----------------------------------------------------
-  // Standing areas are numbered FIRST and decorations after, because an area's
-  // id is its pricing key in event_sector_pricing ('#o1'). Numbering the decor
-  // first would renumber every area the day the source hall gains a wall, and
-  // silently repoint a sold category at a different patch of floor.
+  // Standing areas are numbered FIRST and the stage and decorations after,
+  // because an area's id is its pricing key in event_sector_pricing ('#o1').
+  // Numbering the decor first would renumber every area the day the source hall
+  // gains a wall, and silently repoint a sold category at a different patch of
+  // floor. Decor ids therefore start above the last area's and never collide.
   let objectSeq = 0
   const nextId = () => `o${++objectSeq}`
 
@@ -1182,20 +1233,22 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   }))
   deoverlapAreas(areaObjects)
 
-  const stageObjects: MapObject[] = stages.map(({ element: e, kind }) => ({
+  const decorObjects: MapObject[] = decor.map((d) => ({
     id: nextId(),
-    kind,
+    kind: d.kind,
     // An unlabelled dark slab reads as a mistake, so the stage gets a default.
-    label: clean(e.text).replace(/\s+/g, ' ') || 'Pódium',
-    x: toX(e.x),
-    y: toY(e.y),
-    width: round2(Math.max(1, Number(e.w) || 0) * scale),
-    height: round2(Math.max(1, Number(e.h) || 0) * scale),
-    rotation: (((Number(e.ang) || 0) % 360) + 360) % 360,
+    // A wall or a prop is drawn without a caption instead — naming it would put
+    // a word on the map the hall never wrote there.
+    label: d.label || (d.kind === 'stage' ? 'Pódium' : ''),
+    x: round2(toX(d.cx) - d.width / 2),
+    y: round2(toY(d.cy) - d.height / 2),
+    width: d.width,
+    height: d.height,
+    rotation: d.rotation,
     capacity: null,
   }))
 
-  const objects: MapObject[] = [...areaObjects, ...stageObjects]
+  const objects: MapObject[] = [...areaObjects, ...decorObjects]
 
   // --- sector shapes ------------------------------------------------------
   const halfSeat = TARGET_SEAT_GAP / 2
@@ -1212,13 +1265,15 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     .sort((a, b) => a.sector.localeCompare(b.sector, 'sk'))
 
   // --- close the empty bands ----------------------------------------------
-  // The source spaces a hall out around things we do not import, so a map can
-  // come out with a tall strip of nothing in the middle of it — Kino B leaves
-  // 370 px between the seating and the standing area, exactly where the cage
-  // walls used to be. Runs of empty canvas taller than two rows are squeezed
-  // down to one row. Only vertical, and only where NOTHING in the whole hall
-  // occupies that band, so a cross-aisle in one sector survives as long as
-  // another sector has seats beside it.
+  // A hall can be laid out with a tall strip of nothing in the middle of it, so
+  // runs of empty canvas taller than two rows are squeezed down to one row.
+  // Only vertical, and only where NOTHING in the whole hall occupies that band,
+  // so a cross-aisle in one sector survives as long as another sector has seats
+  // beside it — and a band holding nothing but decoration is not empty at all.
+  // That last part is why this runs on the finished `objects`: Kino B Žilina
+  // leaves 370 px between its seating and its standing area, and the cage walls
+  // and captions that live in there would be crushed into each other by a pass
+  // that only knew about seats.
   const collapsedBands = collapseVerticalGaps(seatsOut, objects, shapes)
 
   // --- canvas -------------------------------------------------------------
@@ -1227,6 +1282,25 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   // and the buyer picker both zoom to fit, so a 36k-seat arena is allowed to be
   // a very large canvas.
   const canvas = normalizeCanvas(seatsOut, objects, shapes)
+
+  // normalizeCanvas measures the same objects it re-anchors, so nothing can
+  // land outside — but the whole point of importing decoration is that a wall
+  // or a caption now takes part in that measurement, and a wrong answer here is
+  // invisible until someone opens the map. Cheap to assert, so assert it.
+  const outside = objects.filter((o) => {
+    const b = objectBounds(o)
+    return (
+      b.minX < 0 || b.minY < 0 || b.maxX > canvas.width || b.maxY > canvas.height
+    )
+  })
+  if (outside.length > 0) {
+    warnings.push(
+      `${outside.length} objektov mimo plátna (${outside
+        .slice(0, 3)
+        .map((o) => `${o.id}/${o.kind}`)
+        .join(', ')}).`,
+    )
+  }
 
   const level: MapLevel = {
     key: 'main',
@@ -1277,7 +1351,8 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
       sectors: sectorBounds.size,
       suffixedSectors,
       renumberedSeats,
-      stages: stages.length,
+      stages: decorCounts.E ?? 0,
+      decor: decorCounts,
       skippedDecor,
       collapsedBands,
       wheelchairSeats: seatsOut.filter((s) => s.seat_type === 'wheelchair')
@@ -1668,17 +1743,16 @@ function listHallDirs(dir: string): string[] {
   })
 }
 
-/** Decorations this hall carries that the import does not write. */
-function skippedCount(hall: ImportHall): number {
-  return Object.values(hall.stats.skippedDecor).reduce((n, v) => n + v, 0)
+function total(counts: Record<string, number>): number {
+  return Object.values(counts).reduce((n, v) => n + v, 0)
 }
 
-/** e.g. "10 (T2 W8)" — how many were left behind, and of which source types. */
-function skippedSummary(hall: ImportHall): string {
-  const parts = Object.entries(hall.stats.skippedDecor)
+/** e.g. "10 (T2 W8)" — how many, and of which source types. */
+function byType(counts: Record<string, number>): string {
+  const parts = Object.entries(counts)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([t, n]) => `${t}${n}`)
-  return `${skippedCount(hall)} (${parts.join(' ')})`
+  return `${total(counts)} (${parts.join(' ')})`
 }
 
 /**
@@ -1759,7 +1833,11 @@ async function main(): Promise<void> {
   let areaTotal = 0
   let standingTotal = 0
   let stageTotal = 0
+  const decorTotal: Record<string, number> = {}
+  let decorHalls = 0
   const skippedTotal: Record<string, number> = {}
+  let maxObjects = 0
+  let maxObjectsHall = ''
   const wheelchairHalls: {
     id: string
     name: string
@@ -1810,7 +1888,10 @@ async function main(): Promise<void> {
           `mierka ${hall.stats.scale.toFixed(2).padStart(5)}  ` +
           `plátno ${hall.stats.canvas.width}×${hall.stats.canvas.height}` +
           (hall.stats.stages ? `  pódiá ${hall.stats.stages}` : '') +
-          (skippedCount(hall) ? `  dekor bokom ${skippedSummary(hall)}` : '') +
+          (total(hall.stats.decor) ? `  dekor ${byType(hall.stats.decor)}` : '') +
+          (total(hall.stats.skippedDecor)
+            ? `  bokom ${byType(hall.stats.skippedDecor)}`
+            : '') +
           (hall.stats.collapsedBands
             ? `  [stlačené medzery ${hall.stats.collapsedBands}]`
             : '') +
@@ -1862,8 +1943,20 @@ async function main(): Promise<void> {
         spread: hall.stats.spreadSeats,
       })
     }
+    if (total(hall.stats.decor) > 0) decorHalls++
+    for (const [t, n] of Object.entries(hall.stats.decor)) {
+      decorTotal[t] = (decorTotal[t] ?? 0) + n
+    }
     for (const [t, n] of Object.entries(hall.stats.skippedDecor)) {
       skippedTotal[t] = (skippedTotal[t] ?? 0) + n
+    }
+    const objectCount = hall.layout.levels.reduce(
+      (n, lv) => n + lv.objects.length,
+      0,
+    )
+    if (objectCount > maxObjects) {
+      maxObjects = objectCount
+      maxObjectsHall = `${id} — ${hall.venueName}`
     }
     seatTotal += hall.seats.length
     areaTotal += hall.stats.areas
@@ -1881,15 +1974,23 @@ async function main(): Promise<void> {
     `Plôch na státie: ${areaTotal} (kapacita ${standingTotal.toLocaleString('sk-SK')})`,
   )
   console.log(`Pódií: ${stageTotal}`)
-  const skippedSum = Object.values(skippedTotal).reduce((n, v) => n + v, 0)
-  if (skippedSum > 0) {
+  if (total(decorTotal) > 0) {
     console.log(
-      `Dekorácií ponechaných v zdroji: ${skippedSum} (` +
-        Object.entries(skippedTotal)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([t, n]) => `${t}=${n}`)
-          .join(' ') +
-        ') — doplnia sa re-importom, keď ich bude renderer vedieť vykresliť',
+      `Prvkov z elements[] (vrátane pódií): ${byType(decorTotal)} v ${decorHalls} halách`,
+    )
+  }
+  if (total(skippedTotal) > 0) {
+    console.log(
+      `Ponechaných v zdroji: ${byType(skippedTotal)}` +
+        ' — R sú popisky radov, tie kreslíme z row_label',
+    )
+  }
+  console.log(
+    `Najviac objektov na mape: ${maxObjects} (${maxObjectsHall}) — limit editora ${MAX_EDITOR_OBJECTS}`,
+  )
+  if (maxObjects > MAX_EDITOR_OBJECTS) {
+    console.log(
+      `  ! nad limit: organizátor si takú halu skopíruje, ale uložiť ju už nedokáže`,
     )
   }
   console.log(`Rozostrených nastackovaných miest: ${spreadGrandTotal}`)

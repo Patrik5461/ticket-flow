@@ -254,6 +254,58 @@ describe('layout migration', () => {
     expect(out.levels[0].objects[0].capacity).toBeNull()
   })
 
+  it('carries decorations through a save round-trip', () => {
+    const objects = [
+      { id: 'o1', kind: 'wall', label: '', x: 0, y: 0, width: 300, height: 20 },
+      { id: 'o2', kind: 'door', label: 'Vchod', x: 0, y: 40 },
+      { id: 'o3', kind: 'text', label: 'BALKÓN', x: 0, y: 80 },
+      { id: 'o4', kind: 'icon', label: 'WC', x: 0, y: 120 },
+      { id: 'o5', kind: 'shape', label: '', x: 0, y: 160 },
+    ]
+    const once = migrateLayout({ levels: [{ key: 'p', objects }] })
+    expect(once.levels[0].objects.map((o) => o.kind)).toEqual([
+      'wall',
+      'door',
+      'text',
+      'icon',
+      'shape',
+    ])
+    // saveSeatMapFn stores migrateLayout's own output, so migrating twice is
+    // what a save actually does — it has to be a fixed point.
+    expect(migrateLayout(once)).toEqual(once)
+    // An unlabelled decoration stays unlabelled; only stage/area get a default.
+    expect(once.levels[0].objects[0].label).toBe('')
+  })
+
+  it('folds an unknown kind into an area, as before', () => {
+    const out = migrateLayout({
+      levels: [{ key: 'p', objects: [{ id: 'o1', kind: 'sparkle' }] }],
+    })
+    expect(out.levels[0].objects[0].kind).toBe('area')
+    expect(out.levels[0].objects[0].label).toBe('Plocha')
+  })
+
+  it('never lets a decoration sell tickets', () => {
+    const layout = migrateLayout({
+      levels: [
+        {
+          key: 'p',
+          objects: [
+            { id: 'o1', kind: 'shape', label: 'Klietka', capacity: 500 },
+            { id: 'o2', kind: 'text', label: 'Parket', capacity: 300 },
+            { id: 'o3', kind: 'area', label: 'Parket', capacity: 300 },
+          ],
+        },
+      ],
+    })
+    expect(layout.levels[0].objects.map((o) => o.capacity)).toEqual([
+      null,
+      null,
+      300,
+    ])
+    expect(capacityAreas(layout).map((a) => a.id)).toEqual(['o3'])
+  })
+
   it('survives junk instead of throwing', () => {
     expect(migrateLayout(null).levels).toEqual([])
     expect(migrateLayout({}).levels).toEqual([])

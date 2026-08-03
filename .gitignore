@@ -15,3 +15,7 @@ todos.json
 # Supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Hall import: the MaxiTicket export and the run's own progress log
+tmp/
+import-halls-*.jsonl

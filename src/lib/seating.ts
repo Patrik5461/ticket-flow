@@ -40,11 +40,53 @@ export interface SectorShape {
 }
 
 /**
- * A non-seated rectangle on the canvas: the stage, or a standing area (parket,
- * bar). An area with a capacity is sold as a quantity category — it has no
- * individual seats, so the buyer picks a count, not a spot.
+ * A non-seated box on the canvas.
+ *
+ *   stage   the stage / podium
+ *   area    a standing area (parket, bar). With a capacity it sells as a
+ *           quantity category — no individual seats, so the buyer picks a
+ *           count, not a spot.
+ *   wall | door | text | icon | shape
+ *           decoration: it orients the buyer and nothing more. Never sellable
+ *           (capacityAreas takes `area` only), never clicked. These come from
+ *           the MaxiTicket halls, which draw a hall's walls, doors, captions
+ *           and props alongside its seats.
+ *
+ * Adding a kind here is what lets it survive a save: saveSeatMapFn stores
+ * migrateLayout's output, so a kind this list does not name is folded into
+ * `area` on the way through — which would turn a wall into sellable floor.
  */
-export type MapObjectKind = 'stage' | 'area'
+export type MapObjectKind =
+  | 'stage'
+  | 'area'
+  | 'wall'
+  | 'door'
+  | 'text'
+  | 'icon'
+  | 'shape'
+
+const MAP_OBJECT_KINDS = new Set<string>([
+  'stage',
+  'area',
+  'wall',
+  'door',
+  'text',
+  'icon',
+  'shape',
+] satisfies MapObjectKind[])
+
+/** Default names, so a freshly added object is never a blank box. */
+const DEFAULT_OBJECT_LABEL: Record<MapObjectKind, string> = {
+  stage: 'Pódium',
+  area: 'Plocha',
+  // A decoration with no text is drawn without a caption, which is exactly
+  // right: naming a wall „Plocha" would both mislabel it and read as sellable.
+  wall: '',
+  door: '',
+  text: '',
+  icon: '',
+  shape: '',
+}
 
 export interface MapObject {
   id: string
@@ -416,7 +458,12 @@ function str(v: unknown, fallback = ''): string {
 function migrateObject(raw: unknown, index: number): MapObject | null {
   if (typeof raw !== 'object' || raw === null) return null
   const o = raw as Record<string, unknown>
-  const kind: MapObjectKind = o.kind === 'stage' ? 'stage' : 'area'
+  // A named kind is kept as it is, so a decoration survives the round trip
+  // through the editor. Anything unknown still falls back to 'area' — an
+  // unreadable object is better shown as a plain box than dropped.
+  const kind: MapObjectKind = MAP_OBJECT_KINDS.has(o.kind as string)
+    ? (o.kind as MapObjectKind)
+    : 'area'
   const capacity =
     kind === 'area' && typeof o.capacity === 'number' && o.capacity > 0
       ? Math.floor(o.capacity)
@@ -424,7 +471,7 @@ function migrateObject(raw: unknown, index: number): MapObject | null {
   return {
     id: str(o.id) || `o${index + 1}`,
     kind,
-    label: str(o.label, kind === 'stage' ? 'Pódium' : 'Plocha'),
+    label: str(o.label, DEFAULT_OBJECT_LABEL[kind]),
     x: num(o.x),
     y: num(o.y),
     width: Math.max(MIN_OBJECT_SIZE, num(o.width, 200)),
@@ -703,7 +750,14 @@ export interface CapacityArea {
   level: string
 }
 
-/** Every area that sells standing tickets, across all levels of a layout. */
+/**
+ * Every area that sells standing tickets, across all levels of a layout.
+ *
+ * `kind === 'area'` is the whole gate, and it is deliberately the only one: a
+ * stage or a decoration can never sell, whatever a stored `capacity` claims.
+ * migrateObject already drops capacity off every other kind, so this is the
+ * second of two locks on the same door.
+ */
 export function capacityAreas(layout: SeatMapLayout): CapacityArea[] {
   const out: CapacityArea[] = []
   for (const lv of layout.levels) {
