@@ -294,6 +294,8 @@ interface ImportHall {
     collapsedBands: number
     /** Seats written as seat_type 'wheelchair'. */
     wheelchairSeats: number
+    /** Seats that shared a coordinate and had to be laid out. */
+    spreadSeats: number
     scale: number
     sourceGap: number
     canvas: { width: number; height: number }
@@ -523,6 +525,76 @@ function renumberBlock(block: WorkSeat[], gap: number): void {
   })
 }
 
+/**
+ * Turn one coordinate's worth of seats into seats that actually have places.
+ *
+ * Some halls never laid a group out and left every seat of it on a single
+ * point: a pair of extra chairs at the end of a row, or a whole wheelchair
+ * zone (Hrad Beckov keeps 201 of them on one pixel). They are distinct seats —
+ * every record carries its own `ts` — so they are spread around that point
+ * instead of being merged away or sold as anonymous floor.
+ *
+ *   up to a handful   one row, side by side, numbered 1..N
+ *   a whole zone      a near-square grid, rows 1..R numbered 1..C
+ *
+ * A group of one passes through untouched, which is the overwhelming majority.
+ */
+function layOutStack(
+  stack: SourceSeat[],
+  gap: number,
+  halfW: number,
+  halfH: number,
+  isWheelchair: (s: SourceSeat) => boolean,
+): WorkSeat[] {
+  const make = (
+    s: SourceSeat,
+    sx: number,
+    sy: number,
+    row: string,
+    seat: string,
+  ): WorkSeat => ({
+    ref: String(s.ts),
+    sx,
+    sy,
+    row,
+    seat,
+    unnumbered: seat === '0',
+    wheelchair: isWheelchair(s),
+    piece: 0,
+  })
+
+  const first = stack[0]
+  const cx = first.x + halfW
+  const cy = first.y + halfH
+  if (stack.length === 1) {
+    return [make(first, cx, cy, String(first.l2), String(first.n))]
+  }
+
+  // Order by ts so a re-import lays the same seat in the same place.
+  const ordered = [...stack].sort((a, b) => a.ts - b.ts)
+  const grid = ordered.length >= STANDING_CLUSTER_MIN
+  const cols = grid ? Math.ceil(Math.sqrt(ordered.length)) : ordered.length
+  const rows = Math.ceil(ordered.length / cols)
+  // Centre the block on the point the hall put it at, so it stays where the
+  // plan said it was.
+  const originX = cx - ((cols - 1) * gap) / 2
+  const originY = cy - ((rows - 1) * gap) / 2
+
+  return ordered.map((s, i) => {
+    const r = Math.floor(i / cols)
+    const c = i % cols
+    return make(
+      s,
+      originX + c * gap,
+      originY + r * gap,
+      // A single row keeps the row the hall gave it; a grid has no meaningful
+      // row in the source (these are all l2 = 22 / 209 / 203) and gets its own.
+      grid ? String(r + 1) : String(s.l2),
+      String(c + 1),
+    )
+  })
+}
+
 /** Centre of mass of a set of seats, used to order and name block suffixes. */
 function centreOf(seats: WorkSeat[]): { x: number; y: number } {
   let sx = 0
@@ -744,12 +816,42 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   const halfW = (Number(layoutMeta.default_seat_width) || 0) / 2
   const halfH = (Number(layoutMeta.default_seat_height) || 0) / 2
 
-  // --- standing areas -----------------------------------------------------
-  // A standing area is a stack of seats on one exact coordinate. Anything
-  // shorter than STANDING_CLUSTER_MIN is a handful of overlapping seats and
-  // stays seated.
-  const stacks = new Map<string, SourceSeat[]>()
+  const isWheelchair = (s: SourceSeat): boolean =>
+    wheelchairSectors.has(s.l1) ||
+    (s.c != null && wheelchairCategories.has(s.c))
+
+  // --- duplicate records --------------------------------------------------
+  // `ts` is the source's own seat id and it is unique across the whole export
+  // (887 845 records, 887 845 distinct ts), so two records sharing a coordinate
+  // are two real seats the hall never bothered to lay out — not one seat
+  // written twice. Only a repeated ts is a genuine duplicate.
+  const seenTs = new Set<number>()
+  const uniqueSeats: SourceSeat[] = []
+  let duplicateTs = 0
   for (const s of visible) {
+    if (seenTs.has(s.ts)) {
+      duplicateTs++
+      continue
+    }
+    seenTs.add(s.ts)
+    uniqueSeats.push(s)
+  }
+  if (duplicateTs > 0) {
+    warnings.push(`${duplicateTs}× zhodné ts v zdroji — kópie zahodené.`)
+  }
+
+  // --- standing areas -----------------------------------------------------
+  // A standing area is a stack of seats on one exact coordinate. Two rules
+  // bound it:
+  //   - fewer than STANDING_CLUSTER_MIN and it is not an area at all, just a
+  //     few seats the hall left piled up;
+  //   - a wheelchair sector is NEVER an area, however tall the pile. A
+  //     wheelchair space is a specific place a specific person books, not free
+  //     floor sold by the head, and `area` has nowhere to record that it is
+  //     accessible at all.
+  // Everything that stays seated and shares a coordinate gets spread out below.
+  const stacks = new Map<string, SourceSeat[]>()
+  for (const s of uniqueSeats) {
     const key = `${s.x}|${s.y}|${s.l1}|${s.c ?? ''}`
     const stack = stacks.get(key)
     if (stack) stack.push(s)
@@ -763,9 +865,9 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     count: number
   }
   const clusters: StandingCluster[] = []
-  const seatedSeats: SourceSeat[] = []
+  const seatedStacks: SourceSeat[][] = []
   for (const stack of stacks.values()) {
-    if (stack.length >= STANDING_CLUSTER_MIN) {
+    if (stack.length >= STANDING_CLUSTER_MIN && !isWheelchair(stack[0])) {
       const first = stack[0]
       clusters.push({
         sx: first.x + halfW,
@@ -775,7 +877,7 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
         count: stack.length,
       })
     } else {
-      seatedSeats.push(...stack)
+      seatedStacks.push(stack)
     }
   }
   // Deterministic ids across re-imports: the pricing key of an area is its
@@ -784,37 +886,14 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     (a, b) =>
       a.l1 - b.l1 || (a.c ?? 0) - (b.c ?? 0) || a.sy - b.sy || a.sx - b.sx,
   )
-
-  // --- exact duplicate records -------------------------------------------
-  // A handful of halls carry the very same seat twice: same coordinate, same
-  // sector, same category, same row and number. That is one physical seat
-  // written down twice, not two seats, and it can only ever break the unique
-  // constraint — so the copies go. (Stacks of 10+ never reach here; they were
-  // taken out above as standing areas.)
-  const seenSeatKeys = new Set<string>()
-  const dedupedSeats: SourceSeat[] = []
-  let exactDuplicates = 0
-  for (const s of seatedSeats) {
-    const key = `${s.x}|${s.y}|${s.l1}|${s.c ?? ''}|${s.l2}|${s.n}`
-    if (seenSeatKeys.has(key)) {
-      exactDuplicates++
-      continue
-    }
-    seenSeatKeys.add(key)
-    dedupedSeats.push(s)
-  }
-  if (exactDuplicates > 0) {
-    warnings.push(
-      `${exactDuplicates}× rovnaké sedadlo v zdroji (rovnaká súradnica aj číslo) — kópie zahodené.`,
-    )
-  }
+  const seatedSeats = seatedStacks.flat()
 
   // --- scale --------------------------------------------------------------
   // The median gap between neighbouring seats of a source row. Rows are taken
   // as they come from the source (l1 + l2) purely as a grouping — l2 may well
   // be a table number, which still groups seats that sit next to each other.
   const rowGroups = new Map<string, SourceSeat[]>()
-  for (const s of dedupedSeats) {
+  for (const s of seatedSeats) {
     const key = `${s.l1}|${s.l2}`
     const g = rowGroups.get(key)
     if (g) g.push(s)
@@ -839,23 +918,19 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   const scale = TARGET_SEAT_GAP / sourceGap
 
   // --- blocks, renumbering, suffixes -------------------------------------
+  // Piles of seats sitting on one coordinate are laid out for real before
+  // anything else looks at them, so the rest of the pipeline only ever sees
+  // seats with distinct positions.
+  let spreadSeats = 0
   const bySector = new Map<number, WorkSeat[]>()
-  for (const s of dedupedSeats) {
-    const work: WorkSeat = {
-      ref: String(s.ts),
-      sx: s.x + halfW,
-      sy: s.y + halfH,
-      row: String(s.l2),
-      seat: String(s.n),
-      unnumbered: s.n === 0,
-      wheelchair:
-        wheelchairSectors.has(s.l1) ||
-        (s.c != null && wheelchairCategories.has(s.c)),
-      piece: 0,
+  for (const stack of seatedStacks) {
+    const laid = layOutStack(stack, sourceGap, halfW, halfH, isWheelchair)
+    if (stack.length > 1) spreadSeats += stack.length
+    for (const work of laid) {
+      const g = bySector.get(stack[0].l1)
+      if (g) g.push(work)
+      else bySector.set(stack[0].l1, [work])
     }
-    const g = bySector.get(s.l1)
-    if (g) g.push(work)
-    else bySector.set(s.l1, [work])
   }
 
   let renumberedSeats = 0
@@ -1171,6 +1246,7 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
       collapsedBands,
       wheelchairSeats: seatsOut.filter((s) => s.seat_type === 'wheelchair')
         .length,
+      spreadSeats,
       scale,
       sourceGap,
       canvas,
@@ -1588,7 +1664,13 @@ async function main(): Promise<void> {
   let standingTotal = 0
   let stageTotal = 0
   const skippedTotal: Record<string, number> = {}
-  const wheelchairHalls: { id: string; name: string; seats: number }[] = []
+  const wheelchairHalls: {
+    id: string
+    name: string
+    seats: number
+    spread: number
+  }[] = []
+  let spreadGrandTotal = 0
 
   for (const id of ids) {
     let hall: ImportHall
@@ -1629,6 +1711,9 @@ async function main(): Promise<void> {
           (hall.stats.wheelchairSeats
             ? `  [vozíčkari ${hall.stats.wheelchairSeats}]`
             : '') +
+          (hall.stats.spreadSeats
+            ? `  [rozostrené ${hall.stats.spreadSeats}]`
+            : '') +
           (hall.stats.suffixedSectors
             ? `  [+suffix ${hall.stats.suffixedSectors}]`
             : '') +
@@ -1653,11 +1738,13 @@ async function main(): Promise<void> {
 
     imported++
     stageTotal += hall.stats.stages
+    spreadGrandTotal += hall.stats.spreadSeats
     if (hall.stats.wheelchairSeats > 0) {
       wheelchairHalls.push({
         id,
         name: hall.venueName,
         seats: hall.stats.wheelchairSeats,
+        spread: hall.stats.spreadSeats,
       })
     }
     for (const [t, n] of Object.entries(hall.stats.skippedDecor)) {
@@ -1690,16 +1777,17 @@ async function main(): Promise<void> {
         ') — doplnia sa re-importom, keď ich bude renderer vedieť vykresliť',
     )
   }
+  console.log(`Rozostrených nastackovaných miest: ${spreadGrandTotal}`)
   const wheelchairTotal = wheelchairHalls.reduce((n, w) => n + w.seats, 0)
   console.log(
     `Bezbariérových miest: ${wheelchairTotal} v ${wheelchairHalls.length} halách`,
   )
-  if (wheelchairHalls.length > 0) {
-    for (const w of wheelchairHalls) {
-      console.log(
-        `  ♿ ${w.id.padStart(5)}  ${w.name.slice(0, 44).padEnd(44)} ${String(w.seats).padStart(5)}`,
-      )
-    }
+  for (const w of wheelchairHalls) {
+    console.log(
+      `  ♿ ${w.id.padStart(5)}  ${w.name.slice(0, 42).padEnd(42)} ` +
+        `${String(w.seats).padStart(4)} miest` +
+        (w.spread ? `  (z toho ${w.spread} rozostrených)` : ''),
+    )
   }
   if (skippedTest.length > 0) {
     console.log(
