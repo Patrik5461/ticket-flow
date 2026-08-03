@@ -1155,7 +1155,16 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
         width: Math.max(MIN_OBJECT_SIZE, round2(sw * scale)),
         height: Math.max(MIN_OBJECT_SIZE, round2(sh * scale)),
         rotation: (((Number(e.ang) || 0) % 360) + 360) % 360,
-        label: clean(e.text).replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN),
+        // A wall's caption is dropped. MapObjectShape draws one for every other
+        // kind but never for a wall, so keeping it would store a name nothing
+        // renders — and the source is full of misleading ones: six of the eight
+        // walls making up the cage in Kino B Žilina are labelled „VIP stoly",
+        // which is the standing area on the far side of the hall. Invisible on
+        // the map, but the editor puts it in the object's name field.
+        label:
+          kind === 'wall'
+            ? ''
+            : clean(e.text).replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN),
       },
     ]
   })
