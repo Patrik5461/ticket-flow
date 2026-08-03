@@ -1533,7 +1533,7 @@ function Canvas({
         ))}
 
         {/* Resize + rotate handles for the selected object, drawn last (on top). */}
-        {editing && selected && (
+        {editing && selected && !isDecoration(selected) && (
           <ObjectHandles
             object={selected}
             size={hs}
