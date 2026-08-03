@@ -543,7 +543,11 @@ function SeatMapSurface({
           <div className="font-semibold">
             {tip.seat.sector} · rad {tip.seat.rowLabel} · miesto{' '}
             {tip.seat.seatNumber}
+            {tip.seat.seatType === 'wheelchair' && (
+              <span className="ml-1 text-sky-400">· bezbariérové</span>
+            )}
           </div>
+
           <div className="text-ink-300">
             {tip.seat.availability === 'available'
               ? `${nameOf.get(tip.seat.ticketTypeId) ?? 'Vstupenka'} · ${formatEur(
