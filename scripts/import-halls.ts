@@ -47,7 +47,7 @@
  * event_sector_pricing and must stay exactly as the hall knows it.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { appendFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -96,6 +96,12 @@ const BLOCK_NEIGHBOUR_FACTOR = 1.8
 const ROW_BAND_FACTOR = 0.6
 /** PostgREST batch size for seat writes. */
 const SEAT_BATCH = 1000
+/** Halls written before the run pauses to let the database breathe. */
+const DEFAULT_BATCH_HALLS = 50
+/** How long that pause is, in milliseconds. */
+const DEFAULT_BATCH_PAUSE_MS = 2000
+/** Default progress log: append-only, one finished hall per line. */
+const DEFAULT_PROGRESS_LOG = 'import-halls-progress.jsonl'
 
 /** Column limits from the `seats` table / the editor's validator. */
 const MAX_SECTOR_LEN = 60
@@ -314,6 +320,14 @@ interface Options {
   only: Set<string> | null
   includeTestHalls: boolean
   verbose: boolean
+  /** Halls per batch; the run pauses between batches. */
+  batch: number
+  /** Pause between batches, in milliseconds. */
+  pause: number
+  /** Where finished halls are recorded, so --resume can skip them. */
+  log: string
+  /** Skip halls the log already lists as done. */
+  resume: boolean
 }
 
 function parseArgs(argv: string[]): Options {
@@ -322,11 +336,21 @@ function parseArgs(argv: string[]): Options {
   let only: Set<string> | null = null
   let includeTestHalls = false
   let verbose = false
+  let batch = DEFAULT_BATCH_HALLS
+  let pause = DEFAULT_BATCH_PAUSE_MS
+  let log = DEFAULT_PROGRESS_LOG
+  let resume = false
   for (const arg of argv) {
     if (arg === '--commit') commit = true
     else if (arg === '--dry-run') commit = false
     else if (arg === '--include-test-halls') includeTestHalls = true
     else if (arg === '--verbose' || arg === '-v') verbose = true
+    else if (arg === '--resume') resume = true
+    else if (arg.startsWith('--batch=')) {
+      batch = Math.max(1, Number(arg.slice('--batch='.length)) || 0)
+    } else if (arg.startsWith('--pause=')) {
+      pause = Math.max(0, Number(arg.slice('--pause='.length)) || 0)
+    } else if (arg.startsWith('--log=')) log = arg.slice('--log='.length)
     else if (arg.startsWith('--only=')) {
       only = new Set(
         arg
@@ -344,10 +368,22 @@ function parseArgs(argv: string[]): Options {
   if (!dir) {
     fail(
       'Chýba adresár s exportom.\n' +
-        '  node scripts/import-halls.ts <adresár> [--commit] [--only=1,2] [--include-test-halls] [-v]',
+        '  node scripts/import-halls.ts <adresár> [--commit] [--resume]\n' +
+        '      [--only=1,2] [--include-test-halls] [--batch=50] [--pause=2000]\n' +
+        '      [--log=<súbor>] [-v]',
     )
   }
-  return { dir, commit, only, includeTestHalls, verbose }
+  return {
+    dir,
+    commit,
+    only,
+    includeTestHalls,
+    verbose,
+    batch,
+    pause,
+    log,
+    resume,
+  }
 }
 
 function fail(message: string): never {
@@ -1586,11 +1622,18 @@ async function writeSeats(
   }
 }
 
-async function importHall(db: Db, hall: ImportHall): Promise<string> {
+async function importHall(
+  db: Db,
+  hall: ImportHall,
+): Promise<{ venueId: string; seatMapId: string; what: string }> {
   const venueId = await upsertVenue(db, hall)
   const map = await upsertSeatMap(db, venueId, hall)
   await writeSeats(db, map.id, hall, map.existed)
-  return map.existed ? 'aktualizovaná' : 'vytvorená'
+  return {
+    venueId,
+    seatMapId: map.id,
+    what: map.existed ? 'aktualizovaná' : 'vytvorená',
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1638,6 +1681,48 @@ function skippedSummary(hall: ImportHall): string {
   return `${skippedCount(hall)} (${parts.join(' ')})`
 }
 
+/**
+ * Append-only record of finished halls, so a run that dies halfway can be
+ * picked up with --resume instead of started again. One JSON object per line,
+ * flushed after every hall — a killed process keeps everything up to the hall
+ * it was on. Only successes are written, so a hall that failed is retried.
+ */
+interface ProgressEntry {
+  id: string
+  venueId: string
+  seatMapId: string
+  seats: number
+  at: string
+}
+
+function readProgress(file: string): Map<string, ProgressEntry> {
+  const done = new Map<string, ProgressEntry>()
+  let text: string
+  try {
+    text = readFileSync(file, 'utf8')
+  } catch {
+    return done
+  }
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    try {
+      const entry = JSON.parse(trimmed) as ProgressEntry
+      if (entry.id) done.set(entry.id, entry)
+    } catch {
+      // A half-written last line after a hard kill: ignore it, that hall is
+      // simply not marked done and gets redone.
+    }
+  }
+  return done
+}
+
+function appendProgress(file: string, entry: ProgressEntry): void {
+  appendFileSync(file, `${JSON.stringify(entry)}\n`)
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2))
   const ids = listHallDirs(opts.dir).filter(
@@ -1650,8 +1735,19 @@ async function main(): Promise<void> {
     }
   }
 
+  // The log only means anything for a real write; a dry run neither reads nor
+  // writes it, so --resume cannot silently hide halls from a preview.
+  const done = opts.commit && opts.resume ? readProgress(opts.log) : new Map()
+  const pending = ids.filter((id) => !done.has(id))
+  const alreadyDone = ids.length - pending.length
+
   console.log(
-    `${opts.commit ? 'ZÁPIS' : 'NAČISTO (dry-run)'} — ${ids.length} hál z ${opts.dir}\n`,
+    `${opts.commit ? 'ZÁPIS' : 'NAČISTO (dry-run)'} — ${pending.length} hál z ${opts.dir}` +
+      (alreadyDone > 0 ? ` (${alreadyDone} už hotových, preskakujem)` : '') +
+      (opts.commit
+        ? `\n  dávky po ${opts.batch}, pauza ${opts.pause} ms, log ${opts.log}`
+        : '') +
+      '\n',
   )
 
   const db = opts.commit ? connect() : null
@@ -1672,7 +1768,17 @@ async function main(): Promise<void> {
   }[] = []
   let spreadGrandTotal = 0
 
-  for (const id of ids) {
+  let processed = 0
+  for (const id of pending) {
+    // Pause between batches so a 456-hall run does not hammer PostgREST for
+    // minutes without a break.
+    if (opts.commit && processed > 0 && processed % opts.batch === 0) {
+      console.log(
+        `— dávka hotová (${processed}/${pending.length}), pauza ${opts.pause} ms —`,
+      )
+      await sleep(opts.pause)
+    }
+    processed++
     let hall: ImportHall
     try {
       const raw = JSON.parse(
@@ -1725,8 +1831,17 @@ async function main(): Promise<void> {
 
     if (db) {
       try {
-        const what = await importHall(db, hall)
-        if (opts.verbose || opts.only) console.log(`       → mapa ${what}`)
+        const result = await importHall(db, hall)
+        appendProgress(opts.log, {
+          id,
+          venueId: result.venueId,
+          seatMapId: result.seatMapId,
+          seats: hall.seats.length,
+          at: new Date().toISOString(),
+        })
+        if (opts.verbose || opts.only) {
+          console.log(`       → mapa ${result.what}`)
+        }
       } catch (e) {
         failures.push({
           id,
