@@ -43,6 +43,13 @@ import type {
   SeatMapLayout,
   Viewport,
 } from '../lib/seating'
+import {
+  AreaHatchPattern,
+  MapObjectShape,
+  isDecoration,
+  isStandingArea,
+} from '../components/MapObjectShape'
+
 
 export const Route = createFileRoute('/app/venues')({
   loader: async (): Promise<VenueRow[]> => {
