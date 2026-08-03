@@ -30,7 +30,7 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 ## Supabase — ktorý projekt a ako ho sondovať
 
 - **Ticketio je cloud projekt `upymwphlrkxcegnyslky`** (`SUPABASE_URL` v `~/ticketio-secrets.env`). Overuj ref, nie meno.
-- **Pripojený MCP server `claude.ai Supabase Tendrik` mieri na `tmssxnluhjhzqmutflbl` — to je Tendrik, CUDZÍ projekt.** Je to connector z claude.ai účtu (nie `.mcp.json`, nie `mcpServers` v `~/.claude.json`), takže sa dedí do každej session bez ohľadu na adresár a v Ticketiu vyzerá dostupne. **Nikdy cezeň nič proti Ticketiu nespúšťaj** — `execute_sql` by šiel do Tendriku. Ak MCP potrebuješ, najprv over ref (`get_project_url`); ak nesedí, nepoužiť.
+- **Pripojený MCP server `claude.ai Supabase ticketio` mieri na `upymwphlrkxcegnyslky`, teda na Ticketio** (overené 2026-08-03 cez `get_project_url`). Je to connector z claude.ai účtu (nie `.mcp.json`, nie `mcpServers` v `~/.claude.json`), takže sa dedí do každej session bez ohľadu na adresár — a rovnako sa môže bez varovania prepnúť inam: do 2026-08-03 mieril na `tmssxnluhjhzqmutflbl`, čo je Tendrik, CUDZÍ projekt. **Meno servera nie je dôkaz, ref áno.** Preto pred prvým dotazom v session vždy `get_project_url`; ak nevráti `upymwphlrkxcegnyslky`, MCP nepoužiť. `execute_sql` aj `apply_migration` idú naostro do toho projektu, ktorý connector práve drží — bez potvrdenia a bez stagingu.
 - Ticketio DB sa sonduje **service-role kľúčom cez PostgREST**: `node --env-file=~/ticketio-secrets.env <skript>` a `fetch(`${SUPABASE_URL}/rest/v1/…`)` s hlavičkami `apikey` + `Authorization: Bearer`. Service role obchádza RLS aj granty, takže vidí aj server-only tabuľky (`app_settings`, `email_jobs`).
 - Čo takto **nevidno**: PostgREST vystavuje len schémy `public` a `graphql_public` (`PGRST106 — Invalid schema` na čokoľvek iné). Cez REST teda neuvidíš:
   - schému `cron` — existenciu pg_cron jobov sa overiť nedá, len nepriamo z toho, že migrácia prebehla celá;
@@ -64,6 +64,25 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - GoPay webhook: overiť podpis/stav voči GoPay API (nikdy neveriť len payloadu), spracovanie idempotentné cez `payment_events` tabuľku.
 - Kupón sa validuje a uplatňuje výhradne na serveri.
 - Provízia platformy: konfigurovateľná per organizátor (`organizers.fee_percent`, `organizers.fee_min_cents`), default 4 % / min 0,40 €.
+
+## Knižnica hál (import z MaxiTicketu)
+
+- Zdieľanú knižnicu miest konania (`venues.organizer_id is null` + `is_public`) naplnil `scripts/import-halls.ts` z exportu starého MaxiTicketu. Stav: 456 hál / 456 máp / 253 687 sedadiel.
+- **Zdrojový export v repe nie je a nebude** (59 MB, `tmp/` je v `.gitignore`) a jeho umiestnenie sa z kódu nedá zistiť. Existuje len na produkčnej VM:
+  - rozbalený v `~/ticketio/tmp/maxiticket-export-hall/` — 485 podadresárov, v každom `hall.json`, plus `halls.csv`;
+  - archív `~/maxiticket-export-hall.zip` (3,8 MB).
+
+  V čistom klone teda import spustiť **nejde**, aj keď to tak z repa vyzerá. Ak by tieto dáta z VM zmizli, knižnica sa nedá postaviť nanovo — inde záloha nie je.
+- Cesta k exportu je povinný argument, žiadny default:
+  ```bash
+  cd ~/ticketio
+  node scripts/import-halls.ts tmp/maxiticket-export-hall                 # dry run, DB netreba
+  node --env-file=~/ticketio-secrets.env \
+    scripts/import-halls.ts tmp/maxiticket-export-hall --commit           # zápis
+  ```
+- Re-import je idempotentný a prepisuje mapy in place (`--resume` sa pri prepise nepoužíva). **Výnimka: hala alebo mapa s `import_locked_at` bola ručne opravená cez `/admin/haly` a import ju nechá úplne na pokoji vrátane sedadiel**; na konci behu vypíše, čo preskočil. Späť pod import ju vráti pomenovaná akcia „Vrátiť pod import" v `/admin/haly`. Mapa už použitá v podujatí sa preskočí vždy.
+- **Ručná oprava sa do zdrojového exportu nepremietne** — `hall.json` ostáva chybný. Pri stavbe knižnice od nuly by opravy boli preč; jediná stopa, ktorých hál sa to týka, je zoznam zamknutých z výpisu importu.
+- Pri kontrolách čísel odfiltruj organizátorské mapy — importované nesú `external_ref like 'mt:%'`, ostatné do knižnice nepatria.
 
 ## Jazyk
 

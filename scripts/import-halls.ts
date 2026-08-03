@@ -12,10 +12,16 @@
  * and is left exactly as it is, seats included. The run lists what it skipped.
  * To let a hall track the export again, release the lock in /admin/haly.
  *
+ * The export itself is NOT in the repo and never will be (59 MB, and tmp/ is
+ * gitignored). It exists only on the production VM: unpacked in
+ * ~/ticketio/tmp/maxiticket-export-hall (485 hall directories plus halls.csv),
+ * archived as ~/maxiticket-export-hall.zip. In a fresh clone there is nothing
+ * to import — get the export onto the machine first. See CLAUDE.md.
+ *
  * Run (dry run, no DB needed):
- *   node scripts/import-halls.ts ~/maxiticket-export-hall
+ *   node scripts/import-halls.ts tmp/maxiticket-export-hall
  * Write:
- *   node --env-file=~/ticketio-secrets.env scripts/import-halls.ts ~/maxiticket-export-hall --commit
+ *   node --env-file=~/ticketio-secrets.env scripts/import-halls.ts tmp/maxiticket-export-hall --commit
  *
  * The source model, and what this does with it:
  *
@@ -1763,7 +1769,12 @@ function listHallDirs(dir: string): string[] {
   try {
     entries = readdirSync(dir)
   } catch {
-    fail(`Adresár sa nedá čítať: ${dir}`)
+    fail(
+      `Adresár sa nedá čítať: ${dir}\n` +
+        '  Export nie je v repe (tmp/ je gitignorovaný). Na produkčnej VM je\n' +
+        '  rozbalený v ~/ticketio/tmp/maxiticket-export-hall, archív leží\n' +
+        '  v ~/maxiticket-export-hall.zip.',
+    )
   }
   const dirs = entries.filter((name) => {
     const path = join(dir, name)
