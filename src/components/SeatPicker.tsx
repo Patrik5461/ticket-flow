@@ -230,7 +230,14 @@ export function SeatPicker({
           count={selected.length}
           total={selectedTotal}
         >
-          <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} compact />
+          <Legend
+            ticketTypes={map.ticketTypes}
+            colorOf={colorOf}
+            compact
+            hasWheelchair={levelSeats.some((s) => s.seatType === 'wheelchair')}
+            hasArea={levelObjects.some(isStandingArea)}
+          />
+
           {surface('h-full w-full', 'min-h-0 flex-1')}
         </MapOverlay>
       )}
