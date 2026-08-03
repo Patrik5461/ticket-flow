@@ -380,11 +380,70 @@ function EventPage() {
               <h2 className="font-display text-xl font-bold">
                 {showMap ? 'Vstupenky a súhrn' : 'Vstupenky'}
               </h2>
+              {/* Picked seats belong next to the total, not under the map: the
+                  buyer must see what is in the cart without scrolling back. */}
+              {showMap && (
+                <div className="mt-4 rounded-xl border border-ink-700 bg-ink-900/50 p-4">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-ink-200">
+                      Vybrané sedadlá
+                    </span>
+                    <span className="text-xs text-ink-400 tabular-nums">
+                      {seats.length} · {formatEur(seatedTotal)}
+                    </span>
+                  </div>
+                  {seats.length === 0 ? (
+                    <p className="mt-2 text-xs text-ink-500">
+                      Vyberte sedadlá kliknutím na mapu.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 max-h-44 space-y-1 overflow-auto pr-1 text-xs">
+                      {seats.map((id) => {
+                        const s = seatMap.seats.find((x) => x.seatId === id)
+                        if (!s) return null
+                        return (
+                          <li
+                            key={id}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span className="min-w-0 truncate text-ink-300">
+                              {s.sector} · rad {s.rowLabel} · miesto{' '}
+                              {s.seatNumber}
+                              {s.seatType === 'wheelchair' && (
+                                <span className="ml-1 text-sky-400">
+                                  · bezbariérové
+                                </span>
+                              )}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-2">
+                              <span className="tabular-nums text-ink-200">
+                                {formatEur(s.priceCents)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSeats(seats.filter((x) => x !== id))
+                                }
+                                aria-label={`Odobrať sedadlo ${s.sector} ${s.rowLabel}${s.seatNumber}`}
+                                title="Odobrať"
+                                className="h-5 w-5 rounded border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
               {!showMap && quantityTypes.length === 0 && (
                 <p className="mt-4 text-sm text-ink-400">
                   Momentálne nie sú v predaji žiadne vstupenky.
                 </p>
               )}
+
               {quantityTypes.length > 0 && (
                 <>
                   {showMap && (
