@@ -757,7 +757,16 @@ function SeatList({
                           disabled={dis}
                           onChange={() => onToggle(s)}
                         />
+                        {s.seatType === 'wheelchair' && (
+                          <span
+                            className="mr-0.5 text-sky-400"
+                            title="Bezbariérové miesto"
+                          >
+                            ♿
+                          </span>
+                        )}
                         {s.seatNumber}
+
                       </label>
                     )
                   })}
