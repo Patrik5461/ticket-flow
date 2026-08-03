@@ -325,6 +325,28 @@ function SeatMapSurface({
           setTip(null)
         }}
       >
+        <defs>
+          {/* Hatching marks the areas that are NOT clicked: a standing area is
+              bought by quantity, so it must not look like one big seat. */}
+          <pattern
+            id="areaHatch"
+            width={10}
+            height={10}
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line
+              x1={0}
+              y1={0}
+              x2={0}
+              y2={10}
+              stroke="#818cf8"
+              strokeWidth={2}
+              opacity={0.5}
+            />
+          </pattern>
+        </defs>
+
         {/* Catches presses on empty space so panning works away from seats. */}
         <rect
           x={vp.view.x}
@@ -337,6 +359,12 @@ function SeatMapSurface({
         {objects.map((o) => {
           const c = objectCenter(o)
           const stage = o.kind === 'stage'
+          // A standing area sells by quantity from the panel, not by clicking a
+          // spot on it. Hatching and a dashed edge say "this is not a seat", and
+          // the caption says how to actually buy it.
+          const standing = !stage && !!o.capacity
+          const fontSize = Math.max(10, Math.min(20, o.height / 4))
+          const roomForHint = o.height >= fontSize * 3.4
           return (
             <g key={o.id} transform={`rotate(${o.rotation} ${c.x} ${c.y})`}>
               <rect
@@ -348,19 +376,44 @@ function SeatMapSurface({
                 fill={stage ? '#475569' : 'rgba(99,102,241,0.15)'}
                 stroke={stage ? '#94a3b8' : '#818cf8'}
                 strokeWidth={1.5}
+                strokeDasharray={standing ? '7 4' : undefined}
                 style={{ pointerEvents: 'none' }}
               />
+              {standing && (
+                <rect
+                  x={o.x}
+                  y={o.y}
+                  width={o.width}
+                  height={o.height}
+                  rx={4}
+                  fill="url(#areaHatch)"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
               <text
                 x={c.x}
-                y={c.y}
+                y={roomForHint ? c.y - fontSize * 0.55 : c.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize={Math.max(10, Math.min(20, o.height / 4))}
+                fontSize={fontSize}
                 fill={stage ? '#f8fafc' : '#c7d2fe'}
                 style={{ pointerEvents: 'none' }}
               >
                 {o.label}
               </text>
+              {standing && roomForHint && (
+                <text
+                  x={c.x}
+                  y={c.y + fontSize * 0.75}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={Math.max(8, fontSize * 0.62)}
+                  fill="#a5b4fc"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  počet zadáte v paneli vpravo
+                </text>
+              )}
             </g>
           )
         })}

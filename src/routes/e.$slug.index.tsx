@@ -235,6 +235,23 @@ function EventPage() {
     imageUrl: event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`),
   })
 
+  // Rendered above the map on a seated event and beside the ticket panel on an
+  // unseated one, so it is written once and placed twice.
+  const about = (
+    <>
+      <h2 className="font-display text-2xl font-bold">O podujatí</h2>
+      {event.description ? (
+        <p className="mt-4 whitespace-pre-line text-ink-300 leading-relaxed">
+          {event.description}
+        </p>
+      ) : (
+        <p className="mt-4 text-ink-500">
+          Bližší popis podujatia bude čoskoro.
+        </p>
+      )}
+    </>
+  )
+
   return (
     <div className="min-h-screen">
       <script
@@ -319,34 +336,46 @@ function EventPage() {
 
       {/* BODY */}
       <div className="mx-auto max-w-6xl px-6 pb-32 md:pb-16">
-        {/* The map gets the full content width — it is the primary control,
-            not a widget in a sidebar. */}
-        {showMap && (
-          <section className="mb-10">
-            <h2 className="font-display text-2xl font-bold">Výber sedadiel</h2>
-            <div className="mt-4">
-              <SeatPicker map={seatMap} selected={seats} onChange={setSeats} />
-            </div>
-          </section>
-        )}
+        {/* Read first, pick second: on a seated event the description sits above
+            the map, and the map then sits BESIDE the ticket panel. Picking a
+            seat and seeing it land in the summary has to be one glance — with
+            the map full-width the buyer had to scroll down to the panel and
+            back up for every seat. */}
+        {showMap && <section className="mb-10">{about}</section>}
 
-        <div className="grid gap-10 md:grid-cols-[1fr_380px]">
-          {/* LEFT: description */}
-          <div>
-            <h2 className="font-display text-2xl font-bold">O podujatí</h2>
-            {event.description ? (
-              <p className="mt-4 whitespace-pre-line text-ink-300 leading-relaxed">
-                {event.description}
-              </p>
-            ) : (
-              <p className="mt-4 text-ink-500">
-                Bližší popis podujatia bude čoskoro.
-              </p>
-            )}
-          </div>
+        <div
+          className={
+            showMap
+              ? 'grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]'
+              : 'grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]'
+          }
+        >
+          {/* LEFT: the map on a seated event, otherwise the description. */}
+          {showMap ? (
+            <section>
+              <h2 className="font-display text-2xl font-bold">
+                Výber sedadiel
+              </h2>
+              <div className="mt-4">
+                <SeatPicker
+                  map={seatMap}
+                  selected={seats}
+                  onChange={setSeats}
+                />
+              </div>
+            </section>
+          ) : (
+            <div>{about}</div>
+          )}
 
           {/* RIGHT: sticky ticket panel */}
-          <aside className="md:sticky md:top-24 md:self-start">
+          <aside
+            className={
+              showMap
+                ? 'lg:sticky lg:top-24 lg:self-start'
+                : 'md:sticky md:top-24 md:self-start'
+            }
+          >
             <div className="card-surface p-6">
               <h2 className="font-display text-xl font-bold">
                 {showMap ? 'Vstupenky a súhrn' : 'Vstupenky'}

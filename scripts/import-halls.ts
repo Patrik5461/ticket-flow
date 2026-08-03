@@ -51,12 +51,19 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { alphaLabel, LAYOUT_VERSION } from '../src/lib/seating.ts'
+import {
+  alphaLabel,
+  DEFAULT_ROW_GAP_Y,
+  LAYOUT_VERSION,
+  MIN_OBJECT_SIZE,
+  objectBounds,
+} from '../src/lib/seating.ts'
 import type {
   MapLevel,
   MapObject,
   MapObjectKind,
   SeatMapLayout,
+  SeatType,
   SectorShape,
 } from '../src/lib/seating.ts'
 
@@ -72,6 +79,12 @@ const TARGET_SEAT_GAP = 28
 const FALLBACK_SOURCE_GAP = 16
 /** Free space kept around the content on every side of the canvas. */
 const CANVAS_PADDING = 40
+/** One row's worth of canvas — the height an emptied band is squeezed down to. */
+const ROW_HEIGHT = DEFAULT_ROW_GAP_Y
+/** Empty vertical runs taller than this many rows get collapsed. */
+const MAX_EMPTY_BAND_ROWS = 2
+/** Objects never collapse below the editor's own floor. */
+const MIN_OBJECT_HEIGHT = MIN_OBJECT_SIZE
 /** Standing areas have no size in the source; they are drawn at this size. */
 const AREA_WIDTH = 260
 const AREA_HEIGHT = 160
@@ -114,6 +127,73 @@ const ELEMENT_KIND: Record<string, MapObjectKind | undefined> = {
 
 /** Decoration types the export carries that we knowingly leave behind. */
 const SKIPPED_ELEMENT_TYPES = new Set(['W', 'D', 'T', 'I', 'C'])
+
+// ---------------------------------------------------------------------------
+// Wheelchair spaces
+//
+// The export has no accessibility flag; the only evidence is the name of the
+// sector (loc1) or the price category. That evidence is ambiguous, because
+// "ZŤP" appears in BOTH senses:
+//
+//   physically different space   "Vozíčkári", "Sektor I (Imobilní)", "ZŤP"
+//   just a cheaper ticket        "Deti do 15 r., seniori, ZŤP"
+//
+// A seat in the second group is an ordinary seat sold at a discount and must
+// stay 'standard' — marking it would tell a wheelchair user a normal seat is
+// accessible. So the decision is made from explicit name lists, never from a
+// regex on "ZŤP". Names are compared folded (no diacritics, lower case,
+// collapsed spaces) so 'Vozíčkári' and 'vozickari' are the same entry.
+//
+// Anything else that merely LOOKS accessibility-related is neither marked nor
+// ignored: it is reported by the dry run as an unknown name, so a new variant
+// in a future export gets a decision instead of silently defaulting.
+// ---------------------------------------------------------------------------
+
+/** Names that denote a physically distinct wheelchair space. */
+const WHEELCHAIR_NAMES = new Set(
+  [
+    'Vozíčkár',
+    'Vozíčkar',
+    'Vozíčkári',
+    'Vozíčkari',
+    'Vozíčkári AB',
+    'Vozíčkári AD',
+    'ZŤP - vozíčkari',
+    'ZŤP vozíčkari',
+    'ZŤP',
+    'ZŤP a doprovod',
+    'Imobilný návštevník',
+    'IMOBILNÍ',
+    'Sektor I (Imobilní)',
+  ].map(foldName),
+)
+
+/** Names that mention a disability but describe a DISCOUNT on a normal seat. */
+const WHEELCHAIR_EXCLUDED_NAMES = new Set(
+  [
+    'Deti do 15 r., seniori, ZŤP',
+    'Deti do 6 r., ZŤP-S',
+    'Piatok - dôchodcovia a ZŤP',
+    'Sobota - dôchodcovia a ZŤP',
+    'Nedeľa - dôchodcovia a ZŤP',
+    'Piatok - ZŤP, dôchodcovia nad 65 r.',
+    'Sobota - ZŤP, dôchodcovia nad 65 r.',
+    'Permanentka - dôchodcovia a ZŤP',
+  ].map(foldName),
+)
+
+/** Only decides whether an unrecognised name is worth reporting. */
+const ACCESS_HINT = /vozick|ztp|imobil|invalid/
+
+/** Diacritics-free, lower-case, single-spaced — the comparison key for names. */
+function foldName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
 
 // ---------------------------------------------------------------------------
 // Source shapes (only the fields we rely on; the export carries more)
@@ -183,7 +263,7 @@ interface ImportSeat {
   seat_number: string
   x: number
   y: number
-  seat_type: 'standard'
+  seat_type: SeatType
   external_ref: string
 }
 
@@ -210,6 +290,10 @@ interface ImportHall {
     stages: number
     /** Decorations left in the source, by element type — see ELEMENT_KIND. */
     skippedDecor: Record<string, number>
+    /** Empty vertical bands squeezed out of the map. */
+    collapsedBands: number
+    /** Seats written as seat_type 'wheelchair'. */
+    wheelchairSeats: number
     scale: number
     sourceGap: number
     canvas: { width: number; height: number }
@@ -336,6 +420,8 @@ interface WorkSeat {
   seat: string
   /** True when the source gave no number and geometry has to supply one. */
   unnumbered: boolean
+  /** A physically distinct wheelchair space, not a discounted normal seat. */
+  wheelchair: boolean
   /** Which piece of its row the seat sits in; drives the block suffix. */
   piece: number
 }
@@ -617,6 +703,36 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     categoryNames.set(Number(id), clean(entry?.name))
   }
 
+  // --- wheelchair spaces --------------------------------------------------
+  const wheelchairSectors = new Set<number>()
+  const wheelchairCategories = new Set<number>()
+  const unknownAccessNames = new Set<string>()
+  const classifyAccess = (
+    id: number,
+    name: string,
+    into: Set<number>,
+  ): void => {
+    const folded = foldName(name)
+    if (WHEELCHAIR_NAMES.has(folded)) into.add(id)
+    else if (
+      !WHEELCHAIR_EXCLUDED_NAMES.has(folded) &&
+      ACCESS_HINT.test(folded)
+    ) {
+      unknownAccessNames.add(name)
+    }
+  }
+  for (const [id, entry] of Object.entries(raw.loc1 ?? {})) {
+    classifyAccess(Number(id), clean(entry?.name), wheelchairSectors)
+  }
+  for (const [id, entry] of Object.entries(raw.categories ?? {})) {
+    classifyAccess(Number(id), clean(entry?.name), wheelchairCategories)
+  }
+  for (const name of unknownAccessNames) {
+    warnings.push(
+      `Neznámy názov pripomínajúci bezbariérové miesto: „${name}" — ponechané ako standard, rozhodni a doplň do WHEELCHAIR_NAMES.`,
+    )
+  }
+
   // --- visible seats ------------------------------------------------------
   const allSeats = raw.seats ?? []
   const visible = allSeats.filter(
@@ -732,6 +848,9 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
       row: String(s.l2),
       seat: String(s.n),
       unnumbered: s.n === 0,
+      wheelchair:
+        wheelchairSectors.has(s.l1) ||
+        (s.c != null && wheelchairCategories.has(s.c)),
       piece: 0,
     }
     const g = bySector.get(s.l1)
@@ -835,7 +954,7 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
         seat_number: seatNo,
         x: s.sx, // scaled and translated below, once the extent is known
         y: s.sy,
-        seat_type: 'standard',
+        seat_type: s.wheelchair ? 'wheelchair' : 'standard',
         external_ref: s.ref,
       })
       const b = sectorBounds.get(sector)
@@ -955,9 +1074,8 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   const stageObjects: MapObject[] = stages.map(({ element: e, kind }) => ({
     id: nextId(),
     kind,
-    // A wall or an icon usually carries no text; only the stage gets a default,
-    // since an unlabelled dark slab reads as a mistake.
-    label: clean(e.text).replace(/\s+/g, ' ') || (e.t === 'E' ? 'Pódium' : ''),
+    // An unlabelled dark slab reads as a mistake, so the stage gets a default.
+    label: clean(e.text).replace(/\s+/g, ' ') || 'Pódium',
     x: toX(e.x),
     y: toY(e.y),
     width: round2(Math.max(1, Number(e.w) || 0) * scale),
@@ -982,23 +1100,22 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     }))
     .sort((a, b) => a.sector.localeCompare(b.sector, 'sk'))
 
+  // --- close the empty bands ----------------------------------------------
+  // The source spaces a hall out around things we do not import, so a map can
+  // come out with a tall strip of nothing in the middle of it — Kino B leaves
+  // 370 px between the seating and the standing area, exactly where the cage
+  // walls used to be. Runs of empty canvas taller than two rows are squeezed
+  // down to one row. Only vertical, and only where NOTHING in the whole hall
+  // occupies that band, so a cross-aisle in one sector survives as long as
+  // another sector has seats beside it.
+  const collapsedBands = collapseVerticalGaps(seatsOut, objects, shapes)
+
   // --- canvas -------------------------------------------------------------
-  // Grows with the hall: the editor and the buyer picker both zoom to fit, so a
-  // 36k-seat arena is allowed to be a very large canvas.
-  let maxX = 0
-  let maxY = 0
-  for (const s of seatsOut) {
-    maxX = Math.max(maxX, s.x + halfSeat)
-    maxY = Math.max(maxY, s.y + halfSeat)
-  }
-  for (const o of objects) {
-    maxX = Math.max(maxX, o.x + o.width)
-    maxY = Math.max(maxY, o.y + o.height)
-  }
-  const canvas = {
-    width: Math.ceil(maxX + CANVAS_PADDING),
-    height: Math.ceil(maxY + CANVAS_PADDING),
-  }
+  // Measured from what is actually written, edge to edge, and re-anchored so
+  // the padding is the same on all four sides. Grows with the hall: the editor
+  // and the buyer picker both zoom to fit, so a 36k-seat arena is allowed to be
+  // a very large canvas.
+  const canvas = normalizeCanvas(seatsOut, objects, shapes)
 
   const level: MapLevel = {
     key: 'main',
@@ -1051,6 +1168,9 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
       renumberedSeats,
       stages: stages.length,
       skippedDecor,
+      collapsedBands,
+      wheelchairSeats: seatsOut.filter((s) => s.seat_type === 'wheelchair')
+        .length,
       scale,
       sourceGap,
       canvas,
@@ -1062,6 +1182,149 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100
+}
+
+/** Top and bottom edge of one drawn thing, in canvas units. */
+interface VSpan {
+  top: number
+  bottom: number
+}
+
+function seatSpan(s: ImportSeat): VSpan {
+  const half = TARGET_SEAT_GAP / 2
+  return { top: s.y - half, bottom: s.y + half }
+}
+
+function objectSpan(o: MapObject): VSpan {
+  const b = objectBounds(o)
+  return { top: b.minY, bottom: b.maxY }
+}
+
+/**
+ * Squeeze tall empty bands out of the map, vertically only.
+ *
+ * A band counts as empty when no seat and no object anywhere in the hall
+ * overlaps it — a gap inside one sector does not qualify while another sector
+ * still has seats across from it, so aisles and staggered blocks keep their
+ * shape. Anything taller than `MAX_EMPTY_BAND_ROWS` rows is cut down to one row
+ * and everything below it moves up by the difference.
+ *
+ * Horizontal geometry is never touched: x, widths and the order of seats within
+ * a row come out exactly as they went in.
+ *
+ * Returns how many bands were closed.
+ */
+function collapseVerticalGaps(
+  seats: ImportSeat[],
+  objects: MapObject[],
+  shapes: SectorShape[],
+): number {
+  const spans: VSpan[] = [
+    ...seats.map(seatSpan),
+    ...objects.map(objectSpan),
+    ...shapes.map((s) => ({ top: s.y, bottom: s.y + s.height })),
+  ]
+  if (spans.length === 0) return 0
+
+  spans.sort((a, b) => a.top - b.top)
+  const merged: VSpan[] = [{ ...spans[0] }]
+  for (const s of spans.slice(1)) {
+    const last = merged[merged.length - 1]
+    if (s.top <= last.bottom) last.bottom = Math.max(last.bottom, s.bottom)
+    else merged.push({ ...s })
+  }
+
+  // Each cut records: from this y downwards, move up by this much.
+  const limit = ROW_HEIGHT * MAX_EMPTY_BAND_ROWS
+  const cuts: { from: number; shift: number }[] = []
+  let total = 0
+  for (let i = 1; i < merged.length; i++) {
+    const gap = merged[i].top - merged[i - 1].bottom
+    if (gap > limit) {
+      total += gap - ROW_HEIGHT
+      cuts.push({ from: merged[i].top, shift: total })
+    }
+  }
+  if (cuts.length === 0) return 0
+
+  const shiftAt = (y: number): number => {
+    let shift = 0
+    for (const c of cuts) {
+      if (y < c.from) break
+      shift = c.shift
+    }
+    return shift
+  }
+
+  for (const s of seats) s.y = round2(s.y - shiftAt(s.y))
+  // A box can straddle a cut only if it was the thing filling that band, which
+  // cannot happen — but map both edges anyway so the general case is right.
+  // Rotated boxes are moved whole: their drawn height is not their `height`.
+  for (const o of objects) {
+    const top = o.y - shiftAt(o.y)
+    if (o.rotation === 0) {
+      const bottom = o.y + o.height - shiftAt(o.y + o.height)
+      o.height = round2(Math.max(MIN_OBJECT_HEIGHT, bottom - top))
+    }
+    o.y = round2(top)
+  }
+  for (const sh of shapes) {
+    const top = sh.y - shiftAt(sh.y)
+    const bottom = sh.y + sh.height - shiftAt(sh.y + sh.height)
+    sh.y = round2(top)
+    sh.height = round2(Math.max(1, bottom - top))
+  }
+  return cuts.length
+}
+
+/**
+ * Re-anchor the map so every side has the same padding, and size the canvas to
+ * the content edges. Edges, not centres: a seat is drawn as a circle around its
+ * coordinate, so measuring to the coordinate alone would leave the top of the
+ * map half a seat tighter than the bottom.
+ */
+function normalizeCanvas(
+  seats: ImportSeat[],
+  objects: MapObject[],
+  shapes: SectorShape[],
+): { width: number; height: number } {
+  const half = TARGET_SEAT_GAP / 2
+  const xs: number[] = []
+  const ys: number[] = []
+  for (const s of seats) {
+    xs.push(s.x - half, s.x + half)
+    ys.push(s.y - half, s.y + half)
+  }
+  for (const o of objects) {
+    const b = objectBounds(o)
+    xs.push(b.minX, b.maxX)
+    ys.push(b.minY, b.maxY)
+  }
+  for (const sh of shapes) {
+    xs.push(sh.x, sh.x + sh.width)
+    ys.push(sh.y, sh.y + sh.height)
+  }
+  if (xs.length === 0)
+    return { width: 2 * CANVAS_PADDING, height: 2 * CANVAS_PADDING }
+
+  const dx = CANVAS_PADDING - Math.min(...xs)
+  const dy = CANVAS_PADDING - Math.min(...ys)
+  for (const s of seats) {
+    s.x = round2(s.x + dx)
+    s.y = round2(s.y + dy)
+  }
+  for (const o of objects) {
+    o.x = round2(o.x + dx)
+    o.y = round2(o.y + dy)
+  }
+  for (const sh of shapes) {
+    sh.x = round2(sh.x + dx)
+    sh.y = round2(sh.y + dy)
+  }
+  return {
+    width: Math.ceil(Math.max(...xs) + dx + CANVAS_PADDING),
+    height: Math.ceil(Math.max(...ys) + dy + CANVAS_PADDING),
+  }
 }
 
 /**
@@ -1325,6 +1588,7 @@ async function main(): Promise<void> {
   let standingTotal = 0
   let stageTotal = 0
   const skippedTotal: Record<string, number> = {}
+  const wheelchairHalls: { id: string; name: string; seats: number }[] = []
 
   for (const id of ids) {
     let hall: ImportHall
@@ -1359,6 +1623,12 @@ async function main(): Promise<void> {
           `plátno ${hall.stats.canvas.width}×${hall.stats.canvas.height}` +
           (hall.stats.stages ? `  pódiá ${hall.stats.stages}` : '') +
           (skippedCount(hall) ? `  dekor bokom ${skippedSummary(hall)}` : '') +
+          (hall.stats.collapsedBands
+            ? `  [stlačené medzery ${hall.stats.collapsedBands}]`
+            : '') +
+          (hall.stats.wheelchairSeats
+            ? `  [vozíčkari ${hall.stats.wheelchairSeats}]`
+            : '') +
           (hall.stats.suffixedSectors
             ? `  [+suffix ${hall.stats.suffixedSectors}]`
             : '') +
@@ -1383,6 +1653,13 @@ async function main(): Promise<void> {
 
     imported++
     stageTotal += hall.stats.stages
+    if (hall.stats.wheelchairSeats > 0) {
+      wheelchairHalls.push({
+        id,
+        name: hall.venueName,
+        seats: hall.stats.wheelchairSeats,
+      })
+    }
     for (const [t, n] of Object.entries(hall.stats.skippedDecor)) {
       skippedTotal[t] = (skippedTotal[t] ?? 0) + n
     }
@@ -1412,6 +1689,17 @@ async function main(): Promise<void> {
           .join(' ') +
         ') — doplnia sa re-importom, keď ich bude renderer vedieť vykresliť',
     )
+  }
+  const wheelchairTotal = wheelchairHalls.reduce((n, w) => n + w.seats, 0)
+  console.log(
+    `Bezbariérových miest: ${wheelchairTotal} v ${wheelchairHalls.length} halách`,
+  )
+  if (wheelchairHalls.length > 0) {
+    for (const w of wheelchairHalls) {
+      console.log(
+        `  ♿ ${w.id.padStart(5)}  ${w.name.slice(0, 44).padEnd(44)} ${String(w.seats).padStart(5)}`,
+      )
+    }
   }
   if (skippedTest.length > 0) {
     console.log(
