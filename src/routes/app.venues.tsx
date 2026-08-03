@@ -43,6 +43,13 @@ import type {
   SeatMapLayout,
   Viewport,
 } from '../lib/seating'
+import {
+  AreaHatchPattern,
+  MapObjectShape,
+  isDecoration,
+  isStandingArea,
+} from '../components/MapObjectShape'
+
 
 export const Route = createFileRoute('/app/venues')({
   loader: async (): Promise<VenueRow[]> => {
@@ -1438,25 +1445,7 @@ function Canvas({
         {...vp.handlers}
       >
         <defs>
-          {/* Hatching marks the areas that are NOT clicked: a standing area is
-              bought by quantity, so it must not look like one big seat. */}
-          <pattern
-            id="areaHatch"
-            width={10}
-            height={10}
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <line
-              x1={0}
-              y1={0}
-              x2={0}
-              y2={10}
-              stroke="#818cf8"
-              strokeWidth={2}
-              opacity={0.5}
-            />
-          </pattern>
+          <AreaHatchPattern />
         </defs>
 
         {/* Catches presses on empty space so panning works away from seats. */}
@@ -1468,97 +1457,55 @@ function Canvas({
           fill="transparent"
         />
 
-        {/* Stage and areas sit under the seats — they are the room, not the goods. */}
+        {/* Stage, areas and decorations sit under the seats — they are the room,
+            not the goods. Walls, doors, captions and icons are drawn but never
+            grabbed: they only orient the buyer. */}
         {objects.map((o) => {
-          const c = objectCenter(o)
           const st = objectStyle(o, preview)
           const isSel = o.id === selObjectId
-          const fontSize = Math.max(10, Math.min(20, o.height / 4))
           // Standing areas sell by quantity, never by clicking a spot on them —
           // hatched and dashed so they do not read as one big clickable seat.
-          const standing = o.kind === 'area' && !!o.capacity
-          const roomForHint = o.height >= fontSize * 3.4
+          const standing = isStandingArea(o)
           return (
-            <g key={o.id} transform={`rotate(${o.rotation} ${c.x} ${c.y})`}>
-              <rect
-                x={o.x}
-                y={o.y}
-                width={o.width}
-                height={o.height}
-                rx={4}
-                fill={st.fill}
-                stroke={isSel ? '#fff' : st.stroke}
-                strokeWidth={isSel ? 2.5 : 1.5}
-                strokeDasharray={standing && !isSel ? '7 4' : undefined}
-                style={{
-                  cursor: grabbing ? 'grabbing' : editing ? 'move' : 'default',
-                }}
-                onPointerDown={(e) => {
-                  if (vp.otherPointerDown()) return // pinch starting
-                  if (vp.spaceRef.current || e.button === 1)
-                    return vp.startPan(e)
-                  onSelect({ kind: 'object', id: o.id })
-                  if (!onPatchObject) return
-                  edited.current = false
-                  const origin = { x: o.x, y: o.y }
-                  const startSvg = vp.toSvg(e.clientX, e.clientY)
-                  vp.claim(e, (ev) => {
-                    const pt = vp.toSvg(ev.clientX, ev.clientY)
-                    const g = gridRef.current
-                    beginEdit()
-                    onPatchObject(o.id, {
-                      x: snap(origin.x + pt.x - startSvg.x, g),
-                      y: snap(origin.y + pt.y - startSvg.y, g),
-                    })
+            <MapObjectShape
+              key={o.id}
+              o={o}
+              selected={isSel}
+              standing={standing}
+              fill={st.fill}
+              stroke={st.stroke}
+              textColor={st.text}
+              labelSuffix={o.capacity ? ` · ${o.capacity} miest` : ''}
+              cursor={grabbing ? 'grabbing' : editing ? 'move' : 'default'}
+              onPointerDown={(e) => {
+                if (vp.otherPointerDown()) return // pinch starting
+                if (vp.spaceRef.current || e.button === 1) return vp.startPan(e)
+                onSelect({ kind: 'object', id: o.id })
+                if (!onPatchObject) return
+                edited.current = false
+                const origin = { x: o.x, y: o.y }
+                const startSvg = vp.toSvg(e.clientX, e.clientY)
+                vp.claim(e, (ev) => {
+                  const pt = vp.toSvg(ev.clientX, ev.clientY)
+                  const g = gridRef.current
+                  beginEdit()
+                  onPatchObject(o.id, {
+                    x: snap(origin.x + pt.x - startSvg.x, g),
+                    y: snap(origin.y + pt.y - startSvg.y, g),
                   })
-                }}
-              >
-                <title>
-                  {o.label}
-                  {o.capacity
-                    ? ` — kapacita ${o.capacity}, kupuje sa počtom v paneli vpravo, nie klikom na mapu`
-                    : ''}
-                </title>
-              </rect>
-              {standing && (
-                <rect
-                  x={o.x}
-                  y={o.y}
-                  width={o.width}
-                  height={o.height}
-                  rx={4}
-                  fill="url(#areaHatch)"
-                  style={{ pointerEvents: 'none' }}
-                />
-              )}
-              <text
-                x={c.x}
-                y={standing && roomForHint ? c.y - fontSize * 0.55 : c.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={fontSize}
-                fill={st.text}
-                style={{ pointerEvents: 'none' }}
-              >
+                })
+              }}
+            >
+              <title>
                 {o.label}
-                {o.capacity ? ` · ${o.capacity} miest` : ''}
-              </text>
-              {standing && roomForHint && (
-                <text
-                  x={c.x}
-                  y={c.y + fontSize * 0.75}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={Math.max(8, fontSize * 0.62)}
-                  fill="#a5b4fc"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  počet zadáte v paneli vpravo
-                </text>
-              )}
-            </g>
+                {o.capacity
+                  ? ` — kapacita ${o.capacity}, kupuje sa počtom v paneli vpravo, nie klikom na mapu`
+                  : ''}
+              </title>
+            </MapObjectShape>
           )
         })}
+
 
         {seats.map((s) => (
           <circle
@@ -1586,7 +1533,7 @@ function Canvas({
         ))}
 
         {/* Resize + rotate handles for the selected object, drawn last (on top). */}
-        {editing && selected && (
+        {editing && selected && !isDecoration(selected) && (
           <ObjectHandles
             object={selected}
             size={hs}

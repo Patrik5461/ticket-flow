@@ -1528,8 +1528,9 @@ export type Database = {
           created_at: string
           external_ref: string | null
           id: string
+          is_public: boolean
           name: string
-          organizer_id: string
+          organizer_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1537,8 +1538,9 @@ export type Database = {
           created_at?: string
           external_ref?: string | null
           id?: string
+          is_public?: boolean
           name: string
-          organizer_id: string
+          organizer_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1546,8 +1548,9 @@ export type Database = {
           created_at?: string
           external_ref?: string | null
           id?: string
+          is_public?: boolean
           name?: string
-          organizer_id?: string
+          organizer_id?: string | null
           updated_at?: string
         }
         Relationships: [

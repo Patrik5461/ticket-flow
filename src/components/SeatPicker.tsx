@@ -2,14 +2,53 @@ import { useEffect, useMemo, useState } from 'react'
 import type { EventSeatMap, BuyerSeat } from '../server/seat-map'
 import {
   SEAT_R,
-  objectCenter,
   objectPoints,
   seatHitRadius,
   zoomPercentOf,
 } from '../lib/seating'
 import type { MapObject } from '../lib/seating'
+import {
+  AreaHatchPattern,
+  MapObjectShape,
+  isStandingArea,
+} from './MapObjectShape'
 import { useCanvasViewport } from '../lib/use-canvas-viewport'
 import { formatEur } from '../lib/money'
+
+/**
+ * A wheelchair place, marked by shape (square + glyph) because colour already
+ * codes availability and price category.
+ */
+function WheelchairGlyph({
+  x,
+  y,
+  r,
+}: {
+  x: number
+  y: number
+  r: number
+}) {
+  const s = r * 1.15
+  return (
+    <g
+      transform={`translate(${x - s / 2} ${y - s / 2}) scale(${s / 24})`}
+      style={{ pointerEvents: 'none' }}
+    >
+      <g
+        fill="none"
+        stroke="#fff"
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx={11} cy={3.5} r={2.2} />
+        <path d="M10 8v6h6l3 6" />
+        <path d="M16 14a5.5 5.5 0 1 1-6-4" />
+      </g>
+    </g>
+  )
+}
+
 
 /**
  * Buyer seat picker. The map is the primary control: it pans, zooms on the
@@ -129,7 +168,13 @@ export function SeatPicker({
         </div>
       )}
 
-      <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} />
+      <Legend
+        ticketTypes={map.ticketTypes}
+        colorOf={colorOf}
+        hasWheelchair={levelSeats.some((s) => s.seatType === 'wheelchair')}
+        hasArea={levelObjects.some(isStandingArea)}
+      />
+
 
       {/* Desktop: the map is the main event. */}
       <div className="hidden md:block">
@@ -185,7 +230,14 @@ export function SeatPicker({
           count={selected.length}
           total={selectedTotal}
         >
-          <Legend ticketTypes={map.ticketTypes} colorOf={colorOf} compact />
+          <Legend
+            ticketTypes={map.ticketTypes}
+            colorOf={colorOf}
+            compact
+            hasWheelchair={levelSeats.some((s) => s.seatType === 'wheelchair')}
+            hasArea={levelObjects.some(isStandingArea)}
+          />
+
           {surface('h-full w-full', 'min-h-0 flex-1')}
         </MapOverlay>
       )}
@@ -197,14 +249,18 @@ function Legend({
   ticketTypes,
   colorOf,
   compact,
+  hasWheelchair,
+  hasArea,
 }: {
   ticketTypes: { id: string; name: string; priceCents: number }[]
   colorOf: Map<string, string>
   compact?: boolean
+  hasWheelchair?: boolean
+  hasArea?: boolean
 }) {
   return (
     <div
-      className={`flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-ink-300 ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-ink-300 ${
         compact ? 'px-3 py-2' : ''
       }`}
     >
@@ -228,7 +284,54 @@ function Legend({
         />
         obsadené
       </span>
+      {hasWheelchair && (
+        <span className="inline-flex items-center gap-1.5">
+          <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden>
+            <rect
+              x={0.5}
+              y={0.5}
+              width={13}
+              height={13}
+              rx={1.5}
+              fill={TAKEN_COLOR}
+              opacity={0.35}
+              stroke="currentColor"
+            />
+            <WheelchairGlyph x={7} y={7} r={6} />
+          </svg>
+          bezbariérové miesto
+        </span>
+      )}
+      {hasArea && (
+        <span className="inline-flex items-center gap-1.5">
+          <svg width={16} height={12} viewBox="0 0 16 12" aria-hidden>
+            <defs>
+              <AreaHatchPattern />
+            </defs>
+            <rect
+              x={0.75}
+              y={0.75}
+              width={14.5}
+              height={10.5}
+              rx={2}
+              fill="rgba(99,102,241,0.15)"
+              stroke="#818cf8"
+              strokeDasharray="3 2"
+            />
+            <rect
+              x={0.75}
+              y={0.75}
+              width={14.5}
+              height={10.5}
+              rx={2}
+              fill="url(#areaHatch)"
+            />
+          </svg>
+          plocha — počet zadáte v paneli
+        </span>
+      )}
     </div>
+
   )
 }
 
@@ -326,25 +429,7 @@ function SeatMapSurface({
         }}
       >
         <defs>
-          {/* Hatching marks the areas that are NOT clicked: a standing area is
-              bought by quantity, so it must not look like one big seat. */}
-          <pattern
-            id="areaHatch"
-            width={10}
-            height={10}
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <line
-              x1={0}
-              y1={0}
-              x2={0}
-              y2={10}
-              stroke="#818cf8"
-              strokeWidth={2}
-              opacity={0.5}
-            />
-          </pattern>
+          <AreaHatchPattern />
         </defs>
 
         {/* Catches presses on empty space so panning works away from seats. */}
@@ -357,104 +442,97 @@ function SeatMapSurface({
         />
 
         {objects.map((o) => {
-          const c = objectCenter(o)
           const stage = o.kind === 'stage'
           // A standing area sells by quantity from the panel, not by clicking a
           // spot on it. Hatching and a dashed edge say "this is not a seat", and
           // the caption says how to actually buy it.
-          const standing = !stage && !!o.capacity
-          const fontSize = Math.max(10, Math.min(20, o.height / 4))
-          const roomForHint = o.height >= fontSize * 3.4
           return (
-            <g key={o.id} transform={`rotate(${o.rotation} ${c.x} ${c.y})`}>
-              <rect
-                x={o.x}
-                y={o.y}
-                width={o.width}
-                height={o.height}
-                rx={4}
-                fill={stage ? '#475569' : 'rgba(99,102,241,0.15)'}
-                stroke={stage ? '#94a3b8' : '#818cf8'}
-                strokeWidth={1.5}
-                strokeDasharray={standing ? '7 4' : undefined}
-                style={{ pointerEvents: 'none' }}
-              />
-              {standing && (
-                <rect
-                  x={o.x}
-                  y={o.y}
-                  width={o.width}
-                  height={o.height}
-                  rx={4}
-                  fill="url(#areaHatch)"
-                  style={{ pointerEvents: 'none' }}
-                />
-              )}
-              <text
-                x={c.x}
-                y={roomForHint ? c.y - fontSize * 0.55 : c.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={fontSize}
-                fill={stage ? '#f8fafc' : '#c7d2fe'}
-                style={{ pointerEvents: 'none' }}
-              >
-                {o.label}
-              </text>
-              {standing && roomForHint && (
-                <text
-                  x={c.x}
-                  y={c.y + fontSize * 0.75}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={Math.max(8, fontSize * 0.62)}
-                  fill="#a5b4fc"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  počet zadáte v paneli vpravo
-                </text>
-              )}
-            </g>
+            <MapObjectShape
+              key={o.id}
+              o={o}
+              standing={isStandingArea(o)}
+              fill={stage ? '#475569' : 'rgba(99,102,241,0.15)'}
+              stroke={stage ? '#94a3b8' : '#818cf8'}
+              textColor={stage ? '#f8fafc' : '#c7d2fe'}
+            />
           )
         })}
 
         {seats.map((s) => {
           const sel = selectedSet.has(s.seatId)
           const free = s.availability === 'available'
+          const wheelchair = s.seatType === 'wheelchair'
+          const onDown = (e: React.PointerEvent) => {
+            // Only a press that stays put selects; a drag pans the map.
+            vp.tap(s.seatId)
+            showTip(s, e.clientX, e.clientY)
+          }
+          const hitStyle = {
+            pointerEvents: 'all',
+            cursor: free ? 'pointer' : 'not-allowed',
+          } as const
           return (
             <g key={s.seatId}>
-              <circle
-                cx={s.x}
-                cy={s.y}
-                r={SEAT_R}
-                fill={color(s)}
-                stroke="transparent"
-                strokeWidth={hitStroke}
-                style={{
-                  pointerEvents: 'all',
-                  cursor: free ? 'pointer' : 'not-allowed',
-                }}
-                onPointerDown={(e) => {
-                  // Only a press that stays put selects; a drag pans the map.
-                  vp.tap(s.seatId)
-                  showTip(s, e.clientX, e.clientY)
-                }}
-                onPointerEnter={(e) => showTip(s, e.clientX, e.clientY)}
-              />
-              {sel && (
+              {/* Colour codes availability, so the shape has to carry
+                  accessibility: a wheelchair place is a square with a glyph. */}
+              {wheelchair ? (
+                <>
+                  <rect
+                    x={s.x - SEAT_R}
+                    y={s.y - SEAT_R}
+                    width={SEAT_R * 2}
+                    height={SEAT_R * 2}
+                    rx={1.5}
+                    fill={color(s)}
+                    stroke="transparent"
+                    strokeWidth={hitStroke}
+                    style={hitStyle}
+                    onPointerDown={onDown}
+                    onPointerEnter={(e) => showTip(s, e.clientX, e.clientY)}
+                  />
+                  <WheelchairGlyph x={s.x} y={s.y} r={SEAT_R} />
+                </>
+              ) : (
                 <circle
                   cx={s.x}
                   cy={s.y}
-                  r={SEAT_R + 3}
-                  fill="none"
-                  stroke="#fff"
-                  strokeWidth={2.5}
-                  style={{ pointerEvents: 'none' }}
+                  r={SEAT_R}
+                  fill={color(s)}
+                  stroke="transparent"
+                  strokeWidth={hitStroke}
+                  style={hitStyle}
+                  onPointerDown={onDown}
+                  onPointerEnter={(e) => showTip(s, e.clientX, e.clientY)}
                 />
               )}
+              {sel &&
+                (wheelchair ? (
+                  <rect
+                    x={s.x - SEAT_R - 3}
+                    y={s.y - SEAT_R - 3}
+                    width={(SEAT_R + 3) * 2}
+                    height={(SEAT_R + 3) * 2}
+                    rx={2}
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth={2.5}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                ) : (
+                  <circle
+                    cx={s.x}
+                    cy={s.y}
+                    r={SEAT_R + 3}
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth={2.5}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                ))}
             </g>
           )
         })}
+
       </svg>
 
       {tip && (
@@ -465,7 +543,11 @@ function SeatMapSurface({
           <div className="font-semibold">
             {tip.seat.sector} · rad {tip.seat.rowLabel} · miesto{' '}
             {tip.seat.seatNumber}
+            {tip.seat.seatType === 'wheelchair' && (
+              <span className="ml-1 text-sky-400">· bezbariérové</span>
+            )}
           </div>
+
           <div className="text-ink-300">
             {tip.seat.availability === 'available'
               ? `${nameOf.get(tip.seat.ticketTypeId) ?? 'Vstupenka'} · ${formatEur(
@@ -590,6 +672,10 @@ function SelectedSeats({
             <li key={id} className="flex items-center justify-between gap-2">
               <span className="min-w-0 truncate text-ink-300">
                 {s.sector} · rad {s.rowLabel} · miesto {s.seatNumber}
+                {s.seatType === 'wheelchair' && (
+                  <span className="ml-1 text-sky-400">· bezbariérové</span>
+                )}
+
                 <span className="ml-1 text-ink-500">
                   {nameOf.get(s.ticketTypeId) ?? ''}
                 </span>
@@ -671,7 +757,16 @@ function SeatList({
                           disabled={dis}
                           onChange={() => onToggle(s)}
                         />
+                        {s.seatType === 'wheelchair' && (
+                          <span
+                            className="mr-0.5 text-sky-400"
+                            title="Bezbariérové miesto"
+                          >
+                            ♿
+                          </span>
+                        )}
                         {s.seatNumber}
+
                       </label>
                     )
                   })}
