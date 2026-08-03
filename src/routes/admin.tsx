@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Building2,
+  LandPlot,
   CalendarDays,
   Receipt,
   Wallet,
@@ -49,6 +50,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: '/admin', label: 'Prehľad', icon: LayoutDashboard, exact: true },
   { to: '/admin/organizers', label: 'Organizátori', icon: Building2 },
+  { to: '/admin/haly', label: 'Haly', icon: LandPlot },
   { to: '/admin/events', label: 'Podujatia', icon: CalendarDays },
   { to: '/admin/orders', label: 'Objednávky', icon: Receipt },
   { to: '/admin/payouts', label: 'Vyplatenia', icon: Wallet },

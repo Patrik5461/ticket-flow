@@ -380,7 +380,7 @@ export interface SeatMapSummary {
 }
 
 /** Objects a single map may hold — a guard against a runaway client payload. */
-const MAX_OBJECTS = 500
+export const MAX_OBJECTS = 500
 
 const seatInput = z.object({
   level: z.string().max(60).default('main'),
@@ -539,19 +539,25 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
     })
   })
 
+/**
+ * What a save carries. Exported as a schema, not just a type, because the admin
+ * side (admin-venues.ts) validates the very same payload — one shape, one set
+ * of limits, so the two entry points cannot drift.
+ */
+export const saveSeatMapInput = z.object({
+  seatMapId: z.string().uuid().optional().nullable(),
+  venueId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  layout: z.unknown().default({}),
+  seats: z.array(seatInput).max(50_000),
+  externalRef: z.string().max(200).optional().nullable(),
+})
+
+/** The editor's save payload, before defaults are applied. */
+export type SaveSeatMapInput = z.input<typeof saveSeatMapInput>
+
 export const saveSeatMapFn = createServerFn({ method: 'POST' })
-  .validator((d: unknown) =>
-    z
-      .object({
-        seatMapId: z.string().uuid().optional().nullable(),
-        venueId: z.string().uuid(),
-        name: z.string().trim().min(1).max(200),
-        layout: z.unknown().default({}),
-        seats: z.array(seatInput).max(50_000),
-        externalRef: z.string().max(200).optional().nullable(),
-      })
-      .parse(d),
-  )
+  .validator((d: unknown) => saveSeatMapInput.parse(d))
   .handler(async ({ data }): Promise<{ id: string } | { error: string }> => {
     return run(async () => {
       const actor = await requireOrganizer()

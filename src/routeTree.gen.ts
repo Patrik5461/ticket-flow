@@ -39,6 +39,7 @@ import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminObsahRouteImport } from './routes/admin.obsah'
 import { Route as AdminNonprofitRouteImport } from './routes/admin.nonprofit'
 import { Route as AdminHealthRouteImport } from './routes/admin.health'
+import { Route as AdminHalyRouteImport } from './routes/admin.haly'
 import { Route as AdminEventsRouteImport } from './routes/admin.events'
 import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as ESlugIndexRouteImport } from './routes/e.$slug.index'
@@ -228,6 +229,11 @@ const AdminNonprofitRoute = AdminNonprofitRouteImport.update({
 const AdminHealthRoute = AdminHealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminHalyRoute = AdminHalyRouteImport.update({
+  id: '/haly',
+  path: '/haly',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminEventsRoute = AdminEventsRouteImport.update({
@@ -461,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/haly': typeof AdminHalyRoute
   '/admin/health': typeof AdminHealthRoute
   '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
@@ -531,6 +538,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/haly': typeof AdminHalyRoute
   '/admin/health': typeof AdminHealthRoute
   '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
@@ -603,6 +611,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/events': typeof AdminEventsRoute
+  '/admin/haly': typeof AdminHalyRoute
   '/admin/health': typeof AdminHealthRoute
   '/admin/nonprofit': typeof AdminNonprofitRoute
   '/admin/obsah': typeof AdminObsahRoute
@@ -677,6 +686,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/haly'
     | '/admin/health'
     | '/admin/nonprofit'
     | '/admin/obsah'
@@ -747,6 +757,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/haly'
     | '/admin/health'
     | '/admin/nonprofit'
     | '/admin/obsah'
@@ -818,6 +829,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/admins'
     | '/admin/events'
+    | '/admin/haly'
     | '/admin/health'
     | '/admin/nonprofit'
     | '/admin/obsah'
@@ -1129,6 +1141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminHealthRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/haly': {
+      id: '/admin/haly'
+      path: '/haly'
+      fullPath: '/admin/haly'
+      preLoaderRoute: typeof AdminHalyRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/events': {
       id: '/admin/events'
       path: '/events'
@@ -1415,6 +1434,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminEventsRoute: typeof AdminEventsRoute
+  AdminHalyRoute: typeof AdminHalyRoute
   AdminHealthRoute: typeof AdminHealthRoute
   AdminNonprofitRoute: typeof AdminNonprofitRoute
   AdminObsahRoute: typeof AdminObsahRoute
@@ -1430,6 +1450,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdminsRoute: AdminAdminsRoute,
   AdminEventsRoute: AdminEventsRoute,
+  AdminHalyRoute: AdminHalyRoute,
   AdminHealthRoute: AdminHealthRoute,
   AdminNonprofitRoute: AdminNonprofitRoute,
   AdminObsahRoute: AdminObsahRoute,

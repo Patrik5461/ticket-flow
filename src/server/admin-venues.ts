@@ -1,0 +1,500 @@
+/**
+ * Platform-admin maintenance of the shared venue library.
+ *
+ * The library holds ~460 halls imported from MaxiTicket (scripts/import-halls.ts).
+ * They belong to no organizer, so nobody could fix one when it came out wrong:
+ * src/server/venues.ts refuses every write to a hall the caller does not own,
+ * which is correct for organizers and leaves the library with no maintainer.
+ * This module is that maintainer, and it is deliberately narrow:
+ *
+ *  - platform admins only (requirePlatformAdmin), 404 to everyone else;
+ *  - LIBRARY halls only. An admin editing an organizer's private venue is a
+ *    different power with different consequences, and it is not granted here —
+ *    every lookup goes through libraryVenue(), which refuses anything owned;
+ *  - a map already bound to an event is refused, exactly as on the organizer
+ *    side. Rewriting its seats cascades event_seats away and takes sold tickets
+ *    with them, and being an admin does not make that recoverable;
+ *  - every mutation writes an audit_log row. A library hall is shared by every
+ *    organizer on the platform, so a change to one has to be attributable.
+ *
+ * Server-only.
+ */
+
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+import { serviceClient } from '../lib/supabase/server'
+import { requirePlatformAdmin, runAdmin, writeAuditLog, AdminError } from './admin'
+import { migrateLayout } from '../lib/seating'
+import { filterVenues, isLibraryVenue } from '../lib/venue-library'
+import { saveSeatMapInput, MAX_OBJECTS } from './venues'
+import type { SeatMapDetail } from './venues'
+import type { SeatType } from '../lib/seating'
+
+/**
+ * Halls shown at once. Counting seats costs one query per map, so the page is
+ * kept short and `total` tells the caller how many matched — a truncated list
+ * that looked complete would be worse than a short one that says so.
+ */
+const LIST_LIMIT = 40
+
+export interface AdminVenueRow {
+  id: string
+  name: string
+  address: string | null
+  externalRef: string | null
+  mapCount: number
+  seatCount: number
+  /** Maps of this hall that an event already uses — those cannot be rewritten. */
+  inUseMaps: number
+}
+
+export interface AdminVenueList {
+  rows: AdminVenueRow[]
+  /** How many halls matched, before the page limit. */
+  total: number
+}
+
+/**
+ * Resolve a library hall by id, or throw. This is the access rule: a venue with
+ * an owner is not part of the library and is none of the admin's business here.
+ */
+async function libraryVenue(venueId: string): Promise<{
+  id: string
+  name: string
+  address: string | null
+  externalRef: string | null
+}> {
+  const { data } = await serviceClient()
+    .from('venues')
+    .select('id, name, address, external_ref, organizer_id, is_public')
+    .eq('id', venueId)
+    .maybeSingle<{
+      id: string
+      name: string
+      address: string | null
+      external_ref: string | null
+      organizer_id: string | null
+      is_public: boolean
+    }>()
+  if (
+    !data ||
+    !isLibraryVenue({ organizerId: data.organizer_id, isPublic: data.is_public })
+  ) {
+    throw new AdminError('Hala sa nenašla v knižnici.')
+  }
+  return {
+    id: data.id,
+    name: data.name,
+    address: data.address,
+    externalRef: data.external_ref,
+  }
+}
+
+/** The map's hall, checked the same way — and the map's own in-use count. */
+async function libraryMap(
+  seatMapId: string,
+): Promise<{ id: string; venueId: string; name: string; uses: number }> {
+  const db = serviceClient()
+  const { data: map } = await db
+    .from('seat_maps')
+    .select('id, venue_id, name')
+    .eq('id', seatMapId)
+    .maybeSingle<{ id: string; venue_id: string; name: string }>()
+  if (!map) throw new AdminError('Mapa sa nenašla.')
+  await libraryVenue(map.venue_id)
+  const { count } = await db
+    .from('event_seat_maps')
+    .select('*', { count: 'exact', head: true })
+    .eq('seat_map_id', seatMapId)
+  return {
+    id: map.id,
+    venueId: map.venue_id,
+    name: map.name,
+    uses: count ?? 0,
+  }
+}
+
+const IN_USE =
+  'Mapa sa už používa v podujatí — prepis by zmazal predané sedadlá. Uprav ju až keď podujatie skončí, alebo si organizátor spraví kópiu.'
+
+/**
+ * Library halls matching `q`, by name or address.
+ *
+ * The whole library is read and filtered here rather than in SQL. `ilike` is
+ * case-insensitive but not diacritics-insensitive, so a SQL filter would answer
+ * "Žilina" and not "zilina" — and nobody types the accent when searching. The
+ * organizer's picker already solved this in venueMatches(); reusing it keeps
+ * one definition of "matches" instead of two that drift. 460 rows of name and
+ * address is a few tens of kilobytes and never leaves the server.
+ */
+export const adminListVenuesFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z
+      .object({ q: z.string().trim().max(120).optional() })
+      .default({})
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data }): Promise<AdminVenueList | { error: string }> => {
+    return runAdmin(async () => {
+      await requirePlatformAdmin()
+      const db = serviceClient()
+      const { data: all } = await db
+        .from('venues')
+        .select('id, name, address, external_ref')
+        .is('organizer_id', null)
+        .eq('is_public', true)
+        .order('name', { ascending: true })
+        .limit(5000)
+        .returns<
+          {
+            id: string
+            name: string
+            address: string | null
+            external_ref: string | null
+          }[]
+        >()
+      const matched = data.q
+        ? filterVenues(
+            (all ?? []).map((v) => ({ ...v, readOnly: true })),
+            data.q,
+          )
+        : (all ?? [])
+      const venues = matched.slice(0, LIST_LIMIT)
+      if (venues.length === 0) return { rows: [], total: matched.length }
+
+      // One round trip for the maps of every listed hall, then count in memory:
+      // a per-hall query would be 60 round trips for one screen.
+      const ids = venues.map((v) => v.id)
+      const { data: maps } = await db
+        .from('seat_maps')
+        .select('id, venue_id')
+        .in('venue_id', ids)
+        .returns<{ id: string; venue_id: string }[]>()
+      const mapIds = (maps ?? []).map((m) => m.id)
+
+      const seatCounts = new Map<string, number>()
+      const inUse = new Set<string>()
+      if (mapIds.length > 0) {
+        // seats can run to hundreds of thousands, so count per map rather than
+        // reading rows. head+exact keeps each of these to a count, not a page.
+        await Promise.all(
+          mapIds.map(async (id) => {
+            const { count } = await db
+              .from('seats')
+              .select('*', { count: 'exact', head: true })
+              .eq('seat_map_id', id)
+            seatCounts.set(id, count ?? 0)
+          }),
+        )
+        const { data: bound } = await db
+          .from('event_seat_maps')
+          .select('seat_map_id')
+          .in('seat_map_id', mapIds)
+          .returns<{ seat_map_id: string }[]>()
+        for (const b of bound ?? []) inUse.add(b.seat_map_id)
+      }
+
+      return {
+        rows: venues.map((v) => {
+          const own = (maps ?? []).filter((m) => m.venue_id === v.id)
+          return {
+            id: v.id,
+            name: v.name,
+            address: v.address,
+            externalRef: v.external_ref,
+            mapCount: own.length,
+            seatCount: own.reduce((n, m) => n + (seatCounts.get(m.id) ?? 0), 0),
+            inUseMaps: own.filter((m) => inUse.has(m.id)).length,
+          }
+        }),
+        total: matched.length,
+      }
+    })
+  })
+
+export interface AdminVenueDetail {
+  id: string
+  name: string
+  address: string | null
+  externalRef: string | null
+  maps: {
+    id: string
+    name: string
+    seatCount: number
+    objectCount: number
+    inUse: boolean
+  }[]
+}
+
+export const adminGetVenueFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<AdminVenueDetail | { error: string }> => {
+    return runAdmin(async () => {
+      await requirePlatformAdmin()
+      const venue = await libraryVenue(data.id)
+      const db = serviceClient()
+      const { data: maps } = await db
+        .from('seat_maps')
+        .select('id, name, layout')
+        .eq('venue_id', data.id)
+        .order('name', { ascending: true })
+        .returns<{ id: string; name: string; layout: unknown }[]>()
+
+      const out: AdminVenueDetail['maps'] = []
+      for (const m of maps ?? []) {
+        const { count: seatCount } = await db
+          .from('seats')
+          .select('*', { count: 'exact', head: true })
+          .eq('seat_map_id', m.id)
+        const { count: uses } = await db
+          .from('event_seat_maps')
+          .select('*', { count: 'exact', head: true })
+          .eq('seat_map_id', m.id)
+        const layout = migrateLayout(m.layout)
+        out.push({
+          id: m.id,
+          name: m.name,
+          seatCount: seatCount ?? 0,
+          objectCount: layout.levels.reduce((n, lv) => n + lv.objects.length, 0),
+          inUse: (uses ?? 0) > 0,
+        })
+      }
+      return {
+        id: venue.id,
+        name: venue.name,
+        address: venue.address,
+        externalRef: venue.externalRef,
+        maps: out,
+      }
+    })
+  })
+
+/** The same detail shape the organizer editor reads, so one editor fits both. */
+export const adminGetSeatMapFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z.object({ seatMapId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<SeatMapDetail | { error: string }> => {
+    return runAdmin(async () => {
+      await requirePlatformAdmin()
+      const map = await libraryMap(data.seatMapId)
+      const db = serviceClient()
+      const { data: row } = await db
+        .from('seat_maps')
+        .select('layout')
+        .eq('id', map.id)
+        .maybeSingle<{ layout: unknown }>()
+      const { data: seats } = await db
+        .from('seats')
+        .select(
+          'id, level, level_order, sector, row_label, seat_number, x, y, seat_type',
+        )
+        .eq('seat_map_id', map.id)
+        .order('id', { ascending: true })
+        .limit(50_000)
+        .returns<
+          {
+            id: string
+            level: string
+            level_order: number
+            sector: string
+            row_label: string
+            seat_number: string
+            x: number
+            y: number
+            seat_type: SeatType
+          }[]
+        >()
+      return {
+        id: map.id,
+        venueId: map.venueId,
+        name: map.name,
+        layout: migrateLayout(row?.layout),
+        inUse: map.uses > 0,
+        // The admin IS the maintainer, so the editor opens unlocked — unless
+        // the map is in use, which `inUse` already locks for everyone.
+        readOnly: false,
+        seats: (seats ?? []).map((s) => ({
+          id: s.id,
+          level: s.level,
+          levelOrder: s.level_order,
+          sector: s.sector,
+          rowLabel: s.row_label,
+          seatNumber: s.seat_number,
+          x: s.x,
+          y: s.y,
+          seatType: s.seat_type,
+        })),
+      }
+    })
+  })
+
+/**
+ * Rewrite a library map. Same payload and same limits as the organizer's save;
+ * what differs is who may call it and that it lands in the audit log.
+ *
+ * The map's external_ref is left alone on purpose: it is what makes a re-run of
+ * the importer update this map instead of inserting a second copy. An admin fix
+ * is therefore not permanent — the next import overwrites it. That is the right
+ * default (the export stays the source of truth), and it is why the UI says so.
+ */
+export const adminSaveSeatMapFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) => saveSeatMapInput.parse(d))
+  .handler(async ({ data }): Promise<{ id: string } | { error: string }> => {
+    return runAdmin(async () => {
+      const admin = await requirePlatformAdmin()
+      await libraryVenue(data.venueId)
+      const db = serviceClient()
+
+      const layout = migrateLayout(data.layout)
+      const objectCount = layout.levels.reduce(
+        (n, lv) => n + lv.objects.length,
+        0,
+      )
+      if (objectCount > MAX_OBJECTS) {
+        throw new AdminError(`Mapa smie mať najviac ${MAX_OBJECTS} objektov.`)
+      }
+
+      let mapId = data.seatMapId ?? null
+      let before: { name: string; seats: number } | null = null
+      if (mapId) {
+        const map = await libraryMap(mapId)
+        // venueId and seatMapId arrive separately; pin them together so a map
+        // cannot be written through a different hall's id.
+        if (map.venueId !== data.venueId) {
+          throw new AdminError('Mapa nepatrí k tejto hale.')
+        }
+        if (map.uses > 0) throw new AdminError(IN_USE)
+        const { count } = await db
+          .from('seats')
+          .select('*', { count: 'exact', head: true })
+          .eq('seat_map_id', mapId)
+        before = { name: map.name, seats: count ?? 0 }
+        const { error } = await db
+          .from('seat_maps')
+          .update({
+            name: data.name,
+            layout,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', mapId)
+        if (error) throw new AdminError('Mapu sa nepodarilo uložiť.')
+        const { error: delErr } = await db
+          .from('seats')
+          .delete()
+          .eq('seat_map_id', mapId)
+        if (delErr) throw new AdminError('Staré sedadlá sa nepodarilo zmazať.')
+      } else {
+        const { data: row, error } = await db
+          .from('seat_maps')
+          .insert({
+            venue_id: data.venueId,
+            name: data.name,
+            layout,
+            external_ref: data.externalRef || null,
+          })
+          .select('id')
+          .single<{ id: string }>()
+        if (error || !row) throw new AdminError('Mapu sa nepodarilo vytvoriť.')
+        mapId = row.id
+      }
+
+      if (data.seats.length > 0) {
+        const rows = data.seats.map((s) => ({
+          seat_map_id: mapId,
+          level: s.level,
+          level_order: s.levelOrder,
+          sector: s.sector,
+          row_label: s.rowLabel,
+          seat_number: s.seatNumber,
+          x: s.x,
+          y: s.y,
+          seat_type: s.seatType,
+          external_ref: s.externalRef || null,
+        }))
+        for (let i = 0; i < rows.length; i += 1000) {
+          const { error } = await db
+            .from('seats')
+            .insert(rows.slice(i, i + 1000))
+          if (error) throw new AdminError('Sedadlá sa nepodarilo uložiť.')
+        }
+      }
+
+      await writeAuditLog({
+        actorId: admin.userId,
+        action: before ? 'admin.venue_map_update' : 'admin.venue_map_create',
+        entityType: 'seat_map',
+        entityId: mapId,
+        oldValue: before,
+        newValue: {
+          name: data.name,
+          seats: data.seats.length,
+          objects: objectCount,
+        },
+      })
+      return { id: mapId }
+    })
+  })
+
+export const adminDeleteSeatMapFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z.object({ seatMapId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: string }> => {
+    return runAdmin(async () => {
+      const admin = await requirePlatformAdmin()
+      const map = await libraryMap(data.seatMapId)
+      if (map.uses > 0) throw new AdminError(IN_USE)
+      const db = serviceClient()
+      const { error } = await db
+        .from('seat_maps')
+        .delete()
+        .eq('id', data.seatMapId)
+      if (error) throw new AdminError('Mapu sa nepodarilo zmazať.')
+      await writeAuditLog({
+        actorId: admin.userId,
+        action: 'admin.venue_map_delete',
+        entityType: 'seat_map',
+        entityId: data.seatMapId,
+        oldValue: { name: map.name, venueId: map.venueId },
+        newValue: null,
+      })
+      return { ok: true as const }
+    })
+  })
+
+/** Rename a library hall / fix its address. */
+export const adminUpdateVenueFn = createServerFn({ method: 'POST' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200),
+        address: z.string().trim().max(500).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true } | { error: string }> => {
+    return runAdmin(async () => {
+      const admin = await requirePlatformAdmin()
+      const venue = await libraryVenue(data.id)
+      const { error } = await serviceClient()
+        .from('venues')
+        .update({
+          name: data.name,
+          address: data.address?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.id)
+      if (error) throw new AdminError('Halu sa nepodarilo uložiť.')
+      await writeAuditLog({
+        actorId: admin.userId,
+        action: 'admin.venue_update',
+        entityType: 'venue',
+        entityId: data.id,
+        oldValue: { name: venue.name, address: venue.address },
+        newValue: { name: data.name, address: data.address?.trim() || null },
+      })
+      return { ok: true as const }
+    })
+  })
