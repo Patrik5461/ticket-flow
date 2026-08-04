@@ -437,7 +437,11 @@ function Landing() {
                 odbavenie cez mobil.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
-                <Link to="/podujatia" className="btn-primary">
+                <Link
+                  to="/podujatia"
+                  search={{ q: '', kat: '' }}
+                  className="btn-primary"
+                >
                   Zobraziť podujatia
                   <svg
                     width="16"
@@ -563,7 +567,11 @@ function Landing() {
             </h2>
           </div>
           {events.length > 0 && (
-            <Link to="/podujatia" className="btn-ghost text-sm">
+            <Link
+              to="/podujatia"
+              search={{ q: '', kat: '' }}
+              className="btn-ghost text-sm"
+            >
               Zobraziť všetky podujatia
               <svg
                 width="16"
@@ -594,7 +602,11 @@ function Landing() {
             </div>
             {events.length > TEASER_EVENTS && (
               <div className="mt-10 text-center">
-                <Link to="/podujatia" className="btn-primary">
+                <Link
+                  to="/podujatia"
+                  search={{ q: '', kat: '' }}
+                  className="btn-primary"
+                >
                   Všetky podujatia ({events.length})
                 </Link>
               </div>

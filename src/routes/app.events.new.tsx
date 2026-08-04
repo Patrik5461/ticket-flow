@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { createEventFn, uploadEventCoverFn } from '../server/dashboard'
+import { EVENT_CATEGORIES } from '../lib/event-categories'
 
 export const Route = createFileRoute('/app/events/new')({ component: NewEvent })
 
@@ -66,6 +67,7 @@ function NewEvent() {
   const [form, setForm] = useState({
     title: '',
     description: '',
+    category: '',
     venueName: '',
     venueAddress: '',
     startsAtLocal: '',
@@ -78,7 +80,11 @@ function NewEvent() {
 
   const set =
     (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) =>
       setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const onCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,6 +121,7 @@ function NewEvent() {
       data: {
         title: form.title.trim(),
         description: form.description.trim() || null,
+        category: form.category || null,
         venueName: form.venueName.trim() || null,
         venueAddress: form.venueAddress.trim() || null,
         startsAtLocal: form.startsAtLocal,
@@ -212,6 +219,26 @@ function NewEvent() {
               rows={4}
               className={inputCls}
             />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">
+              Druh podujatia
+            </span>
+            <select
+              value={form.category}
+              onChange={set('category')}
+              className={inputCls}
+            >
+              <option value="">— nezaradené —</option>
+              {EVENT_CATEGORIES.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-gray-500">
+              Podľa toho si návštevníci filtrujú program na webe.
+            </span>
           </label>
           <div className="grid grid-cols-2 gap-4">
             <label className="block">

@@ -28,6 +28,7 @@ import {
   uploadEventCoverFn,
 } from '../server/dashboard'
 import type { EventDetail } from '../server/dashboard'
+import { EVENT_CATEGORIES } from '../lib/event-categories'
 import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
 import {
@@ -979,6 +980,7 @@ function EventDetailsForm({
   const [form, setForm] = useState({
     title: event.title,
     description: event.description ?? '',
+    category: event.category ?? '',
     venueName: event.venue_name ?? '',
     venueAddress: event.venue_address ?? '',
     startsAtLocal: utcIsoToZonedLocal(event.starts_at, tz),
@@ -1025,7 +1027,11 @@ function EventDetailsForm({
   }
   const set =
     (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) =>
       setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const save = async (e: React.FormEvent) => {
@@ -1037,6 +1043,7 @@ function EventDetailsForm({
         eventId: event.id,
         title: form.title.trim(),
         description: form.description.trim() || null,
+        category: form.category || null,
         venueName: form.venueName.trim() || null,
         venueAddress: form.venueAddress.trim() || null,
         startsAtLocal: form.startsAtLocal,
@@ -1070,6 +1077,24 @@ function EventDetailsForm({
           className={inputCls}
           placeholder="Popis"
         />
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-600">Druh podujatia</span>
+          <select
+            value={form.category}
+            onChange={set('category')}
+            className={inputCls}
+          >
+            <option value="">— nezaradené —</option>
+            {EVENT_CATEGORIES.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-gray-500">
+            Podľa toho si návštevníci filtrujú program na webe.
+          </span>
+        </label>
         <div>
           <span className="mb-1 block text-sm text-gray-600">
             Cover obrázok (16:9)

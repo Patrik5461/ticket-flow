@@ -14,6 +14,7 @@ import {
   couponRejectMessage,
   couponDiscountCents,
 } from '../lib/coupons'
+import { isEventCategory } from '../lib/event-categories'
 import { signOrderToken, verifyOrderToken } from '../lib/order-token'
 import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
@@ -52,7 +53,7 @@ const RESERVATION_MINUTES = 15
 
 // Columns safe to expose publicly (qr_secret intentionally excluded).
 const PUBLIC_EVENT_COLS =
-  'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status, ga4_measurement_id, meta_pixel_id'
+  'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status, category, ga4_measurement_id, meta_pixel_id'
 
 // Same as PUBLIC_EVENT_COLS but without the tracking columns — a fallback for
 // databases where the event-tracking migration hasn't been applied yet, so the
@@ -134,20 +135,58 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
   }
 }
 
-export async function listPublishedEvents(): Promise<PublicEvent[]> {
+export interface PublicEventFilter {
+  /** Free text matched against the title and the venue name. */
+  q?: string | null
+  /** Category slug; anything not in the known list is ignored. */
+  category?: string | null
+}
+
+/**
+ * Folds the query the same way `events.search_text` is stored: accents dropped,
+ * lower case. Wildcards and PostgREST's own filter punctuation are stripped, so
+ * a typed bracket stays text instead of becoming syntax.
+ */
+function searchTerm(raw: string | null | undefined): string | null {
+  const cleaned = (raw ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[,()*%_\\]/g, ' ')
+    .trim()
+    .slice(0, 80)
+  return cleaned.length >= 2 ? cleaned : null
+}
+
+export async function listPublishedEvents(
+  filter: PublicEventFilter = {},
+): Promise<PublicEvent[]> {
   const db = anonClient()
-  const primary = await db
+  const q = searchTerm(filter.q)
+  const category = isEventCategory(filter.category) ? filter.category : null
+
+  let primaryQuery = db
     .from('events')
     .select(PUBLIC_EVENT_COLS)
     .eq('status', 'published')
+  if (category) primaryQuery = primaryQuery.eq('category', category)
+  if (q) primaryQuery = primaryQuery.ilike('search_text', `%${q}%`)
+  const primary = await primaryQuery
     .order('starts_at', { ascending: true })
     .returns<PublicEvent[]>()
   if (!primary.error) return primary.data
 
-  const { data: legacy } = await db
+  // Older database without the category / search_text columns: a category
+  // filter has nothing to match, and the text search falls back to a plain
+  // accent-sensitive match on the two source columns.
+  if (category) return []
+  let legacyQuery = db
     .from('events')
     .select(PUBLIC_EVENT_COLS_LEGACY)
     .eq('status', 'published')
+  if (q)
+    legacyQuery = legacyQuery.or(`title.ilike.*${q}*,venue_name.ilike.*${q}*`)
+  const { data: legacy } = await legacyQuery
     .order('starts_at', { ascending: true })
     .returns<PublicEvent[]>()
   return legacy ?? []

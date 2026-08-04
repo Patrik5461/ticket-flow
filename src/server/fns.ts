@@ -42,6 +42,20 @@ export const listEventsFn = createServerFn({ method: 'GET' }).handler(
   },
 )
 
+/** The public program with the /podujatia search box and category chips applied. */
+export const searchEventsFn = createServerFn({ method: 'GET' })
+  .validator((d: unknown) =>
+    z
+      .object({
+        q: z.string().trim().max(120).optional().nullable(),
+        category: z.string().trim().max(40).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    return listPublishedEvents({ q: data.q, category: data.category })
+  })
+
 export const previewPricingFn = createServerFn({ method: 'POST' })
   .validator((d: unknown) =>
     z

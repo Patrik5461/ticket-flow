@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 
 import { formatSk } from '../lib/datetime'
+import { categoryLabel } from '../lib/event-categories'
 
 /**
  * One published event, as shown on the landing teaser and on /podujatia.
@@ -17,6 +18,7 @@ export interface EventCardEvent {
   timezone: string
   venue_name?: string | null
   cover_url?: string | null
+  category?: string | null
   from_price_cents?: number | null
 }
 
@@ -37,6 +39,7 @@ export function EventCard({
 }) {
   const cover = event.cover_url
   const fromPrice = event.from_price_cents
+  const category = categoryLabel(event.category)
   const [day, month] = formatDateShort(event.starts_at, event.timezone).split(
     ' ',
   )
@@ -76,6 +79,11 @@ export function EventCard({
         )}
       </div>
       <div className="p-5">
+        {category && (
+          <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-ink-500">
+            {category}
+          </div>
+        )}
         <h3 className="font-display text-xl font-bold leading-tight transition-colors group-hover:text-accent">
           {event.title}
         </h3>

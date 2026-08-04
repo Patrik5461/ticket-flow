@@ -135,6 +135,7 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - Vitest na doménovú logiku: výpočet ceny, kupóny, HMAC podpis/verifikácia QR, kapacitné rezervácie.
 - Platobný flow testovať proti GoPay sandboxu.
 - **Po každej migrácii dotýkajúcej sa RLS over anon probe verejného čítania** (anon client dotaz na verejné dáta — napr. published eventy a ich ticket types). RLS policy, ktorá v subquery číta inú tabuľku s RLS bez anon policy, ticho skryje verejné dáta; na takéto cross-table checky používaj SECURITY DEFINER funkciu (vzor `is_org_member`, `organizer_is_active`).
+- **Nový verejne čitateľný stĺpec na `events` treba zvlášť grantnúť.** Od `20260730120000_hide_qr_secret_from_public` nemajú `anon`/`authenticated` SELECT na celú tabuľku, ale menný zoznam stĺpcov — stĺpec pridaný neskôr je pre nich neviditeľný, kým nepríde `grant select (novy_stlpec) on public.events to anon, authenticated` (vzor: `20260804161000_event_search_grants.sql`). Príznak je zákerný: PostgREST vráti `42501 permission denied for table events`, `listPublishedEvents()` spadne do legacy vetvy a stránka vyzerá funkčne, len bez nových dát. `scripts/rls-anon-probe.mjs` to nechytí — ten testuje staré stĺpce. Over priamym anon selectom nového stĺpca.
 
 ## Git a spolupráca s Lovable
 

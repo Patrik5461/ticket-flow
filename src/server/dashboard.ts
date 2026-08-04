@@ -12,6 +12,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
+import { isEventCategory } from '../lib/event-categories'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
 import { generateApiKey } from '../lib/api-keys'
@@ -236,6 +237,9 @@ const eventInput = z.object({
   startsAtLocal: z.string().min(1),
   endsAtLocal: z.string().optional().nullable(),
   timezone: z.string().default('Europe/Bratislava'),
+  // Free-form on the wire, narrowed to the known list before it reaches the DB
+  // — the check constraint would otherwise reject the whole save.
+  category: z.string().trim().max(40).optional().nullable(),
   ga4MeasurementId: z.string().trim().max(40).optional().nullable(),
   metaPixelId: z.string().trim().max(40).optional().nullable(),
   coverUrl: z.string().trim().max(1000).optional().nullable(),
@@ -262,6 +266,7 @@ export const createEventFn = createServerFn({ method: 'POST' })
             ? zonedLocalToUtcIso(data.endsAtLocal, data.timezone)
             : null,
           timezone: data.timezone,
+          category: isEventCategory(data.category) ? data.category : null,
           ga4_measurement_id: data.ga4MeasurementId ?? null,
           meta_pixel_id: data.metaPixelId ?? null,
           cover_url: data.coverUrl ?? null,
@@ -301,6 +306,7 @@ export const updateEventFn = createServerFn({ method: 'POST' })
           starts_at: newStartsAt,
           ends_at: newEndsAt,
           timezone: data.timezone,
+          category: isEventCategory(data.category) ? data.category : null,
           ga4_measurement_id: data.ga4MeasurementId ?? null,
           meta_pixel_id: data.metaPixelId ?? null,
           cover_url: data.coverUrl ?? null,

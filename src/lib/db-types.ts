@@ -4,6 +4,7 @@
  */
 
 import type { CustomField } from './custom-fields'
+import type { EventCategory } from './event-categories'
 
 export type EventStatus = 'draft' | 'published' | 'ended' | 'cancelled'
 export type OrderStatus =
@@ -68,6 +69,8 @@ export interface EventRow {
   timezone: string
   cover_url: string | null
   status: EventStatus
+  /** Public genre; null on everything created before categories existed. */
+  category: EventCategory | null
   qr_secret: string
   ga4_measurement_id: string | null
   meta_pixel_id: string | null
