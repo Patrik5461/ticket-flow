@@ -71,14 +71,28 @@ export function SeatPicker({
   selected,
   onChange,
   maxSeats = 20,
+  openRequest = 0,
 }: {
   map: EventSeatMap
   selected: string[]
   onChange: (ids: string[]) => void
   maxSeats?: number
+  /**
+   * Bumped by the page when the buyer asks for seats. On a phone that opens
+   * the fullscreen map straight away — asking twice (unfold the section, then
+   * open the map) is one tap too many on the small screen where the overlay
+   * is the only usable way to pick anyway. Ignored on wider screens, where
+   * the inline map is already right there.
+   */
+  openRequest?: number
 }) {
   const [levelKey, setLevelKey] = useState(map.levels[0]?.key ?? 'main')
   const [overlay, setOverlay] = useState(false)
+
+  useEffect(() => {
+    if (!openRequest) return
+    if (window.matchMedia('(max-width: 767px)').matches) setOverlay(true)
+  }, [openRequest])
   const selectedSet = useMemo(() => new Set(selected), [selected])
 
   // Stable colour per ticket type (price category).
@@ -564,7 +578,9 @@ function MapButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className="h-8 w-8 rounded-md border border-ink-700 bg-ink-900/80 text-sm leading-none text-ink-100 hover:bg-ink-800"
+      // 40 px on a phone: a 32 px target is hard to hit with a thumb, and on
+      // the fullscreen overlay these are the only way to zoom besides pinching.
+      className="h-10 w-10 rounded-md border border-ink-700 bg-ink-900/80 text-base leading-none text-ink-100 hover:bg-ink-800 md:h-8 md:w-8 md:text-sm"
     >
       {children}
     </button>
@@ -609,21 +625,45 @@ function MapOverlay({
         </span>
         <button
           onClick={onClose}
-          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white"
+          aria-label="Zavrieť mapu"
+          className="grid h-9 w-9 place-items-center rounded-full text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
         >
-          Hotovo
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}
       </div>
-      <div className="flex items-center justify-between border-t border-ink-800 px-3 py-2 text-sm">
-        <span className="text-ink-300">
-          {count === 0 ? 'Žiadne sedadlo' : `Vybrané: ${count}`}
+      {/* The confirm sits at the bottom, in reach of a thumb, and clears the
+          home indicator on a phone that has one. */}
+      <div
+        className="flex items-center justify-between gap-3 border-t border-ink-800 px-3 py-3"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+      >
+        <span className="min-w-0 text-sm">
+          <span className="block truncate text-ink-300">
+            {count === 0 ? 'Žiadne sedadlo' : `Vybrané: ${count}`}
+          </span>
+          <span className="font-display text-lg font-bold text-ink-100">
+            {formatEur(total)}
+          </span>
         </span>
-        <span className="font-display font-bold text-ink-100">
-          {formatEur(total)}
-        </span>
+        <button
+          onClick={onClose}
+          className="shrink-0 rounded-xl bg-accent px-6 py-3 text-sm font-semibold text-white"
+        >
+          {count === 0 ? 'Zavrieť' : 'Hotovo'}
+        </button>
       </div>
     </div>
   )

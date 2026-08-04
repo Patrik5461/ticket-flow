@@ -184,6 +184,9 @@ function EventPage() {
   // The hall map is opened on demand: the buyer first reads the event and picks
   // a category, then the map unfolds below for the actual seat pick.
   const [mapOpen, setMapOpen] = useState(false)
+  // Bumped on every "pick seats" press, so the phone overlay can open again
+  // after it has been closed once — the map section itself stays mounted.
+  const [mapRequest, setMapRequest] = useState(0)
 
 
   const seated = seatMap.seated
@@ -377,6 +380,7 @@ function EventPage() {
                     type="button"
                     onClick={() => {
                       setMapOpen(true)
+                      setMapRequest((n) => n + 1)
                       // Give React a tick to mount the map before scrolling.
                       requestAnimationFrame(() =>
                         document
@@ -553,7 +557,12 @@ function EventPage() {
               </button>
             </div>
             <div className="mt-4">
-              <SeatPicker map={seatMap} selected={seats} onChange={setSeats} />
+              <SeatPicker
+                map={seatMap}
+                selected={seats}
+                onChange={setSeats}
+                openRequest={mapRequest}
+              />
             </div>
           </section>
         )}
