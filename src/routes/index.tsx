@@ -38,7 +38,10 @@ function Nav() {
   return (
     <nav className="sticky top-0 z-40 border-b border-ink-800/60 bg-ink-950/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link to="/" className="font-display text-xl font-bold tracking-tight">
+        <Link
+          to="/"
+          className="font-display text-2xl font-bold tracking-tight sm:text-3xl"
+        >
           ticketio<span className="text-accent">.</span>
         </Link>
         <div className="hidden items-center gap-8 text-sm text-ink-300 md:flex">
