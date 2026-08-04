@@ -56,6 +56,23 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - **Stav k 2026-07-31:** úsek `trigger_*()` → pg_net → nginx → worker → Resend overený jedným testovacím `email_jobs` riadkom — `status = 'sent'` do 3 s, v nginx logu `POST /api/cron/process-email … 200 "pg_net/0.20.3"`, e-mail doručený. Všetkých 5 workerov vracia `200` na aktuálny `CRON_SECRET`.
 - **Aj samotné pg_cron plánovanie je overené** (2026-07-31, pasívny test): do fronty šiel jeden claimable riadok a **RPC sa nevolalo** — request `POST /api/cron/process-email … "pg_net/0.20.3"` prišiel sám o `11:00:00`, teda na hranici `*/5`, a job bol `sent` do 40 s. Cron job `process-email-jobs` teda existuje a beží. Ak by bolo treba overiť to znova, toto je postup: claimable riadok do fronty, žiadne RPC, sleduj nginx log. Cez REST schému `cron` vidieť nie je, `select * from cron.job` ide len z dashboard SQL editora.
 
+## Zálohy DB
+
+- **Supabase za nás nezálohuje nič** (free plán nemá automatické zálohy ani PITR). Jediná záloha dát je logická, cez `scripts/backup-db.ts`. Schéma zálohu nepotrebuje — je v `supabase/migrations`.
+- **Beží nočne z crontabu Patrika na VM**, 03:15 UTC:
+  ```
+  15 3 * * * /usr/bin/node --env-file=/home/patrik/ticketio-secrets.env \
+    /home/patrik/ticketio/scripts/backup-db.ts --quiet >> /home/patrik/backups/backup.log 2>&1
+  ```
+  Ručne: `npm run db:backup` (prípadne `-- --dry-run`, `-- --keep 30`, `-- --tables venues,seats`).
+- Výstup: `~/backups/db/<YYYYMMDD-HHMMSS>/` — `tables/<tabuľka>.ndjson.gz` (riadok = JSON objekt), `auth-users.json`, `storage/<bucket>/<cesta>`, `manifest.json`. Drží sa posledných 14 behov, jeden beh ≈ 17 MB a ≈ 45 s.
+- **Zoznam tabuliek nie je v skripte zadrôtovaný** — číta sa z OpenAPI spec-u PostgRESTu, takže nová tabuľka z migrácie sa zálohuje sama. Odtiaľ sa berú aj cudzie kľúče, z ktorých vzniká `restoreOrder` v manifeste (poradie tabuliek, v ktorom sa dá vkladať bez porušenia FK).
+- **Čo v zálohe nie je:** password hashe (GoTrue admin API ich nevracia — po obnove si 3 používatelia musia nastaviť heslá), pg_cron joby, RLS policies a granty (tie sú v migráciách). `app_settings` v zálohe **je**, hoci sa needituje migráciami.
+- **Kontrola, že to naozaj beží:** `tail -3 ~/backups/backup.log` (jeden riadok na beh) a `ls ~/backups/db/`. Skript končí nenulovým exitom, keď tabuľka zlyhá alebo vyjde kratšia, než hlási `count=exact` — v logu je to `— N CHÝB`. **Adresár bez `manifest.json` = prerušený beh**, nie použiteľná záloha (retencia taký po 6 h sama zmaže a nikdy kvôli nemu nezmaže dobrú starú zálohu).
+- **Obnova skript nemá, robí sa ručne:** migrácie na čistý projekt → tabuľky v poradí `manifest.restoreOrder` cez PostgREST (`Prefer: resolution=merge-duplicates`, po dávkach) → používatelia cez `auth/v1/admin/users` → storage upload. Počítaj s tým, že sa to nikdy neskúšalo naostro.
+- **Stále to leží len na tej istej VM ako DB aj export hál.** Off-site kópia neexistuje — kým nebude, jeden stratený stroj je stále jeden bod zlyhania.
+- Pri stránkovaní veľkých tabuliek pozor na dve pasce PostgRESTu, na ktoré skript už myslí: `limit` je serverom orezaný na 1000 riadkov (krátka stránka **neznamená** koniec), a hodnota kurzora sa posiela **bez úvodzoviek** — `id=gt."<uuid>"` vráti 400, a na textovom stĺpci filter ticho prestane filtrovať, čo je nekonečná slučka.
+
 ## Doménové pravidlá
 
 - Vstupenka = riadok v `tickets` s podpísaným QR: `TIK.{ticket_id}.{hmac_sha256(ticket_id + event_secret)}` (base64url, skrátený HMAC na 16 bajtov). Každý event má vlastný `qr_secret`.
