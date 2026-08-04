@@ -216,57 +216,42 @@ function EventsPage() {
           />
         </div>
 
-        {/* Genre */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Link
-            to="/podujatia"
-            search={{ q, kat: '', mesto, page: 1 }}
-            className={chipCls(kat === '')}
-          >
-            Všetky žánre
-          </Link>
-          {EVENT_CATEGORIES.map((c) => (
-            <Link
-              key={c.slug}
-              to="/podujatia"
-              search={{ q, kat: kat === c.slug ? '' : c.slug, mesto, page: 1 }}
-              className={chipCls(kat === c.slug)}
-            >
-              {c.label}
-            </Link>
-          ))}
+        {/* Genre + city — collapsible pickers, value lives in the URL. */}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <FilterSelect
+            label="Žáner"
+            value={kat}
+            options={[
+              { value: '', label: 'Všetky žánre' },
+              ...EVENT_CATEGORIES.map((c) => ({
+                value: c.slug,
+                label: c.label,
+              })),
+            ]}
+            onPick={(v) =>
+              void navigate({ search: (s) => ({ ...s, kat: v, page: 1 }) })
+            }
+          />
+
+          {cities.length > 0 && (
+            <FilterSelect
+              label="Mesto"
+              value={mesto}
+              options={[
+                { value: '', label: 'Celé Slovensko' },
+                ...cities.map((c) => ({
+                  value: c.cityKey,
+                  label: c.city,
+                  hint: c.eventCount,
+                })),
+              ]}
+              onPick={(v) =>
+                void navigate({ search: (s) => ({ ...s, mesto: v, page: 1 }) })
+              }
+            />
+          )}
         </div>
 
-        {/* City — only the ones that actually have something on. */}
-        {cities.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              to="/podujatia"
-              search={{ q, kat, mesto: '', page: 1 }}
-              className={chipCls(mesto === '')}
-            >
-              Celé Slovensko
-            </Link>
-            {cities.map((c) => (
-              <Link
-                key={c.cityKey}
-                to="/podujatia"
-                search={{
-                  q,
-                  kat,
-                  mesto: mesto === c.cityKey ? '' : c.cityKey,
-                  page: 1,
-                }}
-                className={chipCls(mesto === c.cityKey)}
-              >
-                {c.city}
-                <span className="ml-1.5 text-xs opacity-60">
-                  {c.eventCount}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
 
         {events.length === 0 ? (
           <div className="card-surface mt-12 p-16 text-center">
