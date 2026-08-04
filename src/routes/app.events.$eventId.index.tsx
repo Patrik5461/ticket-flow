@@ -29,6 +29,7 @@ import {
 } from '../server/dashboard'
 import type { EventDetail } from '../server/dashboard'
 import { EVENT_CATEGORIES } from '../lib/event-categories'
+import { SK_CITY_SUGGESTIONS } from '../lib/sk-cities'
 import { cancelEventFn } from '../server/cancel-event'
 import { sendBulkMessageFn, listBulkMessagesFn } from '../server/bulk-messages'
 import {
@@ -983,6 +984,7 @@ function EventDetailsForm({
     category: event.category ?? '',
     venueName: event.venue_name ?? '',
     venueAddress: event.venue_address ?? '',
+    city: event.city ?? '',
     startsAtLocal: utcIsoToZonedLocal(event.starts_at, tz),
     endsAtLocal: event.ends_at ? utcIsoToZonedLocal(event.ends_at, tz) : '',
     ga4: event.ga4_measurement_id ?? '',
@@ -1046,6 +1048,7 @@ function EventDetailsForm({
         category: form.category || null,
         venueName: form.venueName.trim() || null,
         venueAddress: form.venueAddress.trim() || null,
+        city: form.city.trim() || null,
         startsAtLocal: form.startsAtLocal,
         endsAtLocal: form.endsAtLocal || null,
         timezone: tz,
@@ -1152,6 +1155,24 @@ function EventDetailsForm({
             placeholder="Adresa"
           />
         </div>
+        <label className="block text-sm">
+          <span className="mb-1 block text-gray-600">Mesto</span>
+          <input
+            value={form.city}
+            onChange={set('city')}
+            list="sk-cities-edit"
+            className={inputCls}
+            placeholder="napr. Košice"
+          />
+          <datalist id="sk-cities-edit">
+            {SK_CITY_SUGGESTIONS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <span className="mt-1 block text-xs text-gray-500">
+            Podľa mesta si návštevníci filtrujú program na webe.
+          </span>
+        </label>
         <div className="grid grid-cols-2 gap-4">
           <label className="text-sm">
             <span className="mb-1 block text-gray-600">Začiatok</span>

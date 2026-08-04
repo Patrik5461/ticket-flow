@@ -15,6 +15,7 @@ import {
   couponDiscountCents,
 } from '../lib/coupons'
 import { isEventCategory } from '../lib/event-categories'
+import { EVENTS_PAGE_SIZE, pageRange } from '../lib/paging'
 import { signOrderToken, verifyOrderToken } from '../lib/order-token'
 import { signTicket } from '../lib/qr'
 import { qrDataUrl } from '../lib/tickets/qr-image'
@@ -53,7 +54,7 @@ const RESERVATION_MINUTES = 15
 
 // Columns safe to expose publicly (qr_secret intentionally excluded).
 const PUBLIC_EVENT_COLS =
-  'id, organizer_id, title, slug, description, venue_name, venue_address, starts_at, ends_at, timezone, cover_url, status, category, ga4_measurement_id, meta_pixel_id'
+  'id, organizer_id, title, slug, description, venue_name, venue_address, city, starts_at, ends_at, timezone, cover_url, status, category, ga4_measurement_id, meta_pixel_id'
 
 // Same as PUBLIC_EVENT_COLS but without the tracking columns — a fallback for
 // databases where the event-tracking migration hasn't been applied yet, so the
@@ -136,10 +137,27 @@ function toPublicTicketType(t: TicketTypeRow): PublicTicketType {
 }
 
 export interface PublicEventFilter {
-  /** Free text matched against the title and the venue name. */
+  /** Free text matched against title, venue and city. */
   q?: string | null
   /** Category slug; anything not in the known list is ignored. */
   category?: string | null
+  /** City, matched de-accented and case-insensitively via `city_key`. */
+  city?: string | null
+  /** 1-based; out-of-range values are clamped, never rejected. */
+  page?: number | null
+  pageSize?: number | null
+}
+
+export interface PublicEventPage {
+  events: PublicEvent[]
+  /** Rows matching the filter across all pages, for the pager and the count. */
+  total: number
+}
+
+export interface PublicEventCity {
+  city: string
+  cityKey: string
+  eventCount: number
 }
 
 /**
@@ -158,38 +176,92 @@ function searchTerm(raw: string | null | undefined): string | null {
   return cleaned.length >= 2 ? cleaned : null
 }
 
+/** Folds a city the same way the generated `city_key` column stores it. */
+function cityKey(raw: string | null | undefined): string | null {
+  const cleaned = (raw ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+    .slice(0, 80)
+  return cleaned.length > 0 ? cleaned : null
+}
+
+/**
+ * One page of the public program: published, not finished yet, soonest first.
+ *
+ * "Not finished yet" is decided in SQL rather than after the fact, because the
+ * page and the total have to agree — dropping ended events from an already
+ * paged result would leave short pages and a count that promises more.
+ */
 export async function listPublishedEvents(
   filter: PublicEventFilter = {},
-): Promise<PublicEvent[]> {
+): Promise<PublicEventPage> {
   const db = anonClient()
   const q = searchTerm(filter.q)
   const category = isEventCategory(filter.category) ? filter.category : null
+  const city = cityKey(filter.city)
+  const pageSize = Math.min(
+    Math.max(1, Math.floor(filter.pageSize ?? EVENTS_PAGE_SIZE)),
+    100,
+  )
+  const { from, to } = pageRange(filter.page ?? 1, pageSize)
+
+  // Request time, not query time: a bare `now()` is not something PostgREST
+  // can be handed, and the boundary has to be identical for rows and count.
+  const nowIso = new Date().toISOString()
+  const stillOn = `ends_at.gte.${nowIso},and(ends_at.is.null,starts_at.gte.${nowIso})`
 
   let primaryQuery = db
     .from('events')
-    .select(PUBLIC_EVENT_COLS)
+    .select(PUBLIC_EVENT_COLS, { count: 'exact' })
     .eq('status', 'published')
+    .or(stillOn)
   if (category) primaryQuery = primaryQuery.eq('category', category)
+  if (city) primaryQuery = primaryQuery.eq('city_key', city)
   if (q) primaryQuery = primaryQuery.ilike('search_text', `%${q}%`)
   const primary = await primaryQuery
     .order('starts_at', { ascending: true })
+    .range(from, to)
     .returns<PublicEvent[]>()
-  if (!primary.error) return primary.data
+  if (!primary.error) {
+    return { events: primary.data, total: primary.count ?? primary.data.length }
+  }
 
-  // Older database without the category / search_text columns: a category
-  // filter has nothing to match, and the text search falls back to a plain
-  // accent-sensitive match on the two source columns.
-  if (category) return []
+  // Older database without the category / city / search_text columns: those
+  // filters have nothing to match, and the text search falls back to a plain
+  // accent-sensitive match on the two columns that do exist.
+  if (category || city) return { events: [], total: 0 }
   let legacyQuery = db
     .from('events')
-    .select(PUBLIC_EVENT_COLS_LEGACY)
+    .select(PUBLIC_EVENT_COLS_LEGACY, { count: 'exact' })
     .eq('status', 'published')
+    .or(stillOn)
   if (q)
     legacyQuery = legacyQuery.or(`title.ilike.*${q}*,venue_name.ilike.*${q}*`)
-  const { data: legacy } = await legacyQuery
+  const legacy = await legacyQuery
     .order('starts_at', { ascending: true })
+    .range(from, to)
     .returns<PublicEvent[]>()
-  return legacy ?? []
+  const rows = legacy.data ?? []
+  return { events: rows, total: legacy.count ?? rows.length }
+}
+
+/**
+ * Cities with something upcoming, most events first — the filter chips.
+ *
+ * Goes through an RPC because DISTINCT is not expressible in PostgREST and
+ * collecting cities client-side would mean reading the whole table.
+ */
+export async function listPublicEventCities(): Promise<PublicEventCity[]> {
+  const { data, error } = await anonClient().rpc('public_event_cities')
+  if (error || !data) return []
+  const rows = data as { city: string; city_key: string; event_count: number }[]
+  return rows.map((r) => ({
+    city: r.city,
+    cityKey: r.city_key,
+    eventCount: Number(r.event_count),
+  }))
 }
 
 // ---------------------------------------------------------------------------

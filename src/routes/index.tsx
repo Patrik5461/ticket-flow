@@ -2,12 +2,12 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { Check, Scan } from 'lucide-react'
-import { listEventsFn } from '../server/fns'
+import { searchEventsFn } from '../server/fns'
 import { getPlatformSettingsFn } from '../server/platform-settings'
 import { EventCard } from '../components/EventCard'
 import { SiteFooter, SiteNav } from '../components/SiteChrome'
 import { formatSk } from '../lib/datetime'
-import { upcomingEvents } from '../lib/events'
+import { TEASER_EVENTS } from '../lib/paging'
 import { formatEur, toCents } from '../lib/money'
 import { computeFee } from '../lib/pricing'
 import { LEGAL_FORMS } from '../lib/nonprofit'
@@ -15,20 +15,18 @@ import { LEGAL_FORMS } from '../lib/nonprofit'
 export const Route = createFileRoute('/')({
   // The non-profit rate is admin-tunable, so read it from the same source
   // /cennik does — a literal here would keep advertising the old number.
-  // Only what is still ahead of us, and filtered here rather than in the
-  // component so SSR and hydration agree on the list (`Date.now()` would not).
+  // The teaser asks for its own page rather than trimming a full listing, so
+  // the landing reads six rows however long the program gets; `total` is what
+  // the "all events" button counts.
   loader: async () => {
-    const [events, settings] = await Promise.all([
-      listEventsFn(),
+    const [page, settings] = await Promise.all([
+      searchEventsFn({ data: { pageSize: TEASER_EVENTS } }),
       getPlatformSettingsFn(),
     ])
-    return { events: upcomingEvents(events), settings }
+    return { events: page.events, totalEvents: page.total, settings }
   },
   component: Landing,
 })
-
-/** How many events the landing teaser shows before pointing at /podujatia. */
-const TEASER_EVENTS = 6
 
 function pctStr(p: number): string {
   return String(p).replace('.', ',')
@@ -408,7 +406,7 @@ function DashboardPreview() {
 }
 
 function Landing() {
-  const { events, settings } = Route.useLoaderData()
+  const { events, totalEvents, settings } = Route.useLoaderData()
 
   return (
     <div className="min-h-screen">
@@ -439,7 +437,7 @@ function Landing() {
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link
                   to="/podujatia"
-                  search={{ q: '', kat: '' }}
+                  search={{ q: '', kat: '', mesto: '', page: 1 }}
                   className="btn-primary"
                 >
                   Zobraziť podujatia
@@ -569,7 +567,7 @@ function Landing() {
           {events.length > 0 && (
             <Link
               to="/podujatia"
-              search={{ q: '', kat: '' }}
+              search={{ q: '', kat: '', mesto: '', page: 1 }}
               className="btn-ghost text-sm"
             >
               Zobraziť všetky podujatia
@@ -596,18 +594,18 @@ function Landing() {
         ) : (
           <>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {events.slice(0, TEASER_EVENTS).map((e, idx) => (
+              {events.map((e, idx) => (
                 <EventCard key={e.id} event={e} index={idx} />
               ))}
             </div>
-            {events.length > TEASER_EVENTS && (
+            {totalEvents > events.length && (
               <div className="mt-10 text-center">
                 <Link
                   to="/podujatia"
-                  search={{ q: '', kat: '' }}
+                  search={{ q: '', kat: '', mesto: '', page: 1 }}
                   className="btn-primary"
                 >
-                  Všetky podujatia ({events.length})
+                  Všetky podujatia ({totalEvents})
                 </Link>
               </div>
             )}

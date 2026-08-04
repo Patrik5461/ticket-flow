@@ -10,6 +10,7 @@ import {
   createOrder,
   getOrderView,
   getPublicEvent,
+  listPublicEventCities,
   listPublishedEvents,
   previewPricing,
   OrderError,
@@ -36,25 +37,29 @@ export const getEventFn = createServerFn({ method: 'GET' })
     return getPublicEvent(data.slug)
   })
 
-export const listEventsFn = createServerFn({ method: 'GET' }).handler(
-  async () => {
-    return listPublishedEvents()
-  },
-)
-
-/** The public program with the /podujatia search box and category chips applied. */
+/** One page of the public program, with the /podujatia filters applied. */
 export const searchEventsFn = createServerFn({ method: 'GET' })
   .validator((d: unknown) =>
     z
       .object({
         q: z.string().trim().max(120).optional().nullable(),
         category: z.string().trim().max(40).optional().nullable(),
+        city: z.string().trim().max(80).optional().nullable(),
+        page: z.number().int().optional().nullable(),
+        pageSize: z.number().int().optional().nullable(),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    return listPublishedEvents({ q: data.q, category: data.category })
+    return listPublishedEvents(data)
   })
+
+/** Cities to offer as filter chips on /podujatia. */
+export const listEventCitiesFn = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    return listPublicEventCities()
+  },
+)
 
 export const previewPricingFn = createServerFn({ method: 'POST' })
   .validator((d: unknown) =>

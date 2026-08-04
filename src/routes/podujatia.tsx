@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { EventCard } from '../components/EventCard'
 import { SiteFooter, SiteNav } from '../components/SiteChrome'
 import { EVENT_CATEGORIES, isEventCategory } from '../lib/event-categories'
-import { upcomingEvents } from '../lib/events'
-import { searchEventsFn } from '../server/fns'
+import { EVENTS_PAGE_SIZE, normalizePage, pageCount } from '../lib/paging'
+import { listEventCitiesFn, searchEventsFn } from '../server/fns'
 
 export const Route = createFileRoute('/podujatia')({
   head: () => ({
@@ -14,24 +14,38 @@ export const Route = createFileRoute('/podujatia')({
       {
         name: 'description',
         content:
-          'Program podujatí v predaji na Ticketiu — koncerty, festivaly, divadlo a šport. Vstupenky s QR kódom priamo do mailu.',
+          'Program podujatí v predaji na Ticketiu — koncerty, festivaly, divadlo a šport. Filtrujte podľa žánru a mesta, vstupenku dostanete s QR kódom do mailu.',
       },
     ],
   }),
-  // The filter lives in the URL so a filtered program can be linked and shared,
-  // and so the nav search box has somewhere to submit to.
+  // The whole filter lives in the URL so a filtered program can be linked and
+  // shared, and so the header search box has somewhere to submit to.
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === 'string' ? search.q : '',
     kat: isEventCategory(search.kat) ? search.kat : '',
+    mesto: typeof search.mesto === 'string' ? search.mesto : '',
+    page: normalizePage(search.page),
   }),
-  loaderDeps: ({ search }) => ({ q: search.q, kat: search.kat }),
-  // Filtered in the loader, not in the component: the same list has to come out
-  // of SSR and out of hydration, and `Date.now()` differs between the two.
+  loaderDeps: ({ search }) => ({
+    q: search.q,
+    kat: search.kat,
+    mesto: search.mesto,
+    page: search.page,
+  }),
   loader: async ({ deps }) => {
-    const events = await searchEventsFn({
-      data: { q: deps.q || null, category: deps.kat || null },
-    })
-    return { events: upcomingEvents(events) }
+    const [page, cities] = await Promise.all([
+      searchEventsFn({
+        data: {
+          q: deps.q || null,
+          category: deps.kat || null,
+          city: deps.mesto || null,
+          page: deps.page,
+          pageSize: EVENTS_PAGE_SIZE,
+        },
+      }),
+      listEventCitiesFn(),
+    ])
+    return { events: page.events, total: page.total, cities }
   },
   component: EventsPage,
 })
@@ -42,24 +56,38 @@ function countLabel(n: number): string {
   return `${n} podujatí v predaji`
 }
 
+const chipCls = (active: boolean) =>
+  `rounded-full border px-4 py-1.5 text-sm transition ${
+    active
+      ? 'border-accent bg-accent/15 text-accent'
+      : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
+  }`
+
 function EventsPage() {
-  const { events } = Route.useLoaderData()
-  const { q, kat } = Route.useSearch()
+  const { events, total, cities } = Route.useLoaderData()
+  const { q, kat, mesto, page } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
 
   // Typing must not fire a request per keystroke, so the box keeps its own
-  // value and pushes it into the URL once the typing stops.
+  // value and pushes it into the URL once the typing stops. Any new term
+  // starts back at page one — page 4 of the old result means nothing now.
   const [term, setTerm] = useState(q)
   useEffect(() => setTerm(q), [q])
   useEffect(() => {
     if (term === q) return
     const t = setTimeout(() => {
-      void navigate({ search: (s) => ({ ...s, q: term }), replace: true })
+      void navigate({
+        search: (s) => ({ ...s, q: term, page: 1 }),
+        replace: true,
+      })
     }, 350)
     return () => clearTimeout(t)
   }, [term, q, navigate])
 
-  const filtered = q.trim().length > 0 || kat !== ''
+  const filtered = q.trim().length > 0 || kat !== '' || mesto !== ''
+  const pages = pageCount(total, EVENTS_PAGE_SIZE)
+  const firstOnPage = (page - 1) * EVENTS_PAGE_SIZE + 1
+  const lastOnPage = firstOnPage + events.length - 1
 
   return (
     <div className="min-h-screen bg-ink-950 text-ink-100">
@@ -96,52 +124,87 @@ function EventsPage() {
             type="search"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Hľadať podujatie alebo miesto…"
+            placeholder="Hľadať podujatie, miesto alebo mesto…"
             aria-label="Hľadať podujatie"
             className="w-full rounded-xl border border-ink-700 bg-ink-900/60 py-3 pl-12 pr-4 text-ink-100 placeholder:text-ink-500 focus:border-accent/60 focus:outline-none"
           />
         </div>
 
-        {/* Category chips */}
+        {/* Genre */}
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
             to="/podujatia"
-            search={{ q, kat: '' }}
-            className={`rounded-full border px-4 py-1.5 text-sm transition ${
-              kat === ''
-                ? 'border-accent bg-accent/15 text-accent'
-                : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
-            }`}
+            search={{ q, kat: '', mesto, page: 1 }}
+            className={chipCls(kat === '')}
           >
-            Všetko
+            Všetky žánre
           </Link>
           {EVENT_CATEGORIES.map((c) => (
             <Link
               key={c.slug}
               to="/podujatia"
-              search={{ q, kat: kat === c.slug ? '' : c.slug }}
-              className={`rounded-full border px-4 py-1.5 text-sm transition ${
-                kat === c.slug
-                  ? 'border-accent bg-accent/15 text-accent'
-                  : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
-              }`}
+              search={{ q, kat: kat === c.slug ? '' : c.slug, mesto, page: 1 }}
+              className={chipCls(kat === c.slug)}
             >
               {c.label}
             </Link>
           ))}
         </div>
 
+        {/* City — only the ones that actually have something on. */}
+        {cities.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to="/podujatia"
+              search={{ q, kat, mesto: '', page: 1 }}
+              className={chipCls(mesto === '')}
+            >
+              Celé Slovensko
+            </Link>
+            {cities.map((c) => (
+              <Link
+                key={c.cityKey}
+                to="/podujatia"
+                search={{
+                  q,
+                  kat,
+                  mesto: mesto === c.cityKey ? '' : c.cityKey,
+                  page: 1,
+                }}
+                className={chipCls(mesto === c.cityKey)}
+              >
+                {c.city}
+                <span className="ml-1.5 text-xs opacity-60">
+                  {c.eventCount}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+
         {events.length === 0 ? (
           <div className="card-surface mt-12 p-16 text-center">
             <p className="text-ink-400">
-              {filtered
-                ? 'Tomuto výberu nezodpovedá žiadne podujatie.'
-                : 'Zatiaľ nie sú zverejnené žiadne podujatia.'}
+              {/* A page past the end is a typed URL or a stale link, not an
+                  empty program — saying "nothing is on" there would lie. */}
+              {total > 0
+                ? `Strana ${page} je prázdna — program má ${pages} ${pages < 5 ? 'strany' : 'strán'}.`
+                : filtered
+                  ? 'Tomuto výberu nezodpovedá žiadne podujatie.'
+                  : 'Zatiaľ nie sú zverejnené žiadne podujatia.'}
             </p>
-            {filtered ? (
+            {total > 0 ? (
               <Link
                 to="/podujatia"
-                search={{ q: '', kat: '' }}
+                search={{ q, kat, mesto, page: 1 }}
+                className="btn-ghost mt-6"
+              >
+                Na prvú stranu
+              </Link>
+            ) : filtered ? (
+              <Link
+                to="/podujatia"
+                search={{ q: '', kat: '', mesto: '', page: 1 }}
                 className="btn-ghost mt-6"
               >
                 Zrušiť filter
@@ -155,13 +218,58 @@ function EventsPage() {
         ) : (
           <>
             <div className="mt-8 text-sm text-ink-500">
-              {countLabel(events.length)}
+              {countLabel(total)}
+              {pages > 1 && (
+                <>
+                  {' · '}
+                  {firstOnPage}–{lastOnPage} na strane {page} z {pages}
+                </>
+              )}
             </div>
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((e, idx) => (
                 <EventCard key={e.id} event={e} index={idx} />
               ))}
             </div>
+
+            {pages > 1 && (
+              <nav
+                aria-label="Stránkovanie"
+                className="mt-12 flex items-center justify-center gap-2"
+              >
+                {page > 1 ? (
+                  <Link
+                    to="/podujatia"
+                    search={{ q, kat, mesto, page: page - 1 }}
+                    className="btn-ghost text-sm"
+                    rel="prev"
+                  >
+                    ← Predchádzajúca
+                  </Link>
+                ) : (
+                  <span className="btn-ghost pointer-events-none text-sm opacity-40">
+                    ← Predchádzajúca
+                  </span>
+                )}
+                <span className="px-4 text-sm text-ink-400">
+                  {page} / {pages}
+                </span>
+                {page < pages ? (
+                  <Link
+                    to="/podujatia"
+                    search={{ q, kat, mesto, page: page + 1 }}
+                    className="btn-ghost text-sm"
+                    rel="next"
+                  >
+                    Ďalšia →
+                  </Link>
+                ) : (
+                  <span className="btn-ghost pointer-events-none text-sm opacity-40">
+                    Ďalšia →
+                  </span>
+                )}
+              </nav>
+            )}
           </>
         )}
       </div>

@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { createEventFn, uploadEventCoverFn } from '../server/dashboard'
 import { EVENT_CATEGORIES } from '../lib/event-categories'
+import { SK_CITY_SUGGESTIONS } from '../lib/sk-cities'
 
 export const Route = createFileRoute('/app/events/new')({ component: NewEvent })
 
@@ -70,6 +71,7 @@ function NewEvent() {
     category: '',
     venueName: '',
     venueAddress: '',
+    city: '',
     startsAtLocal: '',
     endsAtLocal: '',
   })
@@ -124,6 +126,7 @@ function NewEvent() {
         category: form.category || null,
         venueName: form.venueName.trim() || null,
         venueAddress: form.venueAddress.trim() || null,
+        city: form.city.trim() || null,
         startsAtLocal: form.startsAtLocal,
         endsAtLocal: form.endsAtLocal || null,
         timezone: 'Europe/Bratislava',
@@ -258,6 +261,24 @@ function NewEvent() {
               />
             </label>
           </div>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Mesto</span>
+            <input
+              value={form.city}
+              onChange={set('city')}
+              list="sk-cities"
+              className={inputCls}
+              placeholder="napr. Košice"
+            />
+            <datalist id="sk-cities">
+              {SK_CITY_SUGGESTIONS.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <span className="mt-1 block text-xs text-gray-500">
+              Podľa mesta si návštevníci filtrujú program na webe.
+            </span>
+          </label>
           <div className="grid grid-cols-2 gap-4">
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Začiatok *</span>

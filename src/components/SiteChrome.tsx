@@ -18,7 +18,7 @@ function NavSearch({ className = '' }: { className?: string }) {
         e.preventDefault()
         void navigate({
           to: '/podujatia',
-          search: { q: term.trim(), kat: '' },
+          search: { q: term.trim(), kat: '', mesto: '', page: 1 },
         })
       }}
       className={`relative ${className}`}
@@ -69,7 +69,7 @@ export function SiteNav() {
         <div className="hidden items-center gap-8 text-sm text-ink-300 md:flex">
           <Link
             to="/podujatia"
-            search={{ q: '', kat: '' }}
+            search={{ q: '', kat: '', mesto: '', page: 1 }}
             className="transition hover:text-ink-100"
             activeProps={{ className: 'text-ink-100' }}
           >
@@ -96,7 +96,7 @@ export function SiteNav() {
               hands the visitor to the program, which has its own search. */}
           <Link
             to="/podujatia"
-            search={{ q: '', kat: '' }}
+            search={{ q: '', kat: '', mesto: '', page: 1 }}
             aria-label="Hľadať podujatie"
             className="grid h-9 w-9 place-items-center rounded-full text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 lg:hidden"
           >

@@ -64,6 +64,8 @@ export interface EventRow {
   description: string | null
   venue_name: string | null
   venue_address: string | null
+  /** City, as the organiser typed it; matched through the generated city_key. */
+  city: string | null
   starts_at: string
   ends_at: string | null
   timezone: string

@@ -234,6 +234,7 @@ const eventInput = z.object({
   description: z.string().trim().max(5000).optional().nullable(),
   venueName: z.string().trim().max(200).optional().nullable(),
   venueAddress: z.string().trim().max(300).optional().nullable(),
+  city: z.string().trim().max(120).optional().nullable(),
   startsAtLocal: z.string().min(1),
   endsAtLocal: z.string().optional().nullable(),
   timezone: z.string().default('Europe/Bratislava'),
@@ -261,6 +262,7 @@ export const createEventFn = createServerFn({ method: 'POST' })
           description: data.description ?? null,
           venue_name: data.venueName ?? null,
           venue_address: data.venueAddress ?? null,
+          city: data.city || null,
           starts_at: zonedLocalToUtcIso(data.startsAtLocal, data.timezone),
           ends_at: data.endsAtLocal
             ? zonedLocalToUtcIso(data.endsAtLocal, data.timezone)
@@ -303,6 +305,7 @@ export const updateEventFn = createServerFn({ method: 'POST' })
           description: data.description ?? null,
           venue_name: newVenueName,
           venue_address: newVenueAddress,
+          city: data.city || null,
           starts_at: newStartsAt,
           ends_at: newEndsAt,
           timezone: data.timezone,
