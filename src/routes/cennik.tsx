@@ -4,9 +4,6 @@ import { computeFee } from '../lib/pricing'
 import { formatEur } from '../lib/money'
 import { getPlatformSettingsFn } from '../server/platform-settings'
 
-// Inviton's public pricing, for comparison. Our own tariff is live data.
-const INVITON = { percent: 5, minCents: 60, label: 'Inviton' }
-
 function pctStr(p: number): string {
   return String(p).replace('.', ',')
 }
@@ -42,11 +39,20 @@ function PricingPage() {
   )
   const valid = Number.isFinite(cents) && cents > 0
 
+  // Both of our own rates side by side, rather than a competitor's: the
+  // question a seller actually has is what the standard and the non-profit
+  // tariff leave them, and both are live data an admin can change.
+  const np = {
+    percent: settings.nonprofitFeePercent,
+    minCents: settings.nonprofitFeeMinCents,
+  }
+  const npFeeLabel = `${pctStr(np.percent)} % / min ${formatEur(np.minCents)}`
+
   const ourFee = computeFee(cents, us.percent, us.minCents)
-  const invFee = computeFee(cents, INVITON.percent, INVITON.minCents)
+  const npFee = computeFee(cents, np.percent, np.minCents)
   const ourNet = cents - ourFee
-  const invNet = cents - invFee
-  const diff = ourNet - invNet
+  const npNet = cents - npFee
+  const diff = npNet - ourNet
 
   return (
     <div className="min-h-screen bg-ink-950 text-ink-100">
@@ -152,7 +158,7 @@ function PricingPage() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-accent/40 bg-accent/5 p-5">
                 <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-accent">
-                  <span>Ticketio</span>
+                  <span>Štandard</span>
                   <span>{feeLabel}</span>
                 </div>
                 <div className="mt-4 flex items-baseline justify-between text-sm text-ink-400">
@@ -169,34 +175,30 @@ function PricingPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-ink-800 bg-ink-950/60 p-5">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-ink-500">
-                  <span>Inviton</span>
-                  <span>
-                    {INVITON.percent} % / min {formatEur(INVITON.minCents)}
-                  </span>
+              <div className="rounded-xl border border-ink-700 bg-ink-950/60 p-5">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-ink-400">
+                  <span>Neziskovka</span>
+                  <span>{npFeeLabel}</span>
                 </div>
                 <div className="mt-4 flex items-baseline justify-between text-sm text-ink-400">
                   <span>Provízia</span>
                   <span className="font-medium text-ink-300">
-                    −{formatEur(invFee)}
+                    −{formatEur(npFee)}
                   </span>
                 </div>
                 <div className="mt-3 border-t border-ink-800 pt-3">
                   <div className="text-xs text-ink-400">Dostanete</div>
-                  <div className="mt-1 font-display text-3xl font-bold text-ink-200">
-                    {formatEur(invNet)}
+                  <div className="mt-1 font-display text-3xl font-bold text-ink-100">
+                    {formatEur(npNet)}
                   </div>
                 </div>
               </div>
 
               {diff > 0 && (
-                <div className="sm:col-span-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
-                  S Ticketiom máte z každej vstupenky o{' '}
-                  <strong className="text-emerald-200">
-                    {formatEur(diff)}
-                  </strong>{' '}
-                  viac.
+                <div className="sm:col-span-2 rounded-xl border border-ink-800 bg-ink-900/60 px-4 py-3 text-sm text-ink-300">
+                  So zníženou sadzbou zostane z každej vstupenky o{' '}
+                  <strong className="text-ink-100">{formatEur(diff)}</strong>{' '}
+                  viac. Sadzbu aktivujeme neziskovkám po overení právnej formy.
                 </div>
               )}
             </div>
