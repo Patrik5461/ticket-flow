@@ -535,9 +535,26 @@ function EventPage() {
           </aside>
         </div>
 
-        {showMap && (
-          <section className="mt-14 max-w-3xl border-t border-ink-800 pt-10">
-            {about}
+        {showMap && mapOpen && (
+          <section
+            id="hall-map"
+            className="mt-12 scroll-mt-24 border-t border-ink-800 pt-10 animate-fade-up"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="font-display text-2xl font-bold">
+                Výber sedadiel
+              </h2>
+              <button
+                type="button"
+                onClick={() => setMapOpen(false)}
+                className="text-sm font-semibold text-ink-400 transition hover:text-ink-100"
+              >
+                Skryť mapu
+              </button>
+            </div>
+            <div className="mt-4">
+              <SeatPicker map={seatMap} selected={seats} onChange={setSeats} />
+            </div>
           </section>
         )}
       </div>
