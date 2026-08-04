@@ -239,30 +239,14 @@ function EventPage() {
     imageUrl: event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`),
   })
 
-  // Rendered above the map on a seated event and beside the ticket panel on an
-  // unseated one, so it is written once and placed twice.
+  // Always rendered in full at the top of the body, beside the ticket panel.
   const about = (
     <>
       <h2 className="font-display text-2xl font-bold">O podujatí</h2>
       {event.description ? (
-        <>
-          <p
-            className={`mt-4 whitespace-pre-line text-ink-300 leading-relaxed ${
-              aboutOpen ? '' : 'line-clamp-6'
-            }`}
-          >
-            {event.description}
-          </p>
-          {event.description.length > 260 && (
-            <button
-              type="button"
-              onClick={() => setAboutOpen((v) => !v)}
-              className="mt-3 text-sm font-semibold text-accent transition hover:opacity-80"
-            >
-              {aboutOpen ? 'Zobraziť menej' : 'Zobraziť viac'}
-            </button>
-          )}
-        </>
+        <p className="mt-4 whitespace-pre-line text-ink-300 leading-relaxed">
+          {event.description}
+        </p>
       ) : (
         <p className="mt-4 text-ink-500">
           Bližší popis podujatia bude čoskoro.
@@ -270,6 +254,7 @@ function EventPage() {
       )}
     </>
   )
+  const seatedTypes = ticketTypes.filter((t) => t.seated)
 
 
   return (
