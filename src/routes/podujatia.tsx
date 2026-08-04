@@ -56,6 +56,13 @@ function countLabel(n: number): string {
   return `${n} podujatí v predaji`
 }
 
+/** Accusative, as in "program má …" — 1 stranu, 2 strany, 5 strán. */
+function pagesLabel(n: number): string {
+  if (n === 1) return '1 stranu'
+  if (n < 5) return `${n} strany`
+  return `${n} strán`
+}
+
 /** Collapsible select-style filter: click opens the list, pick one value. */
 function FilterSelect({
   label,
@@ -98,7 +105,7 @@ function FilterSelect({
           <span className="mr-2 text-xs uppercase tracking-widest text-ink-500">
             {label}
           </span>
-          {current?.label}
+          {current.label}
         </span>
         <svg
           width="16"
@@ -259,7 +266,7 @@ function EventsPage() {
               {/* A page past the end is a typed URL or a stale link, not an
                   empty program — saying "nothing is on" there would lie. */}
               {total > 0
-                ? `Strana ${page} je prázdna — program má ${pages} ${pages < 5 ? 'strany' : 'strán'}.`
+                ? `Strana ${page} je prázdna — program má ${pagesLabel(pages)}.`
                 : filtered
                   ? 'Tomuto výberu nezodpovedá žiadne podujatie.'
                   : 'Zatiaľ nie sú zverejnené žiadne podujatia.'}

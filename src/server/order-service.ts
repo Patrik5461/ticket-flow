@@ -228,6 +228,23 @@ export async function listPublishedEvents(
     return { events: primary.data, total: primary.count ?? primary.data.length }
   }
 
+  // A page past the end is not a broken query: PostgREST refuses the range with
+  // 416/PGRST103 instead of answering with an empty page, and the count goes
+  // with it. Ask for the count alone so the page can say "strana 9 is empty,
+  // the program has 2" rather than "nothing is on".
+  if (primary.error.code === 'PGRST103') {
+    let countQuery = db
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'published')
+      .or(stillOn)
+    if (category) countQuery = countQuery.eq('category', category)
+    if (city) countQuery = countQuery.eq('city_key', city)
+    if (q) countQuery = countQuery.ilike('search_text', `%${q}%`)
+    const { count } = await countQuery
+    return { events: [], total: count ?? 0 }
+  }
+
   // Older database without the category / city / search_text columns: those
   // filters have nothing to match, and the text search falls back to a plain
   // accent-sensitive match on the two columns that do exist.
