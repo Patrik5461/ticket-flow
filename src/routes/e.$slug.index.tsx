@@ -341,35 +341,13 @@ function EventPage() {
 
       {/* BODY */}
       <div className="mx-auto max-w-6xl px-6 pb-32 md:pb-16">
-        {/* Buy first, read after: the map sits BESIDE the ticket panel at the
-            top of the page and the (often long) description follows below, so a
-            wall of text no longer pushes the picker off the first screen. */}
+        {/* Read first, then buy: the full description sits at the top left with
+            the ticket panel beside it, and the hall map only unfolds below once
+            the buyer asks for a seat. */}
+        <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]">
+          {/* LEFT: the full event description */}
+          <div>{about}</div>
 
-
-        <div
-          className={
-            showMap
-              ? 'grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]'
-              : 'grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]'
-          }
-        >
-          {/* LEFT: the map on a seated event, otherwise the description. */}
-          {showMap ? (
-            <section>
-              <h2 className="font-display text-2xl font-bold">
-                Výber sedadiel
-              </h2>
-              <div className="mt-4">
-                <SeatPicker
-                  map={seatMap}
-                  selected={seats}
-                  onChange={setSeats}
-                />
-              </div>
-            </section>
-          ) : (
-            <div>{about}</div>
-          )}
 
           {/* RIGHT: sticky ticket panel */}
           <aside
