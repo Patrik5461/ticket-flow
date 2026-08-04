@@ -1,3 +1,27 @@
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+
+# ---------------------------------------------------------------------------
+# Lovable's territory — Prettier keeps its hands off it.
+#
+# Lovable (gpt-engineer-app[bot]) writes the UI layer and does not follow this
+# repo's prettier.config.js: its files come back 5–20 lines away from what
+# Prettier would produce. Formatting them on our side rewrites lines Lovable is
+# about to rewrite too, which is how a design change turns into a merge
+# conflict over nothing.
+#
+# So the split is the same one CLAUDE.md draws for ownership: the UI layer is
+# Lovable's and stays formatted however Lovable writes it, while src/server,
+# src/lib, supabase and scripts are ours and stay Prettier-clean. `npm run
+# format` and `npm run check` both honour this list, so neither can drag a
+# Lovable file into our diff by accident.
+#
+# If Lovable takes over another component, add it here — the three below are
+# the ones it has actually been editing.
+# ---------------------------------------------------------------------------
+src/routes/
+src/integrations/
+src/components/CookieConsent.tsx
+src/components/SeatPicker.tsx
+src/components/ThemeToggle.tsx

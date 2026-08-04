@@ -1,0 +1,8 @@
+# Commits that only moved whitespace around. `git blame` should look straight
+# through them to whoever actually wrote the line.
+#
+# GitHub reads this file automatically. Locally it needs one setup command:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format the repo with its own Prettier (2026-08-04)
+a215caad8f4c316a1d401089ea97182bced2388d

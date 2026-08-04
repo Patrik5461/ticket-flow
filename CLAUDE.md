@@ -147,6 +147,8 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
   - **UI vrstva (`src/routes/`, UI komponenty) patrí Lovable.**
   - **`src/server/`, `src/lib/` a `supabase/` patria Claude Code.**
   - Pri konflikte v súboroch sa spýtať používateľa, ale toto rozdelenie platí ako default.
+- **Formátovanie Lovable zóny nikdy nemeň.** Lovable nepíše podľa `prettier.config.js` tohto repa (jeho súbory sú 5–20 riadkov od toho, čo by spravil Prettier), takže preformátovanie jeho súboru prepisuje riadky, ktoré ide vzápätí prepísať aj on — a z dizajnovej zmeny je zbytočný konflikt. Preto je jeho zóna v `.prettierignore` (`src/routes/`, `src/integrations/`, `CookieConsent.tsx`, `SeatPicker.tsx`, `ThemeToggle.tsx`) a `npm run format` aj `npm run check` ju obchádzajú. Ak Lovable prevezme ďalší komponent, dopíš ho tam. **Nikdy nespúšťaj `prettier --write` s cestou, ktorá tento zoznam obchádza** — 2026-08-04 tak vznikol plošný reformat 82 súborov (commit `a215caa`, preto je aj v `.git-blame-ignore-revs`).
+- Konflikt s Lovable, keď už nastane: jeho súbory ber jeho verziou (`git checkout --theirs <súbor>`), naše svojou, a nič medzi tým neformátuj.
 
 ## Auth
 
