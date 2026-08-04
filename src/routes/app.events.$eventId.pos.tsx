@@ -63,7 +63,8 @@ function PosPage() {
             Pokladňa — <span className="text-ink-200">{event.title}</span>
           </h1>
           <p className="mt-1 text-sm text-ink-400">
-            Rýchly predaj na mieste. Ťuknite na dlaždicu pre pridanie, potom „Predať".
+            Rýchly predaj na mieste. Ťuknite na dlaždicu pre pridanie, potom
+            „Predať".
           </p>
         </div>
         <Link
@@ -81,8 +82,8 @@ function PosPage() {
         <div className="lg:col-span-3 xl:col-span-3">
           {ticketTypes.length === 0 ? (
             <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-ink-700 bg-ink-900/40 p-8 text-center text-sm text-ink-400">
-              Toto podujatie zatiaľ nemá žiadne typy vstupeniek. Najprv ich pridajte
-              v nastaveniach podujatia.
+              Toto podujatie zatiaľ nemá žiadne typy vstupeniek. Najprv ich
+              pridajte v nastaveniach podujatia.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

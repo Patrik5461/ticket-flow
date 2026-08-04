@@ -19,15 +19,7 @@ import { formatEur } from '../lib/money'
  * A wheelchair place, marked by shape (square + glyph) because colour already
  * codes availability and price category.
  */
-function WheelchairGlyph({
-  x,
-  y,
-  r,
-}: {
-  x: number
-  y: number
-  r: number
-}) {
+function WheelchairGlyph({ x, y, r }: { x: number; y: number; r: number }) {
   const s = r * 1.15
   return (
     <g
@@ -48,7 +40,6 @@ function WheelchairGlyph({
     </g>
   )
 }
-
 
 /**
  * Buyer seat picker. The map is the primary control: it pans, zooms on the
@@ -174,7 +165,6 @@ export function SeatPicker({
         hasWheelchair={levelSeats.some((s) => s.seatType === 'wheelchair')}
         hasArea={levelObjects.some(isStandingArea)}
       />
-
 
       {/* Desktop: the map is the main event. */}
       <div className="hidden md:block">
@@ -331,7 +321,6 @@ function Legend({
         </span>
       )}
     </div>
-
   )
 }
 
@@ -532,7 +521,6 @@ function SeatMapSurface({
             </g>
           )
         })}
-
       </svg>
 
       {tip && (
@@ -675,7 +663,6 @@ function SelectedSeats({
                 {s.seatType === 'wheelchair' && (
                   <span className="ml-1 text-sky-400">· bezbariérové</span>
                 )}
-
                 <span className="ml-1 text-ink-500">
                   {nameOf.get(s.ticketTypeId) ?? ''}
                 </span>
@@ -766,7 +753,6 @@ function SeatList({
                           </span>
                         )}
                         {s.seatNumber}
-
                       </label>
                     )
                   })}

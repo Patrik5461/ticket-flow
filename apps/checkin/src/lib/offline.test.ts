@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { prefStore } from '../test/preferences-mock'
 import type { OfflineBundlePage } from './types'
 
-vi.mock('@capacitor/preferences', async () => await import('../test/preferences-mock'))
+vi.mock(
+  '@capacitor/preferences',
+  async () => await import('../test/preferences-mock'),
+)
 vi.mock('./api', () => ({
   AuthError: class AuthError extends Error {},
   fetchOfflineBundlePage: vi.fn(),
@@ -85,7 +88,11 @@ describe('downloadOffline', () => {
     expect(progress[progress.length - 1]).toBe(1)
 
     const bundle = await getOfflineBundle(EVENT)
-    expect(Object.keys(bundle!.byHash).sort()).toEqual(['hash-1', 'hash-2', 'hash-3'])
+    expect(Object.keys(bundle!.byHash).sort()).toEqual([
+      'hash-1',
+      'hash-2',
+      'hash-3',
+    ])
   })
 
   it('never stores a qr_secret — only digests', async () => {
@@ -104,7 +111,9 @@ describe('downloadOffline', () => {
     )
     await downloadOffline(EVENT)
 
-    vi.mocked(fetchOfflineBundlePage).mockRejectedValueOnce(new Error('offline'))
+    vi.mocked(fetchOfflineBundlePage).mockRejectedValueOnce(
+      new Error('offline'),
+    )
     await expect(downloadOffline(EVENT)).rejects.toThrow()
 
     const bundle = await getOfflineBundle(EVENT)

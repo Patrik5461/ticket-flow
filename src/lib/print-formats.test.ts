@@ -39,7 +39,9 @@ describe('print formats', () => {
     expect(css).toContain('page-break-after: always')
     expect(css).toContain('break-after: page')
     // The last ticket must not force an extra empty page.
-    expect(css).toMatch(/\.print-ticket:last-child\s*{[^}]*page-break-after: auto/)
+    expect(css).toMatch(
+      /\.print-ticket:last-child\s*{[^}]*page-break-after: auto/,
+    )
     // Nothing may spill over the fixed height.
     expect(css).toContain('overflow: hidden')
     expect(css).toContain('height: 152mm')
@@ -53,7 +55,9 @@ describe('print formats', () => {
     for (const id of ['thermal80', 'a4'] as const) {
       const css = printCss(PRINT_FORMATS[id])
       expect(css).toContain('#print-tickets { display: none !important; }')
-      expect(css).toContain('#pos-receipt, #pos-receipt * { visibility: visible; }')
+      expect(css).toContain(
+        '#pos-receipt, #pos-receipt * { visibility: visible; }',
+      )
     }
   })
 

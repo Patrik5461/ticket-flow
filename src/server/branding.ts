@@ -5,8 +5,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { detectImageKind  } from '../lib/tickets/branding'
-import type {ImageKind} from '../lib/tickets/branding';
+import { detectImageKind } from '../lib/tickets/branding'
+import type { ImageKind } from '../lib/tickets/branding'
 
 export interface OrganizerBrand {
   color: string | null

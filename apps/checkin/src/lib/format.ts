@@ -17,7 +17,11 @@ export function formatWhen(iso: string, tz: string): string {
  * Age of the offline data, e.g. "21. 7. 20:14 · pred 12 min". The operator must
  * be able to tell at a glance how stale the downloaded ticket list is.
  */
-export function formatSynced(iso: string, tz: string, now = Date.now()): string {
+export function formatSynced(
+  iso: string,
+  tz: string,
+  now = Date.now(),
+): string {
   const when = new Intl.DateTimeFormat('sk-SK', {
     day: 'numeric',
     month: 'numeric',

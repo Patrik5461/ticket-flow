@@ -29,11 +29,15 @@ afterEach(() => {
 
 describe('checkResend', () => {
   it('reports not_configured without a key', async () => {
-    expect(await probe('', mockFetch(200, []))).toEqual({ status: 'not_configured' })
+    expect(await probe('', mockFetch(200, []))).toEqual({
+      status: 'not_configured',
+    })
   })
 
   it('reports ok when the key may list domains', async () => {
-    expect(await probe('re_full', mockFetch(200, { data: [] }))).toEqual({ status: 'ok' })
+    expect(await probe('re_full', mockFetch(200, { data: [] }))).toEqual({
+      status: 'ok',
+    })
   })
 
   it('reports ok for a sending-only key (401 restricted_api_key)', async () => {
@@ -51,7 +55,10 @@ describe('checkResend', () => {
 
   it('reports down for a genuinely invalid key', async () => {
     expect(
-      await probe('re_bogus', mockFetch(401, { statusCode: 401, name: 'validation_error' })),
+      await probe(
+        're_bogus',
+        mockFetch(401, { statusCode: 401, name: 'validation_error' }),
+      ),
     ).toEqual({ status: 'down', detail: 'neplatný kľúč' })
   })
 

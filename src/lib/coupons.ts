@@ -17,10 +17,7 @@ export interface CouponLike {
 }
 
 export type CouponRejectReason =
-  | 'not_found'
-  | 'not_yet_valid'
-  | 'expired'
-  | 'exhausted'
+  'not_found' | 'not_yet_valid' | 'expired' | 'exhausted'
 
 export interface CouponValidation {
   ok: boolean

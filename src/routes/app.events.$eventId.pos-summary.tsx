@@ -53,7 +53,8 @@ function PosSummaryPage() {
   const data = Route.useLoaderData()
   const router = useRouter()
 
-  const fmtTime = (iso: string) => formatSk(iso, 'dateTime', data.event.timezone)
+  const fmtTime = (iso: string) =>
+    formatSk(iso, 'dateTime', data.event.timezone)
 
   const { totals, sellers, sales } = data
 

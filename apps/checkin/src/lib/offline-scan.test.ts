@@ -3,7 +3,10 @@ import { prefStore } from '../test/preferences-mock'
 import { sha256Hex } from './hash'
 import type { OfflineBundlePage } from './types'
 
-vi.mock('@capacitor/preferences', async () => await import('../test/preferences-mock'))
+vi.mock(
+  '@capacitor/preferences',
+  async () => await import('../test/preferences-mock'),
+)
 // Only the bundle download talks to the network here; scanning must not.
 vi.mock('./api', () => ({
   AuthError: class AuthError extends Error {},
@@ -15,9 +18,8 @@ vi.mock('./api', () => ({
 
 const { fetchOfflineBundlePage } = await import('./api')
 const { downloadOffline, getOfflineBundle } = await import('./offline')
-const { evaluateOffline, scanOffline, NoOfflineDataError } = await import(
-  './offline-scan'
-)
+const { evaluateOffline, scanOffline, NoOfflineDataError } =
+  await import('./offline-scan')
 const { readQueue } = await import('./queue')
 
 const EVENT = '11111111-1111-1111-1111-111111111111'
@@ -63,7 +65,11 @@ function page(overrides: {
   }
 }
 
-async function seed(overrides: Parameters<typeof page>[0] extends never ? never : Omit<Parameters<typeof page>[0], 'tokenHash'>) {
+async function seed(
+  overrides: Parameters<typeof page>[0] extends never
+    ? never
+    : Omit<Parameters<typeof page>[0], 'tokenHash'>,
+) {
   const tokenHash = await sha256Hex(QR)
   vi.mocked(fetchOfflineBundlePage).mockResolvedValueOnce(
     page({ ...overrides, tokenHash }),
@@ -86,7 +92,11 @@ describe('evaluateOffline (decision table)', () => {
   const NOW = '2026-07-20T19:00:00.000Z'
 
   it('a ticket missing from the bundle is unknown, never invalid', () => {
-    const r = evaluateOffline({ ticket: undefined, allowReentry: false, nowIso: NOW })
+    const r = evaluateOffline({
+      ticket: undefined,
+      allowReentry: false,
+      nowIso: NOW,
+    })
     expect(r.response.result).toBe('unknown')
     expect(r.response.offline).toBe(true)
     expect(r.patch).toBeNull()
@@ -95,7 +105,11 @@ describe('evaluateOffline (decision table)', () => {
 
   it('admits a valid ticket, marks it used locally and queues it', () => {
     const r = evaluateOffline({ ticket, allowReentry: false, nowIso: NOW })
-    expect(r.response).toMatchObject({ result: 'ok', usedAt: NOW, holderName: 'Jana Nováková' })
+    expect(r.response).toMatchObject({
+      result: 'ok',
+      usedAt: NOW,
+      holderName: 'Jana Nováková',
+    })
     expect(r.patch).toEqual({ status: 'used', usedAt: NOW, entryCount: 1 })
     expect(r.enqueue).toBe(true)
   })
@@ -122,7 +136,12 @@ describe('evaluateOffline (decision table)', () => {
 
   it('re-entry OFF: an already-used ticket is refused with the first entry time', () => {
     const r = evaluateOffline({
-      ticket: { ...ticket, status: 'used', usedAt: '2026-07-20T18:10:00.000Z', entryCount: 1 },
+      ticket: {
+        ...ticket,
+        status: 'used',
+        usedAt: '2026-07-20T18:10:00.000Z',
+        entryCount: 1,
+      },
       allowReentry: false,
       nowIso: NOW,
     })
@@ -136,7 +155,12 @@ describe('evaluateOffline (decision table)', () => {
 
   it('re-entry ON: admits again, numbers the entry and keeps the ticket used', () => {
     const r = evaluateOffline({
-      ticket: { ...ticket, status: 'used', usedAt: '2026-07-20T18:10:00.000Z', entryCount: 1 },
+      ticket: {
+        ...ticket,
+        status: 'used',
+        usedAt: '2026-07-20T18:10:00.000Z',
+        entryCount: 1,
+      },
       allowReentry: true,
       nowIso: NOW,
     })
@@ -158,13 +182,24 @@ describe('scanOffline (against downloaded data)', () => {
   })
 
   it('with nothing downloaded it raises NoOfflineDataError', async () => {
-    await expect(scanOffline(EVENT, QR)).rejects.toBeInstanceOf(NoOfflineDataError)
+    await expect(scanOffline(EVENT, QR)).rejects.toBeInstanceOf(
+      NoOfflineDataError,
+    )
   })
 
   it('admits a scan, persists it locally and queues exactly one entry', async () => {
     await seed({})
-    const res = await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
-    expect(res).toMatchObject({ result: 'ok', holderName: 'Jana Nováková', offline: true })
+    const res = await scanOffline(
+      EVENT,
+      QR,
+      'scan-1',
+      () => '2026-07-20T19:00:00.000Z',
+    )
+    expect(res).toMatchObject({
+      result: 'ok',
+      holderName: 'Jana Nováková',
+      offline: true,
+    })
 
     // Local state updated…
     const bundle = await getOfflineBundle(EVENT)
@@ -192,7 +227,12 @@ describe('scanOffline (against downloaded data)', () => {
   it('re-entry OFF: the second scan is refused and adds nothing to the queue', async () => {
     await seed({})
     await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
-    const second = await scanOffline(EVENT, QR, 'scan-2', () => '2026-07-20T20:00:00.000Z')
+    const second = await scanOffline(
+      EVENT,
+      QR,
+      'scan-2',
+      () => '2026-07-20T20:00:00.000Z',
+    )
     expect(second).toMatchObject({
       result: 'already_used',
       usedAt: '2026-07-20T19:00:00.000Z',
@@ -203,8 +243,18 @@ describe('scanOffline (against downloaded data)', () => {
   it('re-entry ON: repeated scans are re-entries, numbered, and each is queued', async () => {
     await seed({ allowReentry: true })
     await scanOffline(EVENT, QR, 'scan-1', () => '2026-07-20T19:00:00.000Z')
-    const second = await scanOffline(EVENT, QR, 'scan-2', () => '2026-07-20T20:00:00.000Z')
-    const third = await scanOffline(EVENT, QR, 'scan-3', () => '2026-07-20T21:00:00.000Z')
+    const second = await scanOffline(
+      EVENT,
+      QR,
+      'scan-2',
+      () => '2026-07-20T20:00:00.000Z',
+    )
+    const third = await scanOffline(
+      EVENT,
+      QR,
+      'scan-3',
+      () => '2026-07-20T21:00:00.000Z',
+    )
 
     expect(second).toMatchObject({
       result: 'reentry',

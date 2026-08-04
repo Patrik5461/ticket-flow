@@ -9,10 +9,7 @@
 
 import { serviceClient } from '../lib/supabase/server'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
-import {
-  computeRealizedRevenue,
-  isRealizedOrder,
-} from './realized-revenue'
+import { computeRealizedRevenue, isRealizedOrder } from './realized-revenue'
 
 export interface SalesOrder {
   id: string
@@ -77,7 +74,12 @@ export async function buildSalesData(
     .select('id, title, slug, timezone')
     .eq('id', eventId)
     .eq('organizer_id', organizerId)
-    .maybeSingle<{ id: string; title: string; slug: string; timezone: string }>()
+    .maybeSingle<{
+      id: string
+      title: string
+      slug: string
+      timezone: string
+    }>()
   if (!event) return null
 
   const { data: rawOrders } = await db
@@ -94,7 +96,9 @@ export async function buildSalesData(
     .select('id, name, capacity, sort_order')
     .eq('event_id', eventId)
     .order('sort_order', { ascending: true })
-    .returns<{ id: string; name: string; capacity: number; sort_order: number }[]>()
+    .returns<
+      { id: string; name: string; capacity: number; sort_order: number }[]
+    >()
 
   const orders: SalesOrder[] = (rawOrders ?? []).map((o) => ({
     id: o.id,

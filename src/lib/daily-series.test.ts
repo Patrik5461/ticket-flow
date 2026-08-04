@@ -200,7 +200,10 @@ describe('buildHourlySeries', () => {
 
   it('ignores orders from other days', () => {
     const series = buildHourlySeries(
-      [paidOrder('2026-07-19T10:00:00.000Z'), paidOrder('2026-07-21T10:00:00.000Z')],
+      [
+        paidOrder('2026-07-19T10:00:00.000Z'),
+        paidOrder('2026-07-21T10:00:00.000Z'),
+      ],
       '2026-07-20',
       TZ,
     )

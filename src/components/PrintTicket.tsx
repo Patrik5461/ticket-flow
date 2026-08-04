@@ -85,7 +85,10 @@ export function PrintTicket({
         >
           {ticket.typeName}
         </span>
-        <span className="shrink-0 font-bold tabular-nums" style={{ fontSize: '12px' }}>
+        <span
+          className="shrink-0 font-bold tabular-nums"
+          style={{ fontSize: '12px' }}
+        >
           {formatEur(ticket.unitPriceCents)}
         </span>
       </div>

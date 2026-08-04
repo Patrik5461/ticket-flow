@@ -53,7 +53,13 @@ describe('renderSettlementPdf', () => {
       refundedCents: 0,
     }))
     const bytes = await renderSettlementPdf({
-      organizer: { name: 'Org', ico: null, dic: null, ic_dph: null, iban: null },
+      organizer: {
+        name: 'Org',
+        ico: null,
+        dic: null,
+        ic_dph: null,
+        iban: null,
+      },
       periodLabel: 'jún 2026',
       generatedLabel: '1. 7. 2026',
       grossCents: 180000,

@@ -207,7 +207,12 @@ describe('a new order reaches an open stream', () => {
   interface Row {
     [k: string]: unknown
   }
-  const store: { events: Row[]; orders: Row[]; tickets: Row[]; refunds: Row[] } = {
+  const store: {
+    events: Row[]
+    orders: Row[]
+    tickets: Row[]
+    refunds: Row[]
+  } = {
     events: [],
     orders: [],
     tickets: [],
@@ -274,8 +279,11 @@ describe('a new order reaches an open stream', () => {
       resolveUserId: () => Promise.resolve('user-1'),
       organizerIdForUser: () => Promise.resolve(ORG),
       loadSnapshot: (eventId, organizerId) =>
-        loadSalesSnapshot(eventId, organizerId, fakeDb, () =>
-          '2026-07-22T10:00:00.000Z',
+        loadSalesSnapshot(
+          eventId,
+          organizerId,
+          fakeDb,
+          () => '2026-07-22T10:00:00.000Z',
         ),
       setInterval: (fn) => {
         ticks.push(fn)

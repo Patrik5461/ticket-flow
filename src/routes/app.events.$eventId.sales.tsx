@@ -81,7 +81,8 @@ function SalesPage() {
       ? data.orders
       : data.orders.filter((o) => o.status === filter)
 
-  const fmtDate = (iso: string) => formatSk(iso, 'dateTime', data.event.timezone)
+  const fmtDate = (iso: string) =>
+    formatSk(iso, 'dateTime', data.event.timezone)
 
   const csvHref =
     `/api/events/${eventId}/sales-csv` +

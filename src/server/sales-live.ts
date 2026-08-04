@@ -122,7 +122,10 @@ export async function loadSalesSnapshot(
   const ticketsPerOrder = new Map<string, number>()
   const realized: DatedOrder[] = []
   for (const o of orderList) {
-    const orderTickets = (o.order_items ?? []).reduce((n, i) => n + i.quantity, 0)
+    const orderTickets = (o.order_items ?? []).reduce(
+      (n, i) => n + i.quantity,
+      0,
+    )
     ticketsPerOrder.set(o.id, orderTickets)
     if (!isRealizedOrder(o.status)) continue
     realized.push({

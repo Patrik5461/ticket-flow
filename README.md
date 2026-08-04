@@ -1,4 +1,4 @@
-Welcome to your new TanStack Start app! 
+Welcome to your new TanStack Start app!
 
 # Getting Started
 
@@ -40,7 +40,6 @@ If you prefer not to use Tailwind CSS:
 
 ## Linting & Formatting
 
-
 This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
 
 ```bash
@@ -48,7 +47,6 @@ npm run lint
 npm run format
 npm run check
 ```
-
 
 ## Deploy with Nitro
 
@@ -62,7 +60,6 @@ node dist/server/index.mjs
 The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
 
 For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
-
 
 ## Deployment (Ticketio)
 
@@ -111,16 +108,16 @@ Full annotated list in `.env.example` and
 [`docs/deploy/ticketio-secrets.env.example`](docs/deploy/ticketio-secrets.env.example).
 Minimum for a working production deploy:
 
-| Variable | Purpose |
-| --- | --- |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Database / auth. Service role is server-only. |
-| `APP_URL` | Public base URL (return/webhook URLs, email links). No trailing slash. |
-| `VITE_SITE_URL` | Canonical public URL baked into SEO tags, sitemap, OG images. **Build-time** — set before `npm run build`. |
-| `CRON_SECRET` | Guards the internal `/api/cron/*` worker endpoints. Must match `app_settings.cron_secret`. |
-| `GOPAY_GOID`, `GOPAY_CLIENT_ID`, `GOPAY_CLIENT_SECRET`, `GOPAY_ENV` | Payments. `GOPAY_ENV=production` for live. |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Transactional email. `EMAIL_FROM` must be on a Resend-verified domain (SPF/DKIM/DMARC). |
-| `FAKTERO_API_KEY`, `FAKTERO_API_URL` | Commission invoicing (optional — logs if unset). |
-| `APPLE_*`, `GOOGLE_WALLET_*` | Wallet passes (optional — buttons hidden if unset). |
+| Variable                                                            | Purpose                                                                                                    |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`    | Database / auth. Service role is server-only.                                                              |
+| `APP_URL`                                                           | Public base URL (return/webhook URLs, email links). No trailing slash.                                     |
+| `VITE_SITE_URL`                                                     | Canonical public URL baked into SEO tags, sitemap, OG images. **Build-time** — set before `npm run build`. |
+| `CRON_SECRET`                                                       | Guards the internal `/api/cron/*` worker endpoints. Must match `app_settings.cron_secret`.                 |
+| `GOPAY_GOID`, `GOPAY_CLIENT_ID`, `GOPAY_CLIENT_SECRET`, `GOPAY_ENV` | Payments. `GOPAY_ENV=production` for live.                                                                 |
+| `RESEND_API_KEY`, `EMAIL_FROM`                                      | Transactional email. `EMAIL_FROM` must be on a Resend-verified domain (SPF/DKIM/DMARC).                    |
+| `FAKTERO_API_KEY`, `FAKTERO_API_URL`                                | Commission invoicing (optional — logs if unset).                                                           |
+| `APPLE_*`, `GOOGLE_WALLET_*`                                        | Wallet passes (optional — buttons hidden if unset).                                                        |
 
 Supabase vars also accept a `TICKETIO_`-prefixed alias (Lovable sandbox); plain
 names take precedence.
@@ -132,14 +129,14 @@ if the endpoint URL is configured. Seed these rows in the `app_settings` table
 (server-only, service role). Each `*_endpoint` is `${APP_URL}` + the path below;
 all share `cron_secret` (must equal the `CRON_SECRET` env var):
 
-| `app_settings.key` | Endpoint path | Worker |
-| --- | --- | --- |
-| `cron_secret` | — | Shared secret sent as `x-cron-secret`. |
-| `cron_endpoint` | `/api/cron/process-refunds` | Refund queue |
-| `email_cron_endpoint` | `/api/cron/process-email` | Email queue (reminders, bulk, tickets) |
-| `invoice_cron_endpoint` | `/api/cron/issue-invoices` | Commission invoices |
-| `waitlist_cron_endpoint` | `/api/cron/process-waitlist` | Waitlist notifications |
-| `webhook_cron_endpoint` | `/api/cron/process-webhooks` | Outgoing webhook deliveries |
+| `app_settings.key`       | Endpoint path                | Worker                                 |
+| ------------------------ | ---------------------------- | -------------------------------------- |
+| `cron_secret`            | —                            | Shared secret sent as `x-cron-secret`. |
+| `cron_endpoint`          | `/api/cron/process-refunds`  | Refund queue                           |
+| `email_cron_endpoint`    | `/api/cron/process-email`    | Email queue (reminders, bulk, tickets) |
+| `invoice_cron_endpoint`  | `/api/cron/issue-invoices`   | Commission invoices                    |
+| `waitlist_cron_endpoint` | `/api/cron/process-waitlist` | Waitlist notifications                 |
+| `webhook_cron_endpoint`  | `/api/cron/process-webhooks` | Outgoing webhook deliveries            |
 
 Until an endpoint is set, its tick is a safe no-op. Example:
 
@@ -161,7 +158,6 @@ on conflict (key) do update set value = excluded.value;
 - Security headers (CSP, HSTS, …) are emitted by the app; the `/e/*/embed` route
   intentionally relaxes `frame-ancestors` so the widget stays iframeable.
 
-
 ## Routing
 
 This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
@@ -179,7 +175,7 @@ Now that you have two routes you can use a `Link` component to navigate between 
 To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
 
 ```tsx
-import { Link } from "@tanstack/react-router";
+import { Link } from '@tanstack/react-router'
 ```
 
 Then anywhere in your JSX you can use it like so:
@@ -247,11 +243,11 @@ const getServerTime = createServerFn({
 // Use in a component
 function MyComponent() {
   const [time, setTime] = useState('')
-  
+
   useEffect(() => {
     getServerTime().then(setTime)
   }, [])
-  
+
   return <div>Server time: {time}</div>
 }
 ```

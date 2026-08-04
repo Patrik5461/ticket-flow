@@ -32,7 +32,10 @@ interface EventRecord {
 }
 
 /** Count tickets for an event with the given statuses (RLS-scoped). */
-async function ticketCount(eventId: string, statuses: string[]): Promise<number> {
+async function ticketCount(
+  eventId: string,
+  statuses: string[],
+): Promise<number> {
   const { count } = await supabase
     .from('tickets')
     .select('id', { count: 'exact', head: true })

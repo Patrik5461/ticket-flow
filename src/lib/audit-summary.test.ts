@@ -28,10 +28,7 @@ describe('summarizeAuditChange', () => {
 
   it('renders a delete (no new side) as plain values, minus the row id', () => {
     expect(
-      summarizeAuditChange(
-        { name: 'Stará mapa', venueId: 'a3f9-…' },
-        null,
-      ),
+      summarizeAuditChange({ name: 'Stará mapa', venueId: 'a3f9-…' }, null),
     ).toBe('názov Stará mapa')
   })
 

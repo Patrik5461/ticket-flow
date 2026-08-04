@@ -93,7 +93,10 @@ export function MapObjectShape({
   const fontSize = Math.max(10, Math.min(20, o.height / 4))
   const roomForHint = o.height >= fontSize * 3.4
   const interactive = !!onPointerDown && !isDecoration(o)
-  const pointer = { pointerEvents: interactive ? 'all' : 'none', cursor } as const
+  const pointer = {
+    pointerEvents: interactive ? 'all' : 'none',
+    cursor,
+  } as const
 
   const label = (
     y: number,
@@ -142,7 +145,9 @@ export function MapObjectShape({
           stroke={stroke}
           strokeWidth={thin}
           strokeLinecap="round"
-          strokeDasharray={kind === 'door' ? `${thin * 3} ${thin * 2}` : undefined}
+          strokeDasharray={
+            kind === 'door' ? `${thin * 3} ${thin * 2}` : undefined
+          }
           opacity={kind === 'door' ? 0.9 : 0.75}
           style={{ pointerEvents: 'none' }}
         />

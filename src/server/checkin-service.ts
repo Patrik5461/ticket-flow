@@ -19,12 +19,7 @@ import { enqueueWebhookEvent } from './webhooks'
 
 /** Scan outcomes (subset of the checkin_log.result enum; 'undo' is not a scan). */
 export type CheckinOutcome =
-  | 'ok'
-  | 'already_used'
-  | 'cancelled'
-  | 'refunded'
-  | 'invalid'
-  | 'reentry'
+  'ok' | 'already_used' | 'cancelled' | 'refunded' | 'invalid' | 'reentry'
 
 export interface CheckinResponse {
   result: CheckinOutcome
@@ -265,7 +260,9 @@ export async function checkInTicket(args: {
 
   if (ticket.status === 'cancelled') {
     // Refunded vs admin-cancelled — the marker set by the refund path.
-    const outcome: CheckinOutcome = ticket.refunded_at ? 'refunded' : 'cancelled'
+    const outcome: CheckinOutcome = ticket.refunded_at
+      ? 'refunded'
+      : 'cancelled'
     await log(ticket.id, outcome)
     return {
       result: outcome,

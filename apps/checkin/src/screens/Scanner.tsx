@@ -42,7 +42,13 @@ const noDataResult: ScanResult = {
 const isNative = Capacitor.isNativePlatform()
 
 /** Screen 3 — the scanner. */
-export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void }) {
+export function Scanner({
+  event,
+  onBack,
+}: {
+  event: EventRow
+  onBack: () => void
+}) {
   const [checkedIn, setCheckedIn] = useState(event.checkedIn)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [remainingMs, setRemainingMs] = useState(0)
@@ -171,7 +177,9 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
       try {
         const perm = await BarcodeScanner.requestPermissions()
         if (perm.camera !== 'granted' && perm.camera !== 'limited') {
-          setCamError('Kamera nie je povolená. Povoľ ju v nastaveniach zariadenia.')
+          setCamError(
+            'Kamera nie je povolená. Povoľ ju v nastaveniach zariadenia.',
+          )
           return
         }
         document.documentElement.classList.add('scanning')
@@ -310,8 +318,12 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
                 stiahni dáta pre toto podujatie v zozname podujatí.
               </div>
             )}
-            {result.holderName && <div className="result-name">{result.holderName}</div>}
-            {result.ticketType && <div className="result-type">{result.ticketType}</div>}
+            {result.holderName && (
+              <div className="result-name">{result.holderName}</div>
+            )}
+            {result.ticketType && (
+              <div className="result-type">{result.ticketType}</div>
+            )}
             {result.seat && <div className="result-seat">🪑 {result.seat}</div>}
             {result.result === 'already_used' && result.usedAt && (
               <div className="result-sub">
@@ -320,7 +332,9 @@ export function Scanner({ event, onBack }: { event: EventRow; onBack: () => void
             )}
             {result.result === 'reentry' && (
               <div className="result-sub">
-                {result.entryCount ? `${result.entryCount}. vstup` : 'Opätovný vstup'}
+                {result.entryCount
+                  ? `${result.entryCount}. vstup`
+                  : 'Opätovný vstup'}
                 {result.usedAt
                   ? ` · naposledy o ${formatTime(result.usedAt, event.timezone)}`
                   : ''}

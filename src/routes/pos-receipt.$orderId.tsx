@@ -67,7 +67,6 @@ function PosReceiptPage() {
                   ? 'bg-indigo-600 text-white'
                   : 'bg-white text-gray-800 hover:bg-gray-100'
               }`}
-
             >
               {f.label}
             </button>
@@ -123,7 +122,9 @@ function PosReceiptPage() {
 
         <div className="my-3 border-t border-dashed" />
 
-        <div className="text-center text-sm font-semibold">Doklad o predaji</div>
+        <div className="text-center text-sm font-semibold">
+          Doklad o predaji
+        </div>
         <div className="mt-1 text-center text-[11px] text-gray-500">
           Toto nie je daňový doklad (eKasa) — potvrdenie o predaji.
         </div>

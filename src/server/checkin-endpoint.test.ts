@@ -14,7 +14,9 @@ const OK_RESULT: CheckinResponse = {
 
 const EVENT_ID = '11111111-1111-4111-8111-111111111111'
 
-function req(body: unknown = { eventId: EVENT_ID, qr: 'TIK.abc.def' }): Request {
+function req(
+  body: unknown = { eventId: EVENT_ID, qr: 'TIK.abc.def' },
+): Request {
   return new Request('http://localhost/api/checkin', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -72,7 +74,10 @@ describe('handleCheckin', () => {
   })
 
   it('invalid / expired token (no user id) → 401', async () => {
-    const res = await handleCheckin(req(), deps({ resolveUserId: async () => null }))
+    const res = await handleCheckin(
+      req(),
+      deps({ resolveUserId: async () => null }),
+    )
     expect(res.status).toBe(401)
   })
 
@@ -85,7 +90,10 @@ describe('handleCheckin', () => {
   })
 
   it('event not owned by the organizer (checkInTicket null) → 403', async () => {
-    const res = await handleCheckin(req(), deps({ checkInTicket: async () => null }))
+    const res = await handleCheckin(
+      req(),
+      deps({ checkInTicket: async () => null }),
+    )
     expect(res.status).toBe(403)
   })
 

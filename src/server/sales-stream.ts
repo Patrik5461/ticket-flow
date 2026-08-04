@@ -89,8 +89,10 @@ function subscribe(
   seedSignature: string,
 ): () => void {
   const key = `${organizerId}:${eventId}`
-  const setTimer = deps.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms))
-  const clearTimer = deps.clearInterval ?? ((h) => globalThis.clearInterval(h as never))
+  const setTimer =
+    deps.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms))
+  const clearTimer =
+    deps.clearInterval ?? ((h) => globalThis.clearInterval(h as never))
 
   let watch = watches.get(key)
   if (!watch) {
@@ -104,7 +106,8 @@ function subscribe(
         const snapshot = await deps.loadSnapshot(eventId, organizerId)
         // Ownership revoked mid-stream (event moved/deleted) — drop everyone.
         if (!snapshot) {
-          for (const s of created.subscribers) s({ ...EMPTY, at: new Date().toISOString() })
+          for (const s of created.subscribers)
+            s({ ...EMPTY, at: new Date().toISOString() })
           return
         }
         const signature = snapshotSignature(snapshot)
@@ -145,7 +148,12 @@ const EMPTY: SalesSnapshot = {
   ticketCount: 0,
   checkedIn: 0,
   at: '',
-  series: { hourly: [], daily: [], eventDay: '', timezone: 'Europe/Bratislava' },
+  series: {
+    hourly: [],
+    daily: [],
+    eventDay: '',
+    timezone: 'Europe/Bratislava',
+  },
 }
 
 const json = (body: unknown, status: number) => Response.json(body, { status })

@@ -204,7 +204,6 @@ function PayoutCalculator({
           štandardná provízia.
         </p>
       )}
-
     </div>
   )
 }

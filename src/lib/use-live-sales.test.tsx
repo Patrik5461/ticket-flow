@@ -100,7 +100,9 @@ describe('useLiveSales', () => {
   it('opens one stream for the event and reports live on the first frame', async () => {
     const { state } = mount('event-1')
     expect(FakeEventSource.instances).toHaveLength(1)
-    expect(FakeEventSource.last.url).toContain('/api/events/event-1/sales-stream')
+    expect(FakeEventSource.last.url).toContain(
+      '/api/events/event-1/sales-stream',
+    )
     expect(state.current?.mode).toBe('connecting')
 
     await act(async () => {
@@ -234,9 +236,11 @@ describe('useLiveSales', () => {
     })
     await act(async () => {
       // A truncated frame — must not throw or wipe the last good numbers.
-      for (const fn of (FakeEventSource.last as never as {
-        listeners: Map<string, ((ev: MessageEvent<string>) => void)[]>
-      }).listeners.get('snapshot') ?? []) {
+      for (const fn of (
+        FakeEventSource.last as never as {
+          listeners: Map<string, ((ev: MessageEvent<string>) => void)[]>
+        }
+      ).listeners.get('snapshot') ?? []) {
         fn(new MessageEvent('snapshot', { data: '{"grossCents":' }))
       }
     })

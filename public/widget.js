@@ -5,7 +5,7 @@
  * Injects an auto-resizing iframe with the event's ticket storefront right after
  * the script tag. Buying opens the full Ticketio checkout in a new tab.
  */
-(function () {
+;(function () {
   var script = document.currentScript
   if (!script) return
   var slug = script.getAttribute('data-event')

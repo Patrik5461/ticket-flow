@@ -99,10 +99,7 @@ function ContentAdmin() {
                 <td data-label="Názov" className="px-4 py-3 text-ink-100">
                   {r.title}
                 </td>
-                <td
-                  data-label="Naposledy"
-                  className="px-4 py-3 text-ink-400"
-                >
+                <td data-label="Naposledy" className="px-4 py-3 text-ink-400">
                   {fmt(r.updatedAt)}
                 </td>
                 <td data-label="Kým" className="px-4 py-3 text-ink-400">
@@ -121,10 +118,7 @@ function ContentAdmin() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-10 text-center text-ink-500"
-                >
+                <td colSpan={5} className="px-4 py-10 text-center text-ink-500">
                   Zatiaľ žiadne bloky. Kliknite na „Nový blok" vyššie.
                 </td>
               </tr>
@@ -165,8 +159,7 @@ function Editor({
 
   const keyValid = KEY_RE.test(key)
   const dirty = useMemo(
-    () =>
-      key !== state.key || title !== state.title || body !== state.body,
+    () => key !== state.key || title !== state.title || body !== state.body,
     [key, title, body, state.key, state.title, state.body],
   )
   const canSave = keyValid && title.trim().length > 0 && !saving && dirty
@@ -229,9 +222,7 @@ function Editor({
             )}
           </label>
           <label className="text-sm">
-            <span className="mb-1.5 block font-medium text-ink-200">
-              Názov
-            </span>
+            <span className="mb-1.5 block font-medium text-ink-200">Názov</span>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}

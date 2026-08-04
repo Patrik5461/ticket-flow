@@ -21,7 +21,11 @@ const r = (amount_cents: number, status = 'done'): RevenueRefund => ({
 
 describe('isRealizedOrder', () => {
   it('counts paid, partially_refunded and refunded as money collected', () => {
-    for (const s of ['paid', 'partially_refunded', 'refunded'] as OrderStatus[]) {
+    for (const s of [
+      'paid',
+      'partially_refunded',
+      'refunded',
+    ] as OrderStatus[]) {
       expect(isRealizedOrder(s)).toBe(true)
     }
     expect(REALIZED_ORDER_STATUSES).toEqual([

@@ -25,9 +25,7 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
   // Bundles of events that ended >24 h ago are dropped here, so personal data
   // never lingers on a door phone.
   const refreshOffline = useCallback(() => {
-    void purgeExpiredOffline()
-      .then(listOffline)
-      .then(setOffline)
+    void purgeExpiredOffline().then(listOffline).then(setOffline)
   }, [])
 
   // Deliberate sign-out is the ONE place that wipes the local data — the phone
@@ -132,7 +130,8 @@ export function EventList({ onPick }: { onPick: (event: EventRow) => void }) {
 
         <ul className="list">
           {events?.map((e) => {
-            const pct = e.total > 0 ? Math.round((e.checkedIn / e.total) * 100) : 0
+            const pct =
+              e.total > 0 ? Math.round((e.checkedIn / e.total) * 100) : 0
             return (
               <li key={e.id} className="event-item">
                 <button className="event-card" onClick={() => onPick(e)}>

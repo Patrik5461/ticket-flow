@@ -64,35 +64,29 @@ export const createPosOrderFn = createServerFn({ method: 'POST' })
   )
 
 export const getPosReceiptFn = createServerFn({ method: 'GET' })
-  .validator((d: unknown) =>
-    z.object({ orderId: z.string().uuid() }).parse(d),
-  )
-  .handler(
-    async ({ data }): Promise<PosReceiptView | { error: string }> => {
-      try {
-        // Authorize against the order's event before assembling the receipt.
-        const { data: ord } = await serviceClient()
-          .from('orders')
-          .select('event_id')
-          .eq('id', data.orderId)
-          .maybeSingle<{ event_id: string }>()
-        if (!ord) return { error: 'Doklad sa nenašiel.' }
-        await requireEventManager(ord.event_id)
+  .validator((d: unknown) => z.object({ orderId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<PosReceiptView | { error: string }> => {
+    try {
+      // Authorize against the order's event before assembling the receipt.
+      const { data: ord } = await serviceClient()
+        .from('orders')
+        .select('event_id')
+        .eq('id', data.orderId)
+        .maybeSingle<{ event_id: string }>()
+      if (!ord) return { error: 'Doklad sa nenašiel.' }
+      await requireEventManager(ord.event_id)
 
-        const receipt = await getPosReceipt(data.orderId)
-        if (!receipt) return { error: 'Doklad sa nenašiel.' }
-        return receipt
-      } catch (e) {
-        if (e instanceof EventAuthzError) return { error: e.message }
-        throw e
-      }
-    },
-  )
+      const receipt = await getPosReceipt(data.orderId)
+      if (!receipt) return { error: 'Doklad sa nenašiel.' }
+      return receipt
+    } catch (e) {
+      if (e instanceof EventAuthzError) return { error: e.message }
+      throw e
+    }
+  })
 
 export const getPosSummaryFn = createServerFn({ method: 'GET' })
-  .validator((d: unknown) =>
-    z.object({ eventId: z.string().uuid() }).parse(d),
-  )
+  .validator((d: unknown) => z.object({ eventId: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<PosSummary | { error: string }> => {
     try {
       await requireEventManager(data.eventId)

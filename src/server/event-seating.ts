@@ -112,7 +112,9 @@ function assignError(message: string): EventAuthzError {
     return new EventAuthzError('Podujatie sa nenašlo.')
   }
   if (code === 'TICKET_TYPE_FOREIGN') {
-    return new EventAuthzError('Niektorá cenová kategória nepatrí tomuto podujatiu.')
+    return new EventAuthzError(
+      'Niektorá cenová kategória nepatrí tomuto podujatiu.',
+    )
   }
   console.error('[event-seating] assign_seat_map failed:', message)
   return new EventAuthzError('Mapu sa nepodarilo priradiť k podujatiu.')
@@ -399,8 +401,7 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
         if (error) throw assignError(error.message)
         const row = (
           result as
-            | { out_seat_count: number; out_standing_capacity: number }[]
-            | null
+            { out_seat_count: number; out_standing_capacity: number }[] | null
         )?.[0]
         if (!row) {
           throw new EventAuthzError('Mapu sa nepodarilo priradiť k podujatiu.')

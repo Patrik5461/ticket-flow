@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  parseCustomFields,
-  validateAnswers
-  
-} from './custom-fields'
-import type {CustomField} from './custom-fields';
+import { parseCustomFields, validateAnswers } from './custom-fields'
+import type { CustomField } from './custom-fields'
 
 describe('parseCustomFields', () => {
   it('keeps valid fields and drops malformed ones', () => {

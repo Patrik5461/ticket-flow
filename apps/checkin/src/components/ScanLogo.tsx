@@ -20,7 +20,13 @@ export function ScanLogo({
         'M88 70 V82 A6 6 0 0 1 82 88 H70',
         'M30 88 H18 A6 6 0 0 1 12 82 V70',
       ].map((d) => (
-        <path key={d} d={d} stroke={color} strokeWidth={7} strokeLinecap="round" />
+        <path
+          key={d}
+          d={d}
+          stroke={color}
+          strokeWidth={7}
+          strokeLinecap="round"
+        />
       ))}
       <path
         d="M34 51 L46 63 L68 39"

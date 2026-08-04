@@ -131,7 +131,12 @@ describe('loadSalesSnapshot', () => {
       order({ id: 'o1', total_cents: 2000, fee_cents: 80 }),
       order({ total_cents: 1000, fee_cents: 40, status: 'pending' }), // excluded
       order({ total_cents: 5000, fee_cents: 200, status: 'cancelled' }), // excluded
-      order({ id: 'o2', total_cents: 3000, fee_cents: 120, status: 'refunded' }),
+      order({
+        id: 'o2',
+        total_cents: 3000,
+        fee_cents: 120,
+        status: 'refunded',
+      }),
       order({
         id: 'o3',
         total_cents: 900,
@@ -153,7 +158,12 @@ describe('loadSalesSnapshot', () => {
   it('nets refunds: net = gross − fee − refunded, fee kept on refund', async () => {
     const s = makeStore()
     s.orders.push(
-      order({ id: 'o1', total_cents: 3000, fee_cents: 120, status: 'refunded' }),
+      order({
+        id: 'o1',
+        total_cents: 3000,
+        fee_cents: 120,
+        status: 'refunded',
+      }),
       order({
         id: 'o2',
         total_cents: 2000,
@@ -162,10 +172,31 @@ describe('loadSalesSnapshot', () => {
       }),
     )
     s.refunds.push(
-      { order_id: 'o1', event_id: EVENT_ID, ticket_id: null, amount_cents: 3000, status: 'done', created_at: '2026-07-21T10:00:00.000Z' },
-      { order_id: 'o2', event_id: EVENT_ID, ticket_id: 't1', amount_cents: 500, status: 'done', created_at: '2026-07-21T11:00:00.000Z' },
+      {
+        order_id: 'o1',
+        event_id: EVENT_ID,
+        ticket_id: null,
+        amount_cents: 3000,
+        status: 'done',
+        created_at: '2026-07-21T10:00:00.000Z',
+      },
+      {
+        order_id: 'o2',
+        event_id: EVENT_ID,
+        ticket_id: 't1',
+        amount_cents: 500,
+        status: 'done',
+        created_at: '2026-07-21T11:00:00.000Z',
+      },
       // A failed refund never moved money — must not count.
-      { order_id: 'o2', event_id: EVENT_ID, ticket_id: 't2', amount_cents: 700, status: 'failed', created_at: '2026-07-21T12:00:00.000Z' },
+      {
+        order_id: 'o2',
+        event_id: EVENT_ID,
+        ticket_id: 't2',
+        amount_cents: 700,
+        status: 'failed',
+        created_at: '2026-07-21T12:00:00.000Z',
+      },
     )
     const snapshot = (await load(s))!
     expect(snapshot).toMatchObject({
@@ -245,13 +276,20 @@ describe('loadSalesSnapshot', () => {
     // Sale day: full positive.
     expect(byKey['2026-07-18']).toMatchObject({ grossCents: 5000, tickets: 2 })
     // Refund day: the negative movement lands here.
-    expect(byKey['2026-07-19']).toMatchObject({ grossCents: -2500, tickets: -1 })
+    expect(byKey['2026-07-19']).toMatchObject({
+      grossCents: -2500,
+      tickets: -1,
+    })
   })
 
   it('a failed refund never appears on the chart', async () => {
     const s = makeStore()
     s.orders.push(
-      order({ id: 'o1', total_cents: 5000, created_at: '2026-07-18T09:00:00.000Z' }),
+      order({
+        id: 'o1',
+        total_cents: 5000,
+        created_at: '2026-07-18T09:00:00.000Z',
+      }),
     )
     s.refunds.push({
       order_id: 'o1',

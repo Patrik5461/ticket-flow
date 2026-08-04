@@ -39,7 +39,8 @@ export function CookieConsent() {
     <div
       className="fixed inset-x-0 bottom-0 z-[100] border-t border-ink-800 p-4 shadow-2xl backdrop-blur-xl"
       style={{
-        background: 'color-mix(in oklab, var(--color-ink-950) 90%, transparent)',
+        background:
+          'color-mix(in oklab, var(--color-ink-950) 90%, transparent)',
       }}
     >
       <div className="mx-auto max-w-3xl text-sm text-ink-300">
@@ -80,10 +81,15 @@ export function CookieConsent() {
               Nastavenia cookies
             </div>
             <label className="flex items-start gap-2 opacity-60">
-              <input type="checkbox" checked disabled className="mt-0.5 accent-accent" />
+              <input
+                type="checkbox"
+                checked
+                disabled
+                className="mt-0.5 accent-accent"
+              />
               <span>
-                <strong className="text-ink-100">Nutné</strong> — potrebné pre chod stránky (prihlásenie,
-                košík). Vždy aktívne.
+                <strong className="text-ink-100">Nutné</strong> — potrebné pre
+                chod stránky (prihlásenie, košík). Vždy aktívne.
               </span>
             </label>
             <label className="flex items-start gap-2">
@@ -94,8 +100,8 @@ export function CookieConsent() {
                 className="mt-0.5 accent-accent"
               />
               <span>
-                <strong className="text-ink-100">Analytické</strong> — meranie návštevnosti (Google
-                Analytics).
+                <strong className="text-ink-100">Analytické</strong> — meranie
+                návštevnosti (Google Analytics).
               </span>
             </label>
             <label className="flex items-start gap-2">
@@ -106,8 +112,8 @@ export function CookieConsent() {
                 className="mt-0.5 accent-accent"
               />
               <span>
-                <strong className="text-ink-100">Marketingové</strong> — remarketing a konverzie (Meta
-                Pixel).
+                <strong className="text-ink-100">Marketingové</strong> —
+                remarketing a konverzie (Meta Pixel).
               </span>
             </label>
             <div className="flex flex-wrap justify-end gap-2 pt-1">

@@ -311,11 +311,10 @@ export function useCanvasViewport({
       p.y = e.clientY
       // The view follows the finger from the first pixel, but a tap is only
       // cancelled past the slop — a touch never holds perfectly still.
-      if (
-        Math.hypot(e.clientX - p.startX, e.clientY - p.startY) > TAP_SLOP_PX
-      )
+      if (Math.hypot(e.clientX - p.startX, e.clientY - p.startY) > TAP_SLOP_PX)
         p.moved = true
-      if (dx !== 0 || dy !== 0) setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }))
+      if (dx !== 0 || dy !== 0)
+        setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }))
     },
     onPointerUp: endPointer,
     onPointerCancel: endPointer,

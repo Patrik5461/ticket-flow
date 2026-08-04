@@ -48,7 +48,10 @@ function LoginPage() {
           </p>
         </div>
 
-        <div className="card-surface p-8" style={{ boxShadow: 'var(--shadow-glow)' }}>
+        <div
+          className="card-surface p-8"
+          style={{ boxShadow: 'var(--shadow-glow)' }}
+        >
           <form onSubmit={submit} className="space-y-5">
             <div>
               <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-400">

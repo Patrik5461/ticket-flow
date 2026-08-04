@@ -319,7 +319,8 @@ function SettlementsPage() {
                   {formatEur(s.fee_cents)}
                   {s.fee_on_refunded_cents > 0 && (
                     <div className="text-[11px] text-gray-400">
-                      z toho {formatEur(s.fee_on_refunded_cents)} z refundovaných
+                      z toho {formatEur(s.fee_on_refunded_cents)} z
+                      refundovaných
                     </div>
                   )}
                 </td>

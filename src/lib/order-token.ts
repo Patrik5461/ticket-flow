@@ -12,7 +12,8 @@ import * as nodeCrypto from 'node:crypto'
 const SIG_BYTES = 16
 
 export function signOrderToken(orderId: string, eventSecret: string): string {
-  return nodeCrypto.createHmac('sha256', eventSecret)
+  return nodeCrypto
+    .createHmac('sha256', eventSecret)
     .update(`order:${orderId}`)
     .digest()
     .subarray(0, SIG_BYTES)

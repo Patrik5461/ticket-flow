@@ -9,7 +9,9 @@ const SSR_DIR = '.output/server/_ssr'
 const NEEDLE = "Object,'hasOwn'" // unique to our polyfill's defineProperty call
 
 if (!existsSync(SSR_DIR)) {
-  console.error(`[verify-polyfill] ${SSR_DIR} not found — run \`npm run build\` first.`)
+  console.error(
+    `[verify-polyfill] ${SSR_DIR} not found — run \`npm run build\` first.`,
+  )
   process.exit(1)
 }
 

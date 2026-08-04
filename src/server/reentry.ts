@@ -58,9 +58,7 @@ interface OrderTicketRow {
  * the undo action to them alone — the actual undo is re-authorized server-side.
  */
 export const getOrderCheckinFn = createServerFn({ method: 'GET' })
-  .validator((d: unknown) =>
-    z.object({ orderId: z.string().uuid() }).parse(d),
-  )
+  .validator((d: unknown) => z.object({ orderId: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<OrderCheckinView | { error: string }> => {
     const user = await getCurrentUser()
     if (!user) return { error: 'Neprihlásený.' }
@@ -118,7 +116,11 @@ export const getOrderCheckinFn = createServerFn({ method: 'GET' })
     const byTicket = new Map<string, TicketEntry[]>()
     for (const e of entries ?? []) {
       const list = byTicket.get(e.ticket_id) ?? []
-      list.push({ result: e.result, at: e.created_at, deviceLabel: e.device_label })
+      list.push({
+        result: e.result,
+        at: e.created_at,
+        deviceLabel: e.device_label,
+      })
       byTicket.set(e.ticket_id, list)
     }
 

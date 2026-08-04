@@ -115,7 +115,11 @@ export async function runSync(): Promise<SyncState> {
     return state
   }
 
-  set({ running: true, error: null, progress: { done: 0, total: queue.length } })
+  set({
+    running: true,
+    error: null,
+    progress: { done: 0, total: queue.length },
+  })
 
   const accepted: string[] = []
   const found: SyncConflict[] = []

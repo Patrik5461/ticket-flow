@@ -1311,7 +1311,10 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
   const outside = objects.filter((o) => {
     const b = objectBounds(o)
     return (
-      b.minX < 0 || b.minY < 0 || b.maxX > canvas.width || b.maxY > canvas.height
+      b.minX < 0 ||
+      b.minY < 0 ||
+      b.maxX > canvas.width ||
+      b.maxY > canvas.height
     )
   })
   if (outside.length > 0) {
@@ -1943,7 +1946,9 @@ async function main(): Promise<void> {
           `mierka ${hall.stats.scale.toFixed(2).padStart(5)}  ` +
           `plátno ${hall.stats.canvas.width}×${hall.stats.canvas.height}` +
           (hall.stats.stages ? `  pódiá ${hall.stats.stages}` : '') +
-          (total(hall.stats.decor) ? `  dekor ${byType(hall.stats.decor)}` : '') +
+          (total(hall.stats.decor)
+            ? `  dekor ${byType(hall.stats.decor)}`
+            : '') +
           (total(hall.stats.skippedDecor)
             ? `  bokom ${byType(hall.stats.skippedDecor)}`
             : '') +

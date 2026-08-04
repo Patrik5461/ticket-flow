@@ -25,7 +25,8 @@ export const Route = createFileRoute('/api/events/$eventId/sales-stream')({
       GET: ({ request, params }) =>
         handleSalesStream(request, params.eventId, {
           resolveUserId: getUserIdFromRequest,
-          organizerIdForUser: (userId) => organizerIdForRequest(request, userId),
+          organizerIdForUser: (userId) =>
+            organizerIdForRequest(request, userId),
           loadSnapshot: (eventId, organizerId) =>
             loadSalesSnapshot(eventId, organizerId),
         }),

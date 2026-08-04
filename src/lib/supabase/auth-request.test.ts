@@ -3,7 +3,9 @@ import { parseBearer } from './auth-request'
 
 describe('parseBearer', () => {
   it('extracts the token from a well-formed Authorization header', () => {
-    expect(parseBearer('Bearer eyJhbGciOi.JhbGc.iOiJ')).toBe('eyJhbGciOi.JhbGc.iOiJ')
+    expect(parseBearer('Bearer eyJhbGciOi.JhbGc.iOiJ')).toBe(
+      'eyJhbGciOi.JhbGc.iOiJ',
+    )
   })
 
   it('is case-insensitive on the scheme and trims whitespace', () => {

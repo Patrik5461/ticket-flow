@@ -150,7 +150,11 @@ function emptyPoint(key: string, label: string): SeriesPoint {
   return { key, label, grossCents: 0, orders: 0, tickets: 0 }
 }
 
-function accumulate(points: SeriesPoint[], keyOf: (o: DatedOrder) => string, orders: DatedOrder[]): SeriesPoint[] {
+function accumulate(
+  points: SeriesPoint[],
+  keyOf: (o: DatedOrder) => string,
+  orders: DatedOrder[],
+): SeriesPoint[] {
   const byKey = new Map(points.map((p) => [p.key, p]))
   for (const o of orders) {
     const bucket = byKey.get(keyOf(o))

@@ -77,7 +77,12 @@ describe('PrintTicket (Zebra 79 × 152 mm)', () => {
   it('renders one page per ticket when several are printed at once', () => {
     renderTickets([
       ticket({ id: 't1', ref: 'REF00001' }),
-      ticket({ id: 't2', ref: 'REF00002', typeName: 'Štandard', unitPriceCents: 1500 }),
+      ticket({
+        id: 't2',
+        ref: 'REF00002',
+        typeName: 'Štandard',
+        unitPriceCents: 1500,
+      }),
       ticket({ id: 't3', ref: 'REF00003' }),
     ])
 

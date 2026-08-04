@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { prefStore } from '../test/preferences-mock'
 import type { OfflineBundlePage } from './types'
 
-vi.mock('@capacitor/preferences', async () => await import('../test/preferences-mock'))
+vi.mock(
+  '@capacitor/preferences',
+  async () => await import('../test/preferences-mock'),
+)
 vi.mock('./api', () => ({
   AuthError: class AuthError extends Error {},
   fetchOfflineBundlePage: vi.fn(),
@@ -39,7 +42,11 @@ const EVENT = '11111111-1111-1111-1111-111111111111'
 const QR1 = 'TIK.ticket-1.sig'
 const QR2 = 'TIK.ticket-2.sig'
 
-function ticket(n: number, tokenHash: string, status: 'valid' | 'cancelled' = 'valid') {
+function ticket(
+  n: number,
+  tokenHash: string,
+  status: 'valid' | 'cancelled' = 'valid',
+) {
   return {
     id: `ticket-${n}`,
     tokenHash,
@@ -126,7 +133,11 @@ describe('loadEvents', () => {
 
     expect(source).toBe('offline')
     expect(events).toHaveLength(1)
-    expect(events[0]).toMatchObject({ id: EVENT, title: 'Letný festival', offline: true })
+    expect(events[0]).toMatchObject({
+      id: EVENT,
+      title: 'Letný festival',
+      offline: true,
+    })
   })
 
   it('goes straight to local data when the device knows it is offline', async () => {
@@ -145,7 +156,8 @@ describe('loadEvents', () => {
 
   it('falls back when Supabase returns an error too', async () => {
     await seedBundle()
-    eventsReply = () => Promise.resolve({ data: null, error: { message: 'nope' } })
+    eventsReply = () =>
+      Promise.resolve({ data: null, error: { message: 'nope' } })
     const { source, events } = await loadEvents(50)
     expect(source).toBe('offline')
     expect(events).toHaveLength(1)
@@ -168,7 +180,11 @@ describe('loadOfflineEvents counters', () => {
 
   it('counts local tickets, excluding cancelled ones', async () => {
     const [row] = await loadOfflineEvents()
-    expect(row).toMatchObject({ total: 2, checkedIn: 0, syncedAt: '2026-07-20T15:00:00.000Z' })
+    expect(row).toMatchObject({
+      total: 2,
+      checkedIn: 0,
+      syncedAt: '2026-07-20T15:00:00.000Z',
+    })
   })
 
   it('reflects admissions made offline, so the door sees its progress', async () => {

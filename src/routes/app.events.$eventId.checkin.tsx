@@ -22,12 +22,7 @@ type JsQRFn = (
 ) => { data: string } | null
 
 type Outcome =
-  | 'ok'
-  | 'already_used'
-  | 'cancelled'
-  | 'refunded'
-  | 'invalid'
-  | 'reentry'
+  'ok' | 'already_used' | 'cancelled' | 'refunded' | 'invalid' | 'reentry'
 
 interface ScanResult {
   result: Outcome
@@ -312,7 +307,9 @@ function CheckinPage() {
           )}
           {result?.result === 'reentry' && (
             <div className="mt-4 text-lg opacity-90">
-              {result.entryCount ? `${result.entryCount}. vstup` : 'Opätovný vstup'}
+              {result.entryCount
+                ? `${result.entryCount}. vstup`
+                : 'Opätovný vstup'}
               {result.usedAt ? ` · naposledy o ${fmtTime(result.usedAt)}` : ''}
             </div>
           )}

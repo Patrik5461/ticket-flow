@@ -50,20 +50,20 @@ vstupeniek bolo už použitých inde").
   — nie jsQR. Kamera beží natívne za priehľadným webview; fullscreen farebná
   odozva sa kreslí ako HTML navrchu.
 - Prihlásenie: Supabase Auth priamo v appke (token + refresh, uložený natívne),
-  takže session drží natrvalo a auto-obnovuje sa. *(Blok 2.)*
+  takže session drží natrvalo a auto-obnovuje sa. _(Blok 2.)_
 
 ## Bloky
 
-| Blok | Obsah | Stav |
-|------|-------|------|
-| 1 | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové** |
-| 2 | Tri obrazovky: prihlásenie → zoznam podujatí → skener | **hotové** |
-| 3a | Offline režim — stiahnutie dát na zariadenie | **hotové** |
-| 3b | Offline skenovanie (lokálne overenie + fronta) | **hotové** |
-| 3c | Synchronizácia fronty + konflikty | **hotové** |
-| 3d | Testy a overenie | **hotové** |
-| 3e | Idempotencia na úrovni skenu (`client_scan_id`) | **hotové** |
-| 4 | Build a distribúcia (TestFlight, APK / Play Console) | **hotové** → [BUILD.md](./BUILD.md) |
+| Blok | Obsah                                                       | Stav                                |
+| ---- | ----------------------------------------------------------- | ----------------------------------- |
+| 1    | Capacitor projekt, konfigurácia, ikona + splash, dark shell | **hotové**                          |
+| 2    | Tri obrazovky: prihlásenie → zoznam podujatí → skener       | **hotové**                          |
+| 3a   | Offline režim — stiahnutie dát na zariadenie                | **hotové**                          |
+| 3b   | Offline skenovanie (lokálne overenie + fronta)              | **hotové**                          |
+| 3c   | Synchronizácia fronty + konflikty                           | **hotové**                          |
+| 3d   | Testy a overenie                                            | **hotové**                          |
+| 3e   | Idempotencia na úrovni skenu (`client_scan_id`)             | **hotové**                          |
+| 4    | Build a distribúcia (TestFlight, APK / Play Console)        | **hotové** → [BUILD.md](./BUILD.md) |
 
 ### Blok 2 — ako to funguje
 
@@ -74,7 +74,7 @@ vstupeniek bolo už použitých inde").
   (owner/admin/checkin) vidí svoje eventy + počet odbavených/celkom.
 - **Skener:** natívny MLKit (`@capacitor-mlkit/barcode-scanning`) beží za
   priehľadným webview; fullscreen farebná odozva + odpočet (2 s ok / 4 s chyba)
-  + „Skenovať ďalší" / „Zostať" navrchu. Kamera sa medzi skenmi nezastavuje.
+  - „Skenovať ďalší" / „Zostať" navrchu. Kamera sa medzi skenmi nezastavuje.
 - **Check-in:** volá existujúce `POST /api/checkin` s hlavičkou
   `Authorization: Bearer <supabase access token>` cez `CapacitorHttp` (natívne
   HTTP obchádza CORS; Supabase klient používa bežný fetch). Endpoint teraz
@@ -135,13 +135,13 @@ lokálne dáta **neprepína**, tá vedie na prihlásenie.
 
 Rozhodovacia tabuľka je zámerne rovnaká ako na serveri, vrátane Fázy 23:
 
-| Stav v lokálnych dátach | `allow_reentry` | Výsledok |
-|---|---|---|
-| nie je v bundli | – | **Neznáma vstupenka** (oranžová, „over online") |
-| `cancelled` | – | Zrušená vstupenka |
-| `valid` | – | Vstup povolený → lokálne označená ako použitá + do fronty |
-| `used` | vypnuté | Už použitá (čas prvého vstupu) |
-| `used` | zapnuté | **Opätovný vstup** (N. vstup, čas predošlého) + do fronty |
+| Stav v lokálnych dátach | `allow_reentry` | Výsledok                                                  |
+| ----------------------- | --------------- | --------------------------------------------------------- |
+| nie je v bundli         | –               | **Neznáma vstupenka** (oranžová, „over online")           |
+| `cancelled`             | –               | Zrušená vstupenka                                         |
+| `valid`                 | –               | Vstup povolený → lokálne označená ako použitá + do fronty |
+| `used`                  | vypnuté         | Už použitá (čas prvého vstupu)                            |
+| `used`                  | zapnuté         | **Opätovný vstup** (N. vstup, čas predošlého) + do fronty |
 
 Pri opätovnom vstupe zostáva vstupenka `used` a rastie len počítadlo vstupov —
 počet odbavených sa nemôže započítať dvakrát, rovnako ako na serveri.
@@ -178,7 +178,7 @@ počet čakajúcich, priebeh „Odosielam 3 / 12…".
   konkrétnych vstupeniek** (ref, meno, dôvod). Report je uložený lokálne, takže
   ho nezmaže ani reštart appky — mizne až po potvrdení „Rozumiem".
 
-Doručenie je *at-least-once* — ak server sken zapíše, ale odpoveď sa stratí,
+Doručenie je _at-least-once_ — ak server sken zapíše, ale odpoveď sa stratí,
 záznam zostane vo fronte a pošle sa znova. Aby to neskresľovalo dáta, rieši to
 Blok 3e.
 

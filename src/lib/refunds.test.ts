@@ -38,8 +38,12 @@ describe('ticketRefundCents', () => {
 
   it('is zero for a free order, zero subtotal, or nothing remaining', () => {
     const base = { unitPriceCents: 1500, subtotalCents: 5000, totalCents: 5000 }
-    expect(ticketRefundCents({ ...base, totalCents: 0, remainingCents: 0 })).toBe(0)
-    expect(ticketRefundCents({ ...base, subtotalCents: 0, remainingCents: 5000 })).toBe(0)
+    expect(
+      ticketRefundCents({ ...base, totalCents: 0, remainingCents: 0 }),
+    ).toBe(0)
+    expect(
+      ticketRefundCents({ ...base, subtotalCents: 0, remainingCents: 5000 }),
+    ).toBe(0)
     expect(ticketRefundCents({ ...base, remainingCents: 0 })).toBe(0)
   })
 })

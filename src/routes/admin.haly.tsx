@@ -141,7 +141,10 @@ function AdminVenuesPage() {
           </thead>
           <tbody>
             {list.rows.map((v) => (
-              <tr key={v.id} className="border-b last:border-0 hover:bg-gray-50">
+              <tr
+                key={v.id}
+                className="border-b last:border-0 hover:bg-gray-50"
+              >
                 <td className="px-4 py-3">
                   <div className="font-medium">{v.name}</div>
                   <div className="text-xs text-gray-400">
@@ -431,7 +434,8 @@ function VenueDetail({
             </p>
             {history.length === 0 ? (
               <p className="text-sm text-gray-500">
-                Zatiaľ žiadne úpravy — hala je presne taká, aká prišla z importu.
+                Zatiaľ žiadne úpravy — hala je presne taká, aká prišla z
+                importu.
               </p>
             ) : (
               <ol className="divide-y text-sm">

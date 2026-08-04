@@ -18,7 +18,8 @@ const PREFIX = 'TIK'
 const SIG_BYTES = 16
 
 export function signTicket(ticketId: string, eventSecret: string): string {
-  const sig = nodeCrypto.createHmac('sha256', eventSecret)
+  const sig = nodeCrypto
+    .createHmac('sha256', eventSecret)
     .update(ticketId)
     .digest()
     .subarray(0, SIG_BYTES)
@@ -30,7 +31,10 @@ export function signTicket(ticketId: string, eventSecret: string): string {
  * Verify a scanned token. Returns the ticket_id if the signature is valid for the
  * given event secret, otherwise null. Constant-time comparison.
  */
-export function verifyTicket(token: string, eventSecret: string): string | null {
+export function verifyTicket(
+  token: string,
+  eventSecret: string,
+): string | null {
   const parts = token.split('.')
   if (parts.length !== 3 || parts[0] !== PREFIX) return null
 

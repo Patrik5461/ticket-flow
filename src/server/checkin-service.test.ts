@@ -160,7 +160,12 @@ const FIXED_NOW = '2026-07-15T18:00:00.000Z'
 function baseStore(): Store {
   return {
     events: [
-      { id: EVENT_ID, organizer_id: ORG, qr_secret: SECRET, allow_reentry: false },
+      {
+        id: EVENT_ID,
+        organizer_id: ORG,
+        qr_secret: SECRET,
+        allow_reentry: false,
+      },
     ],
     tickets: [
       {

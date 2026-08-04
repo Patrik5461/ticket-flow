@@ -96,7 +96,8 @@ export function Login() {
         )}
 
         <p className="hint" style={{ marginTop: 20, textAlign: 'center' }}>
-          Prihlás sa účtom organizátora. Appka slúži len na skenovanie vstupeniek.
+          Prihlás sa účtom organizátora. Appka slúži len na skenovanie
+          vstupeniek.
         </p>
       </div>
     </div>

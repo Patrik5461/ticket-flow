@@ -52,7 +52,9 @@ export async function enqueueScan(entry: QueuedScan): Promise<void> {
 /** Pending count, optionally for one event. */
 export async function queueCount(eventId?: string): Promise<number> {
   const queue = await readQueue()
-  return eventId ? queue.filter((e) => e.eventId === eventId).length : queue.length
+  return eventId
+    ? queue.filter((e) => e.eventId === eventId).length
+    : queue.length
 }
 
 /** Drop entries the server has accepted (or definitively rejected). */

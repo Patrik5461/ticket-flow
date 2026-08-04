@@ -3,7 +3,10 @@ import { prefStore } from '../test/preferences-mock'
 import type { QueuedScan } from './queue'
 import type { ScanResult } from './types'
 
-vi.mock('@capacitor/preferences', async () => await import('../test/preferences-mock'))
+vi.mock(
+  '@capacitor/preferences',
+  async () => await import('../test/preferences-mock'),
+)
 
 class FakeAuthError extends Error {}
 const checkinScan =

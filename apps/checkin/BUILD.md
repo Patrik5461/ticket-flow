@@ -13,15 +13,15 @@ odporúčania"; čo z neho vyplýva pre build a vydanie je nižšie v časti 4c.
 
 ## 0. Predpoklady
 
-| Nástroj | Verzia | Na čo |
-|---------|--------|-------|
-| Node | 20+ | web build |
-| Xcode | 15+ | iOS build, TestFlight (len macOS) |
-| CocoaPods | `sudo gem install cocoapods` | iOS natívne závislosti |
-| Android Studio | Hedgehog+ | Android build |
-| JDK | 17 | Android/Gradle |
-| Apple Developer účet | platený | podpis + TestFlight |
-| Google Play Console | jednorazový $25 | Play distribúcia (APK ide aj bez) |
+| Nástroj              | Verzia                       | Na čo                             |
+| -------------------- | ---------------------------- | --------------------------------- |
+| Node                 | 20+                          | web build                         |
+| Xcode                | 15+                          | iOS build, TestFlight (len macOS) |
+| CocoaPods            | `sudo gem install cocoapods` | iOS natívne závislosti            |
+| Android Studio       | Hedgehog+                    | Android build                     |
+| JDK                  | 17                           | Android/Gradle                    |
+| Apple Developer účet | platený                      | podpis + TestFlight               |
+| Google Play Console  | jednorazový $25              | Play distribúcia (APK ide aj bez) |
 
 ---
 
@@ -65,25 +65,32 @@ npm run open:android
 ## 4. Povolenie kamery (POVINNÉ)
 
 ### iOS — `ios/App/App/Info.plist`
+
 ```xml
 <key>NSCameraUsageDescription</key>
 <string>Kamera slúži na skenovanie QR kódov vstupeniek pri vstupe na podujatie.</string>
 ```
+
 Deployment target: v Xcode (target App → General → Minimum Deployments) nastav
 **iOS 15.5+** (vyžaduje Google MLKit barcode pod).
 
 ### Android — `android/app/src/main/AndroidManifest.xml`
+
 V `<manifest>`:
+
 ```xml
 <uses-permission android:name="android.permission.CAMERA" />
 ```
+
 V `<application>` (predinštaluje MLKit model, aby skener fungoval hneď po
 inštalácii, nie až po prvom stiahnutí modelu):
+
 ```xml
 <meta-data
     android:name="com.google.mlkit.vision.DEPENDENCIES"
     android:value="barcode_ui" />
 ```
+
 `android/variables.gradle`: `minSdkVersion = 22` (Capacitor 6 default) je OK.
 
 > App volá `https://ticketio.sk` a Supabase cez HTTPS s platným certifikátom —
@@ -102,19 +109,21 @@ biely pruh hore.
 
 iOS (už aplikované v repe):
 
-| Súbor | Zmena |
-|---|---|
-| `capacitor.config.ts` | `ios.contentInset: 'never'` — webview kreslí edge-to-edge; odsadenie rieši `env(safe-area-inset-*)` v CSS |
-| `ios/App/App/AppDelegate.swift` | `MainViewController: CAPBridgeViewController` — `isOpaque = true`, `backgroundColor`/`scrollView.backgroundColor` = `#09090b`, `overrideUserInterfaceStyle = .dark`, `preferredStatusBarStyle = .lightContent`; `window.backgroundColor` tiež |
-| `ios/App/App/Base.lproj/Main.storyboard` | `customClass="MainViewController" customModule="App"` |
-| `ios/App/App/Info.plist` | `UIUserInterfaceStyle = Dark`, `UIStatusBarStyle = UIStatusBarStyleLightContent`, `UISupportedInterfaceOrientations` (aj `~ipad`) = len `UIInterfaceOrientationPortrait` |
-| `ios/App/App/Base.lproj/LaunchScreen.storyboard` | pozadie natvrdo `#09090b` (nie `systemBackgroundColor`) |
+| Súbor                                            | Zmena                                                                                                                                                                                                                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capacitor.config.ts`                            | `ios.contentInset: 'never'` — webview kreslí edge-to-edge; odsadenie rieši `env(safe-area-inset-*)` v CSS                                                                                                                                     |
+| `ios/App/App/AppDelegate.swift`                  | `MainViewController: CAPBridgeViewController` — `isOpaque = true`, `backgroundColor`/`scrollView.backgroundColor` = `#09090b`, `overrideUserInterfaceStyle = .dark`, `preferredStatusBarStyle = .lightContent`; `window.backgroundColor` tiež |
+| `ios/App/App/Base.lproj/Main.storyboard`         | `customClass="MainViewController" customModule="App"`                                                                                                                                                                                         |
+| `ios/App/App/Info.plist`                         | `UIUserInterfaceStyle = Dark`, `UIStatusBarStyle = UIStatusBarStyleLightContent`, `UISupportedInterfaceOrientations` (aj `~ipad`) = len `UIInterfaceOrientationPortrait`                                                                      |
+| `ios/App/App/Base.lproj/LaunchScreen.storyboard` | pozadie natvrdo `#09090b` (nie `systemBackgroundColor`)                                                                                                                                                                                       |
 
 Android (doplniť pri `npx cap add android`) — `android/app/src/main/AndroidManifest.xml`,
 na `<activity android:name=".MainActivity">`:
+
 ```xml
 android:screenOrientation="portrait"
 ```
+
 a v `android/app/src/main/res/values/styles.xml` maj `windowBackground` = `#09090b`
 (Capacitor to preberá z `android.backgroundColor` v `capacitor.config.ts`).
 
@@ -171,16 +180,19 @@ týkajú zostavenia a distribúcie:
 ## 6. Android
 
 ### 6a. Rýchly test — debug APK (bez Play Console)
+
 ```bash
 npm run sync
 cd android
 ./gradlew assembleDebug
 # APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
 Pošli `app-debug.apk` na telefón (e-mail / USB / `adb install app-debug.apk`).
 Na zariadení povoľ „Inštalovať neznáme aplikácie".
 
 ### 6b. Podpísaný release (Play Console alebo distribúcia APK)
+
 1. Vytvor keystore (raz):
    ```bash
    keytool -genkey -v -keystore ticketio-scan.keystore \

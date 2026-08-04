@@ -81,7 +81,11 @@ export function evaluateOffline(args: {
   if (ticket.status === 'valid') {
     return {
       response: { ...base, result: 'ok', usedAt: nowIso },
-      patch: { status: 'used', usedAt: nowIso, entryCount: ticket.entryCount + 1 },
+      patch: {
+        status: 'used',
+        usedAt: nowIso,
+        entryCount: ticket.entryCount + 1,
+      },
       enqueue: true,
     }
   }

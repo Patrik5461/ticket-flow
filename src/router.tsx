@@ -21,7 +21,9 @@ function DefaultNotFound() {
         fontFamily: 'system-ui, sans-serif',
       }}
     >
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Stránka sa nenašla</h1>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>
+        Stránka sa nenašla
+      </h1>
       <p style={{ color: '#6b7280' }}>
         Požadovaná stránka neexistuje alebo bola presunutá.
       </p>

@@ -52,8 +52,7 @@ interface RawPosOrder {
   payment_method: 'cash' | 'terminal'
   sold_by: string | null
   order_items:
-    | { quantity: number; ticket_types: { name: string } | null }[]
-    | null
+    { quantity: number; ticket_types: { name: string } | null }[] | null
 }
 
 const UNKNOWN_SELLER = '—'

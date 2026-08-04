@@ -1,10 +1,5 @@
 export type Outcome =
-  | 'ok'
-  | 'already_used'
-  | 'cancelled'
-  | 'refunded'
-  | 'invalid'
-  | 'reentry'
+  'ok' | 'already_used' | 'cancelled' | 'refunded' | 'invalid' | 'reentry'
 
 /**
  * What the scanner can display: the server outcomes plus two states that exist

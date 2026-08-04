@@ -42,8 +42,11 @@ export interface CheckinDeps {
   }) => Promise<CheckinResponse | null>
 }
 
-const json = (body: unknown, status: number, headers?: Record<string, string>) =>
-  Response.json(body, { status, headers })
+const json = (
+  body: unknown,
+  status: number,
+  headers?: Record<string, string>,
+) => Response.json(body, { status, headers })
 
 export async function handleCheckin(
   request: Request,

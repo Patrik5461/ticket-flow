@@ -29,7 +29,8 @@ export function signWebhookBody(
   timestamp: string,
   body: string,
 ): string {
-  return nodeCrypto.createHmac('sha256', secret)
+  return nodeCrypto
+    .createHmac('sha256', secret)
     .update(`${timestamp}.${body}`)
     .digest('hex')
 }
