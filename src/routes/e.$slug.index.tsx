@@ -181,7 +181,9 @@ function EventPage() {
   const navigate = useNavigate()
   const [qty, setQty] = useState<Record<string, number>>({})
   const [seats, setSeats] = useState<string[]>([])
-  const [aboutOpen, setAboutOpen] = useState(false)
+  // The hall map is opened on demand: the buyer first reads the event and picks
+  // a category, then the map unfolds below for the actual seat pick.
+  const [mapOpen, setMapOpen] = useState(false)
 
 
   const seated = seatMap.seated
@@ -237,30 +239,14 @@ function EventPage() {
     imageUrl: event.cover_url ?? absoluteUrl(`/api/og/${event.slug}`),
   })
 
-  // Rendered above the map on a seated event and beside the ticket panel on an
-  // unseated one, so it is written once and placed twice.
+  // Always rendered in full at the top of the body, beside the ticket panel.
   const about = (
     <>
       <h2 className="font-display text-2xl font-bold">O podujatí</h2>
       {event.description ? (
-        <>
-          <p
-            className={`mt-4 whitespace-pre-line text-ink-300 leading-relaxed ${
-              aboutOpen ? '' : 'line-clamp-6'
-            }`}
-          >
-            {event.description}
-          </p>
-          {event.description.length > 260 && (
-            <button
-              type="button"
-              onClick={() => setAboutOpen((v) => !v)}
-              className="mt-3 text-sm font-semibold text-accent transition hover:opacity-80"
-            >
-              {aboutOpen ? 'Zobraziť menej' : 'Zobraziť viac'}
-            </button>
-          )}
-        </>
+        <p className="mt-4 whitespace-pre-line text-ink-300 leading-relaxed">
+          {event.description}
+        </p>
       ) : (
         <p className="mt-4 text-ink-500">
           Bližší popis podujatia bude čoskoro.
@@ -268,6 +254,7 @@ function EventPage() {
       )}
     </>
   )
+  const seatedTypes = ticketTypes.filter((t) => t.seated)
 
 
   return (
@@ -354,50 +341,57 @@ function EventPage() {
 
       {/* BODY */}
       <div className="mx-auto max-w-6xl px-6 pb-32 md:pb-16">
-        {/* Buy first, read after: the map sits BESIDE the ticket panel at the
-            top of the page and the (often long) description follows below, so a
-            wall of text no longer pushes the picker off the first screen. */}
+        {/* Read first, then buy: the full description sits at the top left with
+            the ticket panel beside it, and the hall map only unfolds below once
+            the buyer asks for a seat. */}
+        <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]">
+          {/* LEFT: the full event description */}
+          <div>{about}</div>
 
-
-        <div
-          className={
-            showMap
-              ? 'grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]'
-              : 'grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]'
-          }
-        >
-          {/* LEFT: the map on a seated event, otherwise the description. */}
-          {showMap ? (
-            <section>
-              <h2 className="font-display text-2xl font-bold">
-                Výber sedadiel
-              </h2>
-              <div className="mt-4">
-                <SeatPicker
-                  map={seatMap}
-                  selected={seats}
-                  onChange={setSeats}
-                />
-              </div>
-            </section>
-          ) : (
-            <div>{about}</div>
-          )}
 
           {/* RIGHT: sticky ticket panel */}
-          <aside
-            className={
-              showMap
-                ? 'lg:sticky lg:top-24 lg:self-start'
-                : 'md:sticky md:top-24 md:self-start'
-            }
-          >
+          <aside className="md:sticky md:top-24 md:self-start">
             <div className="card-surface p-6">
-              <h2 className="font-display text-xl font-bold">
-                {showMap ? 'Vstupenky a súhrn' : 'Vstupenky'}
-              </h2>
-              {/* Picked seats belong next to the total, not under the map: the
-                  buyer must see what is in the cart without scrolling back. */}
+              <h2 className="font-display text-xl font-bold">Vstupenky</h2>
+              {/* Seated categories: price up front, the map on demand. */}
+              {showMap && (
+                <>
+                  {seatedTypes.length > 0 && (
+                    <ul className="mt-4 space-y-2">
+                      {seatedTypes.map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-900/50 px-4 py-3"
+                        >
+                          <span className="min-w-0 truncate font-semibold text-ink-100">
+                            {t.name}
+                          </span>
+                          <span className="shrink-0 font-display font-bold text-accent">
+                            {formatEur(t.price_cents)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapOpen(true)
+                      // Give React a tick to mount the map before scrolling.
+                      requestAnimationFrame(() =>
+                        document
+                          .getElementById('hall-map')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                      )
+                    }}
+                    className={`mt-4 w-full ${mapOpen ? 'btn-ghost' : 'btn-primary'}`}
+                  >
+                    {seats.length > 0
+                      ? 'Upraviť výber sedadiel'
+                      : 'Vybrať sedadlá v hale'}
+                  </button>
+                </>
+              )}
               {showMap && (
                 <div className="mt-4 rounded-xl border border-ink-700 bg-ink-900/50 p-4">
                   <div className="flex items-baseline justify-between gap-2">
@@ -410,9 +404,10 @@ function EventPage() {
                   </div>
                   {seats.length === 0 ? (
                     <p className="mt-2 text-xs text-ink-500">
-                      Vyberte sedadlá kliknutím na mapu.
+                      Kliknite na „Vybrať sedadlá v hale“ a vyberte miesta v mape.
                     </p>
                   ) : (
+
                     <ul className="mt-2 max-h-44 space-y-1 overflow-auto pr-1 text-xs">
                       {seats.map((id) => {
                         const s = seatMap.seats.find((x) => x.seatId === id)
@@ -540,9 +535,26 @@ function EventPage() {
           </aside>
         </div>
 
-        {showMap && (
-          <section className="mt-14 max-w-3xl border-t border-ink-800 pt-10">
-            {about}
+        {showMap && mapOpen && (
+          <section
+            id="hall-map"
+            className="mt-12 scroll-mt-24 border-t border-ink-800 pt-10 animate-fade-up"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="font-display text-2xl font-bold">
+                Výber sedadiel
+              </h2>
+              <button
+                type="button"
+                onClick={() => setMapOpen(false)}
+                className="text-sm font-semibold text-ink-400 transition hover:text-ink-100"
+              >
+                Skryť mapu
+              </button>
+            </div>
+            <div className="mt-4">
+              <SeatPicker map={seatMap} selected={seats} onChange={setSeats} />
+            </div>
           </section>
         )}
       </div>
