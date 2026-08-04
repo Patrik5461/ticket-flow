@@ -51,7 +51,7 @@ const DECORATION = new Set(['wall', 'door', 'text', 'icon', 'shape'])
 
 /** True for orientation elements that are never sold and never clicked. */
 export function isDecoration(o: MapObject): boolean {
-  return DECORATION.has(o.kind as string)
+  return DECORATION.has(o.kind)
 }
 
 /** True for a capacity area: bought by quantity in the panel, not by clicking. */

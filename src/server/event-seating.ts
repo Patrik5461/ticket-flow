@@ -89,6 +89,35 @@ async function soldStandingCount(
   return (tts ?? []).reduce((n, t) => n + t.sold_count, 0)
 }
 
+/**
+ * assign_seat_map()'s stable error codes, in Slovak.
+ *
+ * The app checks the same things before calling — with better wording, since it
+ * knows the area labels — so these are the ones that only the transaction can
+ * catch: a race, or a payload that slipped past the checks above.
+ */
+function assignError(message: string): EventAuthzError {
+  const code = message.trim()
+  if (code.startsWith('SECTOR_UNPRICED:')) {
+    return new EventAuthzError(
+      `Sektor „${code.slice('SECTOR_UNPRICED:'.length)}" nemá priradenú cenovú kategóriu.`,
+    )
+  }
+  if (code === 'EVENT_HAS_LIVE_SEATS') {
+    return new EventAuthzError(
+      'Podujatie už má rezervované/predané sedadlá — mapu nemožno zmeniť.',
+    )
+  }
+  if (code === 'EVENT_NOT_FOUND') {
+    return new EventAuthzError('Podujatie sa nenašlo.')
+  }
+  if (code === 'TICKET_TYPE_FOREIGN') {
+    return new EventAuthzError('Niektorá cenová kategória nepatrí tomuto podujatiu.')
+  }
+  console.error('[event-seating] assign_seat_map failed:', message)
+  return new EventAuthzError('Mapu sa nepodarilo priradiť k podujatiu.')
+}
+
 /** The standing areas of a seat map, read straight from its layout jsonb. */
 async function loadAreas(
   db: ReturnType<typeof serviceClient>,
@@ -344,82 +373,43 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
           )
         }
 
-        // Replace assignment + pricing + generated seats (safe: nothing held/sold).
-        await db.from('event_seats').delete().eq('event_id', data.eventId)
-        await db
-          .from('event_sector_pricing')
-          .delete()
-          .eq('event_id', data.eventId)
-        await db.from('event_seat_maps').delete().eq('event_id', data.eventId)
-
-        await db
-          .from('event_seat_maps')
-          .insert({ event_id: data.eventId, seat_map_id: data.seatMapId })
-        const pricingRows = [
-          ...data.sectorPricing.map((p) => ({
-            event_id: data.eventId,
-            sector: p.sector,
-            ticket_type_id: p.ticketTypeId,
-          })),
-          ...areas.map((a) => ({
-            event_id: data.eventId,
-            sector: areaPricingKey(a.id),
+        // The whole replacement — binding, pricing, generated seats and the
+        // categories' capacities — happens in assign_seat_map(), in one
+        // transaction under a lock on the event. Done from here it was a dozen
+        // statements that nothing tied together, and the "nothing held or sold"
+        // check above could go stale between the check and the delete.
+        const { data: result, error } = await db.rpc('assign_seat_map', {
+          p_event_id: data.eventId,
+          p_seat_map_id: data.seatMapId,
+          p_pricing: [
+            ...data.sectorPricing.map((p) => ({
+              sector: p.sector,
+              ticket_type_id: p.ticketTypeId,
+            })),
+            ...areas.map((a) => ({
+              sector: areaPricingKey(a.id),
+              ticket_type_id: areaTypeOf.get(a.id)!,
+            })),
+          ],
+          p_areas: areas.map((a) => ({
             ticket_type_id: areaTypeOf.get(a.id)!,
+            capacity: a.capacity,
           })),
-        ]
-        if (pricingRows.length > 0)
-          await db.from('event_sector_pricing').insert(pricingRows)
-
-        const seatRows = allSeats.map((s) => ({
-          event_id: data.eventId,
-          seat_id: s.id,
-          ticket_type_id: priceOf.get(s.sector),
-          status: s.seat_type === 'blocked' ? 'blocked' : 'available',
-        }))
-        for (let i = 0; i < seatRows.length; i += 1000) {
-          const { error } = await db
-            .from('event_seats')
-            .insert(seatRows.slice(i, i + 1000))
-          if (error)
-            throw new EventAuthzError(
-              'Sedadlá podujatia sa nepodarilo vytvoriť.',
-            )
-        }
-
-        // Mark involved ticket types seated with capacity = seat count.
-        const countByType = new Map<string, number>()
-        for (const s of allSeats) {
-          const tt = priceOf.get(s.sector)!
-          countByType.set(tt, (countByType.get(tt) ?? 0) + 1)
-        }
-        for (const [ttId, cap] of countByType) {
-          await db
-            .from('ticket_types')
-            .update({ seated: true, capacity: cap })
-            .eq('id', ttId)
-        }
-
-        // Standing areas stay unseated: quantity tickets capped at the area's
-        // capacity, summed when several areas share one category.
-        const areaCapByType = new Map<string, number>()
-        for (const a of areas) {
-          const tt = areaTypeOf.get(a.id)!
-          areaCapByType.set(tt, (areaCapByType.get(tt) ?? 0) + a.capacity)
-        }
-        for (const [ttId, cap] of areaCapByType) {
-          await db
-            .from('ticket_types')
-            .update({ seated: false, capacity: cap })
-            .eq('id', ttId)
+        })
+        if (error) throw assignError(error.message)
+        const row = (
+          result as
+            | { out_seat_count: number; out_standing_capacity: number }[]
+            | null
+        )?.[0]
+        if (!row) {
+          throw new EventAuthzError('Mapu sa nepodarilo priradiť k podujatiu.')
         }
 
         return {
           ok: true as const,
-          seatCount: allSeats.length,
-          standingCapacity: [...areaCapByType.values()].reduce(
-            (a, b) => a + b,
-            0,
-          ),
+          seatCount: row.out_seat_count,
+          standingCapacity: row.out_standing_capacity,
         }
       })
     },
