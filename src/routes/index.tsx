@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { Check, Scan } from 'lucide-react'
 import { listEventsFn } from '../server/fns'
 import { getPlatformSettingsFn } from '../server/platform-settings'
-import { ThemeToggle } from '../components/ThemeToggle'
+import { EventCard } from '../components/EventCard'
+import { SiteFooter, SiteNav } from '../components/SiteChrome'
 import { formatSk } from '../lib/datetime'
+import { upcomingEvents } from '../lib/events'
 import { formatEur, toCents } from '../lib/money'
 import { computeFee } from '../lib/pricing'
 import { LEGAL_FORMS } from '../lib/nonprofit'
@@ -13,15 +15,20 @@ import { LEGAL_FORMS } from '../lib/nonprofit'
 export const Route = createFileRoute('/')({
   // The non-profit rate is admin-tunable, so read it from the same source
   // /cennik does — a literal here would keep advertising the old number.
+  // Only what is still ahead of us, and filtered here rather than in the
+  // component so SSR and hydration agree on the list (`Date.now()` would not).
   loader: async () => {
     const [events, settings] = await Promise.all([
       listEventsFn(),
       getPlatformSettingsFn(),
     ])
-    return { events, settings }
+    return { events: upcomingEvents(events), settings }
   },
   component: Landing,
 })
+
+/** How many events the landing teaser shows before pointing at /podujatia. */
+const TEASER_EVENTS = 6
 
 function pctStr(p: number): string {
   return String(p).replace('.', ',')
@@ -29,47 +36,6 @@ function pctStr(p: number): string {
 
 function formatDateShort(iso: string, tz: string) {
   return formatSk(iso, 'dayMonth', tz)
-}
-function formatTime(iso: string, tz: string) {
-  return formatSk(iso, 'time', tz)
-}
-
-function Nav() {
-  return (
-    <nav className="sticky top-0 z-40 border-b border-ink-800/60 bg-ink-950/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link
-          to="/"
-          className="font-display text-2xl font-bold tracking-tight sm:text-3xl"
-        >
-          ticketio<span className="text-accent">.</span>
-        </Link>
-        <div className="hidden items-center gap-8 text-sm text-ink-300 md:flex">
-          <a href="#events" className="hover:text-ink-100 transition">
-            Podujatia
-          </a>
-          <a href="#how" className="hover:text-ink-100 transition">
-            Ako to funguje
-          </a>
-          <a href="#pricing" className="hover:text-ink-100 transition">
-            Cenník
-          </a>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle className="hidden sm:inline-flex" />
-          <Link
-            to="/login"
-            className="hidden text-sm text-ink-300 transition hover:text-ink-100 sm:inline-flex sm:px-3 sm:py-1.5"
-          >
-            Prihlásiť sa
-          </Link>
-          <Link to="/register" className="btn-primary text-sm">
-            Predávať vstupenky
-          </Link>
-        </div>
-      </div>
-    </nav>
-  )
 }
 
 /** Interaktívny prepočet výplaty organizátorovi (ilustračný, UI-only). */
@@ -208,74 +174,6 @@ function PayoutCalculator({
         </p>
       )}
     </div>
-  )
-}
-
-function Footer() {
-  return (
-    <footer className="mt-32 border-t border-ink-800 bg-ink-950">
-      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 md:grid-cols-3">
-        <div>
-          <div className="font-display text-2xl font-bold">
-            ticketio<span className="text-accent">.</span>
-          </div>
-          <p className="mt-3 max-w-xs text-sm text-ink-400">
-            Slovenská platforma na predaj vstupeniek pre moderných
-            organizátorov.
-          </p>
-        </div>
-        <div className="text-sm">
-          <div className="mb-3 font-semibold text-ink-200">Platforma</div>
-          <ul className="space-y-2 text-ink-400">
-            <li>
-              <a href="/ako-to-funguje" className="hover:text-ink-100">
-                Ako to funguje
-              </a>
-            </li>
-            <li>
-              <a href="/cennik" className="hover:text-ink-100">
-                Cenník
-              </a>
-            </li>
-            <li>
-              <a href="/login" className="text-accent hover:brightness-110">
-                Pre organizátorov →
-              </a>
-            </li>
-            <li>
-              <a href="/kontakt" className="hover:text-ink-100">
-                Kontakt
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div className="text-sm">
-          <div className="mb-3 font-semibold text-ink-200">Právne</div>
-          <ul className="space-y-2 text-ink-400">
-            <li>
-              <a href="/obchodne-podmienky" className="hover:text-ink-100">
-                Obchodné podmienky
-              </a>
-            </li>
-            <li>
-              <a href="/gdpr" className="hover:text-ink-100">
-                Ochrana osobných údajov
-              </a>
-            </li>
-            <li>
-              <a href="/cookies" className="hover:text-ink-100">
-                Cookies
-              </a>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div className="border-t border-ink-800">
-        <div className="mx-auto max-w-7xl px-6 py-6 text-xs text-ink-500">
-          © {new Date().getFullYear()} Ticketio. Všetky práva vyhradené.
-        </div>
-      </div>
-    </footer>
   )
 }
 
@@ -514,7 +412,7 @@ function Landing() {
 
   return (
     <div className="min-h-screen">
-      <Nav />
+      <SiteNav />
 
       {/* HERO */}
       <section
@@ -539,7 +437,7 @@ function Landing() {
                 odbavenie cez mobil.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
-                <a href="#events" className="btn-primary">
+                <Link to="/podujatia" className="btn-primary">
                   Zobraziť podujatia
                   <svg
                     width="16"
@@ -551,10 +449,10 @@ function Landing() {
                   >
                     <path d="M5 12h14M13 5l7 7-7 7" />
                   </svg>
-                </a>
-                <a href="#how" className="btn-ghost">
+                </Link>
+                <Link to="/ako-to-funguje" className="btn-ghost">
                   Ako to funguje
-                </a>
+                </Link>
               </div>
 
               {/* Mobile product preview */}
@@ -653,9 +551,9 @@ function Landing() {
         </section>
       )}
 
-      {/* EVENTS */}
+      {/* EVENTS — a teaser only; the full program lives on /podujatia. */}
       <section id="events" className="mx-auto max-w-7xl px-6 py-20">
-        <div className="mb-10 flex items-end justify-between">
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="text-sm font-medium uppercase tracking-widest text-accent">
               Program
@@ -664,6 +562,21 @@ function Landing() {
               Aktuálne podujatia
             </h2>
           </div>
+          {events.length > 0 && (
+            <Link to="/podujatia" className="btn-ghost text-sm">
+              Zobraziť všetky podujatia
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </Link>
+          )}
         </div>
 
         {events.length === 0 ? (
@@ -673,89 +586,20 @@ function Landing() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((e, idx) => {
-              const cover = (e as unknown as { cover_url?: string | null })
-                .cover_url
-              const fromPrice = (
-                e as unknown as { from_price_cents?: number | null }
-              ).from_price_cents
-              return (
-                <Link
-                  key={e.id}
-                  to="/e/$slug"
-                  params={{ slug: e.slug }}
-                  className="group card-surface animate-fade-up relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-accent/40 hover:shadow-[0_20px_60px_-20px_var(--color-accent-glow)]"
-                  style={{ animationDelay: `${idx * 60}ms` }}
-                >
-                  {/* Cover */}
-                  <div
-                    className="relative aspect-[4/3] w-full overflow-hidden"
-                    style={{
-                      background: cover
-                        ? `url(${cover}) center/cover`
-                        : 'var(--gradient-fallback)',
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/30 to-transparent" />
-                    <div className="absolute left-4 top-4 flex flex-col items-center justify-center rounded-xl bg-ink-950/80 px-3 py-2 backdrop-blur-md">
-                      <span className="font-display text-xs font-semibold uppercase text-accent">
-                        {formatDateShort(e.starts_at, e.timezone).split(' ')[1]}
-                      </span>
-                      <span className="font-display text-xl font-bold leading-none">
-                        {formatDateShort(e.starts_at, e.timezone).split(' ')[0]}
-                      </span>
-                    </div>
-                    {typeof fromPrice === 'number' && (
-                      <div className="absolute right-4 top-4 rounded-full bg-ink-950/80 px-3 py-1 text-xs font-medium backdrop-blur-md">
-                        od{' '}
-                        <span className="text-accent">
-                          {(fromPrice / 100).toFixed(0)} €
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="font-display text-xl font-bold leading-tight transition-colors group-hover:text-accent">
-                      {e.title}
-                    </h3>
-                    <div className="mt-3 flex items-center gap-4 text-sm text-ink-400">
-                      <span className="inline-flex items-center gap-1.5">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M12 6v6l4 2" />
-                        </svg>
-                        {formatTime(e.starts_at, e.timezone)}
-                      </span>
-                      {e.venue_name && (
-                        <span className="inline-flex items-center gap-1.5 truncate">
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path d="M12 22s-8-7.5-8-13a8 8 0 1 1 16 0c0 5.5-8 13-8 13z" />
-                            <circle cx="12" cy="9" r="3" />
-                          </svg>
-                          <span className="truncate">{e.venue_name}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {events.slice(0, TEASER_EVENTS).map((e, idx) => (
+                <EventCard key={e.id} event={e} index={idx} />
+              ))}
+            </div>
+            {events.length > TEASER_EVENTS && (
+              <div className="mt-10 text-center">
+                <Link to="/podujatia" className="btn-primary">
+                  Všetky podujatia ({events.length})
                 </Link>
-              )
-            })}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -800,6 +644,11 @@ function Landing() {
               </div>
             ))}
           </div>
+          <div className="mt-10">
+            <Link to="/ako-to-funguje" className="btn-ghost text-sm">
+              Celý postup krok po kroku →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -812,6 +661,11 @@ function Landing() {
           <h2 className="mt-2 font-display text-4xl font-bold md:whitespace-nowrap md:text-5xl">
             Jedna cena, žiadne prekvapenia!
           </h2>
+          <div className="mt-6">
+            <Link to="/cennik" className="btn-ghost text-sm">
+              Celý cenník a porovnanie →
+            </Link>
+          </div>
         </div>
 
         <div className="mt-14 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-stretch">
@@ -939,7 +793,7 @@ function Landing() {
         </div>
       </section>
 
-      <Footer />
+      <SiteFooter />
     </div>
   )
 }

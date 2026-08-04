@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as PodujatiaRouteImport } from './routes/podujatia'
 import { Route as ObchodnePodmienkyRouteImport } from './routes/obchodne-podmienky'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as KontaktRouteImport } from './routes/kontakt'
@@ -94,6 +95,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PodujatiaRoute = PodujatiaRouteImport.update({
+  id: '/podujatia',
+  path: '/podujatia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ObchodnePodmienkyRoute = ObchodnePodmienkyRouteImport.update({
@@ -462,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
   '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
+  '/podujatia': typeof PodujatiaRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -533,6 +540,7 @@ export interface FileRoutesByTo {
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
   '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
+  '/podujatia': typeof PodujatiaRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -606,6 +614,7 @@ export interface FileRoutesById {
   '/kontakt': typeof KontaktRoute
   '/login': typeof LoginRoute
   '/obchodne-podmienky': typeof ObchodnePodmienkyRoute
+  '/podujatia': typeof PodujatiaRoute
   '/register': typeof RegisterRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -681,6 +690,7 @@ export interface FileRouteTypes {
     | '/kontakt'
     | '/login'
     | '/obchodne-podmienky'
+    | '/podujatia'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -752,6 +762,7 @@ export interface FileRouteTypes {
     | '/kontakt'
     | '/login'
     | '/obchodne-podmienky'
+    | '/podujatia'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -824,6 +835,7 @@ export interface FileRouteTypes {
     | '/kontakt'
     | '/login'
     | '/obchodne-podmienky'
+    | '/podujatia'
     | '/register'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -898,6 +910,7 @@ export interface RootRouteChildren {
   KontaktRoute: typeof KontaktRoute
   LoginRoute: typeof LoginRoute
   ObchodnePodmienkyRoute: typeof ObchodnePodmienkyRoute
+  PodujatiaRoute: typeof PodujatiaRoute
   RegisterRoute: typeof RegisterRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -950,6 +963,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/podujatia': {
+      id: '/podujatia'
+      path: '/podujatia'
+      fullPath: '/podujatia'
+      preLoaderRoute: typeof PodujatiaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/obchodne-podmienky': {
@@ -1563,6 +1583,7 @@ const rootRouteChildren: RootRouteChildren = {
   KontaktRoute: KontaktRoute,
   LoginRoute: LoginRoute,
   ObchodnePodmienkyRoute: ObchodnePodmienkyRoute,
+  PodujatiaRoute: PodujatiaRoute,
   RegisterRoute: RegisterRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
