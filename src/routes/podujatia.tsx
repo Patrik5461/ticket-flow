@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { EventCard } from '../components/EventCard'
 import { SiteFooter, SiteNav } from '../components/SiteChrome'
@@ -56,12 +56,98 @@ function countLabel(n: number): string {
   return `${n} podujatí v predaji`
 }
 
-const chipCls = (active: boolean) =>
-  `rounded-full border px-4 py-1.5 text-sm transition ${
-    active
-      ? 'border-accent bg-accent/15 text-accent'
-      : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
-  }`
+/** Collapsible select-style filter: click opens the list, pick one value. */
+function FilterSelect({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string; hint?: string | number }[]
+  onPick: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const current = options.find((o) => o.value === value) ?? options[0]
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div className="relative w-full sm:w-64" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${
+          value !== ''
+            ? 'border-accent/60 bg-accent/10 text-accent'
+            : 'border-ink-700 bg-ink-900/60 text-ink-200 hover:border-ink-500'
+        }`}
+      >
+        <span className="truncate">
+          <span className="mr-2 text-xs uppercase tracking-widest text-ink-500">
+            {label}
+          </span>
+          {current?.label}
+        </span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+          className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-ink-700 bg-ink-900 p-1 shadow-2xl"
+        >
+          {options.map((o) => (
+            <li key={o.value || 'all'}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
+                onClick={() => {
+                  setOpen(false)
+                  onPick(o.value)
+                }}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                  o.value === value
+                    ? 'bg-accent/15 text-accent'
+                    : 'text-ink-200 hover:bg-ink-800 hover:text-ink-100'
+                }`}
+              >
+                <span className="truncate">{o.label}</span>
+                {o.hint !== undefined && (
+                  <span className="text-xs opacity-60">{o.hint}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 
 function EventsPage() {
   const { events, total, cities } = Route.useLoaderData()
