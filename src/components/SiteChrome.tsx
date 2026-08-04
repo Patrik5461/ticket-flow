@@ -14,6 +14,10 @@ function NavSearch({ className = '' }: { className?: string }) {
   return (
     <form
       role="search"
+      // A plain GET form underneath, so the header search works before React
+      // has booted — with scripting the handler below takes over.
+      method="get"
+      action="/podujatia"
       onSubmit={(e) => {
         e.preventDefault()
         void navigate({
@@ -38,6 +42,7 @@ function NavSearch({ className = '' }: { className?: string }) {
       </svg>
       <input
         type="search"
+        name="q"
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Hľadať podujatie…"

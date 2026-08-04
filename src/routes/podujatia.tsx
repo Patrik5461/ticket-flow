@@ -56,6 +56,14 @@ function countLabel(n: number): string {
   return `${n} podujatí v predaji`
 }
 
+/** The shape validateSearch above guarantees — what every filter link builds. */
+interface EventsSearch {
+  q: string
+  kat: string
+  mesto: string
+  page: number
+}
+
 /** Accusative, as in "program má …" — 1 stranu, 2 strany, 5 strán. */
 function pagesLabel(n: number): string {
   if (n === 1) return '1 stranu'
@@ -63,39 +71,46 @@ function pagesLabel(n: number): string {
   return `${n} strán`
 }
 
-/** Collapsible select-style filter: click opens the list, pick one value. */
-function FilterSelect({
+/**
+ * Collapsible select-style filter: click opens the list, pick one value.
+ *
+ * Built on `<details>` with real links inside rather than a JS-toggled panel of
+ * buttons. Same behaviour with scripting on, but the panel still opens without
+ * it, and every filtered listing is a URL a crawler can follow — a filter that
+ * only exists once React has booted is invisible to both.
+ */
+function FilterSelect<T extends string>({
   label,
   value,
   options,
-  onPick,
+  searchFor,
 }: {
   label: string
-  value: string
-  options: { value: string; label: string; hint?: string | number }[]
-  onPick: (value: string) => void
+  value: T
+  options: { value: T; label: string; hint?: string | number }[]
+  searchFor: (value: T) => EventsSearch
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDetailsElement>(null)
   const current = options.find((o) => o.value === value) ?? options[0]
+  const close = () => {
+    if (ref.current) ref.current.open = false
+  }
 
+  // A <details> stays open until it is clicked again; a picker should also
+  // close when the visitor moves on to something else.
   useEffect(() => {
-    if (!open) return
     const onDoc = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+      const el = ref.current
+      if (el?.open && !el.contains(e.target as Node)) el.open = false
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
+  }, [])
 
   return (
-    <div className="relative w-full sm:w-64" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${
+    <details ref={ref} className="group relative w-full sm:w-64">
+      <summary
+        className={`flex w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition [&::-webkit-details-marker]:hidden ${
           value !== ''
             ? 'border-accent/60 bg-accent/10 text-accent'
             : 'border-ink-700 bg-ink-900/60 text-ink-200 hover:border-ink-500'
@@ -115,43 +130,35 @@ function FilterSelect({
           stroke="currentColor"
           strokeWidth="2"
           aria-hidden="true"
-          className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          className="shrink-0 transition-transform group-open:rotate-180"
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </summary>
 
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-ink-700 bg-ink-900 p-1 shadow-2xl"
-        >
-          {options.map((o) => (
-            <li key={o.value || 'all'}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={o.value === value}
-                onClick={() => {
-                  setOpen(false)
-                  onPick(o.value)
-                }}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
-                  o.value === value
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-ink-200 hover:bg-ink-800 hover:text-ink-100'
-                }`}
-              >
-                <span className="truncate">{o.label}</span>
-                {o.hint !== undefined && (
-                  <span className="text-xs opacity-60">{o.hint}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      <ul className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-ink-700 bg-ink-900 p-1 shadow-2xl">
+        {options.map((o) => (
+          <li key={o.value || 'all'}>
+            <Link
+              to="/podujatia"
+              search={searchFor(o.value)}
+              onClick={close}
+              aria-current={o.value === value ? 'true' : undefined}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                o.value === value
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-ink-200 hover:bg-ink-800 hover:text-ink-100'
+              }`}
+            >
+              <span className="truncate">{o.label}</span>
+              {o.hint !== undefined && (
+                <span className="text-xs opacity-60">{o.hint}</span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
 
@@ -198,8 +205,20 @@ function EventsPage() {
           zaplatení priamo do mailu.
         </p>
 
-        {/* Search */}
-        <div className="relative mt-8 max-w-xl">
+        {/* Search. A real GET form: with scripting the debounce below has
+            already navigated, without it Enter still submits to this page. */}
+        <form
+          method="get"
+          action="/podujatia"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void navigate({ search: (s) => ({ ...s, q: term, page: 1 }) })
+          }}
+          className="relative mt-8 max-w-xl"
+        >
+          <input type="hidden" name="kat" value={kat} />
+          <input type="hidden" name="mesto" value={mesto} />
           <svg
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500"
             width="18"
@@ -215,13 +234,14 @@ function EventsPage() {
           </svg>
           <input
             type="search"
+            name="q"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
             placeholder="Hľadať podujatie, miesto alebo mesto…"
             aria-label="Hľadať podujatie"
             className="w-full rounded-xl border border-ink-700 bg-ink-900/60 py-3 pl-12 pr-4 text-ink-100 placeholder:text-ink-500 focus:border-accent/60 focus:outline-none"
           />
-        </div>
+        </form>
 
         {/* Genre + city — collapsible pickers, value lives in the URL. */}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -235,9 +255,7 @@ function EventsPage() {
                 label: c.label,
               })),
             ]}
-            onPick={(v) =>
-              void navigate({ search: (s) => ({ ...s, kat: v, page: 1 }) })
-            }
+            searchFor={(v) => ({ q, kat: v, mesto, page: 1 })}
           />
 
           {cities.length > 0 && (
@@ -252,9 +270,7 @@ function EventsPage() {
                   hint: c.eventCount,
                 })),
               ]}
-              onPick={(v) =>
-                void navigate({ search: (s) => ({ ...s, mesto: v, page: 1 }) })
-              }
+              searchFor={(v) => ({ q, kat, mesto: v, page: 1 })}
             />
           )}
         </div>
