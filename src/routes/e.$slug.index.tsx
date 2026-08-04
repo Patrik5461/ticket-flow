@@ -539,7 +539,14 @@ function EventPage() {
             </div>
           </aside>
         </div>
+
+        {showMap && (
+          <section className="mt-14 max-w-3xl border-t border-ink-800 pt-10">
+            {about}
+          </section>
+        )}
       </div>
+
 
       {/* Mobile sticky CTA */}
       {anySelected && (
