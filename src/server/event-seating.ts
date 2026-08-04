@@ -23,6 +23,7 @@ import {
   migrateLayout,
 } from '../lib/seating'
 import { isLibraryVenue } from '../lib/venue-library'
+import { readAllRows } from './db-paging'
 import type { CapacityArea } from '../lib/seating'
 
 async function run<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -125,13 +126,21 @@ export const getEventSeatingFn = createServerFn({ method: 'GET' })
           locked: false,
         }
       }
-      const { data: seats } = await db
-        .from('seats')
-        .select('sector')
-        .eq('seat_map_id', esm.seat_map_id)
-        .returns<{ sector: string }[]>()
+      // Paged: a hall with more than 1000 seats used to report only the sectors
+      // that happened to fall in the first page, so whole sectors were missing
+      // from the pricing screen.
+      const seats = await readAllRows<{ sector: string }>(
+        () =>
+          db
+            .from('seats')
+            .select('sector')
+            .eq('seat_map_id', esm.seat_map_id)
+            .order('id', { ascending: true })
+            .returns<{ sector: string }[]>(),
+        'sektory mapy',
+      )
       const bySector = new Map<string, number>()
-      for (const s of seats ?? [])
+      for (const s of seats)
         bySector.set(s.sector, (bySector.get(s.sector) ?? 0) + 1)
 
       const { data: pricing } = await db
@@ -257,12 +266,23 @@ export const assignSeatMapToEventFn = createServerFn({ method: 'POST' })
           )
         }
 
-        const { data: seats } = await db
-          .from('seats')
-          .select('id, sector, seat_type')
-          .eq('seat_map_id', data.seatMapId)
-          .returns<{ id: string; sector: string; seat_type: string }[]>()
-        const allSeats = seats ?? []
+        // Every seat, not the first thousand: this read decides how many
+        // event_seats the event gets, i.e. how much of the hall can ever be
+        // sold. An 11 604-seat arena used to go on sale with 1000 seats.
+        const allSeats = await readAllRows<{
+          id: string
+          sector: string
+          seat_type: string
+        }>(
+          () =>
+            db
+              .from('seats')
+              .select('id, sector, seat_type')
+              .eq('seat_map_id', data.seatMapId)
+              .order('id', { ascending: true })
+              .returns<{ id: string; sector: string; seat_type: string }[]>(),
+          'sedadlá mapy',
+        )
         const sectors = [...new Set(allSeats.map((s) => s.sector))]
 
         const areas = await loadAreas(db, data.seatMapId)

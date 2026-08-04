@@ -11,6 +11,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
 import { migrateLayout } from '../lib/seating'
+import { readAllRows } from './db-paging'
 import type { SeatType, SeatMapLayout } from '../lib/seating'
 
 export type SeatAvailability = 'available' | 'taken' | 'blocked'
@@ -67,30 +68,36 @@ export const getEventSeatMapFn = createServerFn({ method: 'GET' })
       }>()
     if (!esm) return EMPTY
 
-    const { data: rows } = await db
-      .from('event_seats')
-      .select(
-        'seat_id, status, ticket_type_id, seats(level, level_order, sector, row_label, seat_number, x, y, seat_type), ticket_types(name, price_cents)',
-      )
-      .eq('event_id', event.id)
-      .returns<
-        {
-          seat_id: string
-          status: string
-          ticket_type_id: string
-          seats: {
-            level: string
-            level_order: number
-            sector: string
-            row_label: string
-            seat_number: string
-            x: number
-            y: number
-            seat_type: SeatType
-          } | null
-          ticket_types: { name: string; price_cents: number } | null
-        }[]
-      >()
+    // Paged: without this the buyer of a big hall saw its first 1000 seats and
+    // no more — the rest of the arena simply was not on the map.
+    interface EventSeatRow {
+      seat_id: string
+      status: string
+      ticket_type_id: string
+      seats: {
+        level: string
+        level_order: number
+        sector: string
+        row_label: string
+        seat_number: string
+        x: number
+        y: number
+        seat_type: SeatType
+      } | null
+      ticket_types: { name: string; price_cents: number } | null
+    }
+    const rows = await readAllRows<EventSeatRow>(
+      () =>
+        db
+          .from('event_seats')
+          .select(
+            'seat_id, status, ticket_type_id, seats(level, level_order, sector, row_label, seat_number, x, y, seat_type), ticket_types(name, price_cents)',
+          )
+          .eq('event_id', event.id)
+          .order('seat_id', { ascending: true })
+          .returns<EventSeatRow[]>(),
+      'sedadlá podujatia',
+    )
 
     const levelOrder = new Map<string, number>()
     const ttMap = new Map<
@@ -98,7 +105,7 @@ export const getEventSeatMapFn = createServerFn({ method: 'GET' })
       { id: string; name: string; priceCents: number }
     >()
     const seats: BuyerSeat[] = []
-    for (const r of rows ?? []) {
+    for (const r of rows) {
       if (!r.seats) continue
       levelOrder.set(r.seats.level, r.seats.level_order)
       if (r.ticket_types) {

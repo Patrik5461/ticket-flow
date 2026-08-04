@@ -12,6 +12,9 @@ import { getCurrentUser } from '../lib/supabase/auth'
 import { getImpersonation } from './impersonation-session'
 import { migrateLayout } from '../lib/seating'
 import { isLibraryVenue } from '../lib/venue-library'
+import { readAllSeats } from './db-paging'
+import type { SeatRow } from './db-paging'
+import { writeSeatMap, SeatMapWriteError } from './seat-map-write'
 import type { SeatType, SeatMapLayout } from '../lib/seating'
 
 export class VenueError extends Error {}
@@ -35,10 +38,16 @@ async function requireOrganizer(): Promise<Actor> {
       impersonating: true,
     }
   }
+  // Ordered, not just limited: a user who belongs to two organizers would
+  // otherwise get whichever row the planner happened to return, so the same
+  // person could edit one organizer's venues today and the other's tomorrow.
+  // Oldest membership wins — that is the one they think of as "their" account.
   const { data } = await serviceClient()
     .from('organizer_members')
     .select('organizer_id, role')
     .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
     .limit(1)
     .maybeSingle<{ organizer_id: string; role: Actor['role'] }>()
   if (!data) throw new VenueError('Nie ste členom žiadneho organizátora.')
@@ -250,6 +259,24 @@ export const deleteVenueFn = createServerFn({ method: 'POST' })
 /** PostgREST pages large reads; a full-size hall needs more than one page. */
 const SEAT_PAGE = 1000
 
+/**
+ * Every seat of a map, with a truncated or failed read surfaced as a message
+ * the editor can show instead of a 500. (The admin side has its own wrapper for
+ * the same reason — its errors carry a different class.)
+ */
+async function loadSeats(
+  db: ReturnType<typeof serviceClient>,
+  seatMapId: string,
+): Promise<SeatRow[]> {
+  try {
+    return await readAllSeats(db, seatMapId)
+  } catch (e) {
+    throw new VenueError(
+      e instanceof Error ? e.message : 'Sedadlá sa nepodarilo načítať.',
+    )
+  }
+}
+
 interface SeatCopyRow {
   level: string
   level_order: number
@@ -330,9 +357,12 @@ export const duplicateVenueFn = createServerFn({ method: 'POST' })
             .single<{ id: string }>()
           if (mapErr) throw new VenueError('Mapu sa nepodarilo skopírovať.')
 
-          // A full hall runs to thousands of seats: page the read and chunk the
-          // write, the same way saveSeatMapFn does.
-          for (let from = 0; ; from += SEAT_PAGE) {
+          // A full hall runs to thousands of seats, so the read is paged and
+          // each page written as it arrives. The loop ends on an EMPTY page,
+          // never on a short one: PostgREST caps a page below what was asked
+          // for and says nothing, so a short page is not the end of the data
+          // (see db-paging.ts). The offset walks by rows actually received.
+          for (let copied = 0; ;) {
             const { data: seats } = await db
               .from('seats')
               .select(
@@ -340,7 +370,7 @@ export const duplicateVenueFn = createServerFn({ method: 'POST' })
               )
               .eq('seat_map_id', map.id)
               .order('id', { ascending: true })
-              .range(from, from + SEAT_PAGE - 1)
+              .range(copied, copied + SEAT_PAGE - 1)
               .returns<SeatCopyRow[]>()
             if (!seats || seats.length === 0) break
             const { error } = await db.from('seats').insert(
@@ -353,7 +383,7 @@ export const duplicateVenueFn = createServerFn({ method: 'POST' })
             if (error) {
               throw new VenueError('Sedadlá sa nepodarilo skopírovať.')
             }
-            if (seats.length < SEAT_PAGE) break
+            copied += seats.length
           }
         }
       } catch (e) {
@@ -378,9 +408,6 @@ export interface SeatMapSummary {
   /** True when the map belongs to a library hall — read-only for everyone. */
   readOnly: boolean
 }
-
-/** Objects a single map may hold — a guard against a runaway client payload. */
-export const MAX_OBJECTS = 500
 
 const seatInput = z.object({
   level: z.string().max(60).default('main'),
@@ -444,6 +471,11 @@ export interface SeatMapDetail {
   inUse: boolean
   /** True when the map belongs to a library hall — the editor opens locked. */
   readOnly: boolean
+  /**
+   * The map's `updated_at` at load time. The editor sends it back on save and
+   * the write is refused if it has moved on — see save_seat_map().
+   */
+  updatedAt: string
   seats: {
     id: string
     level: string
@@ -467,13 +499,16 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
       const db = serviceClient()
       const { data: map } = await db
         .from('seat_maps')
-        .select('id, venue_id, name, layout, venues(organizer_id, is_public)')
+        .select(
+          'id, venue_id, name, layout, updated_at, venues(organizer_id, is_public)',
+        )
         .eq('id', data.seatMapId)
         .maybeSingle<{
           id: string
           venue_id: string
           name: string
           layout: SeatMapLayout | null
+          updated_at: string
           venues: { organizer_id: string | null; is_public: boolean } | null
         }>()
       // Own maps and library maps are both readable; only the library ones come
@@ -492,26 +527,10 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
       ) {
         throw new VenueError('Mapa sa nenašla.')
       }
-      const { data: seats } = await db
-        .from('seats')
-        .select(
-          'id, level, level_order, sector, row_label, seat_number, x, y, seat_type',
-        )
-        .eq('seat_map_id', data.seatMapId)
-        .order('level_order', { ascending: true })
-        .returns<
-          {
-            id: string
-            level: string
-            level_order: number
-            sector: string
-            row_label: string
-            seat_number: string
-            x: number
-            y: number
-            seat_type: SeatType
-          }[]
-        >()
+      // Paged and count-checked: a plain select stops at 1000 rows, and the
+      // editor writes back exactly what it read — a short read here is the
+      // first half of deleting the rest of the hall.
+      const seats = await loadSeats(db, data.seatMapId)
       const { count: uses } = await db
         .from('event_seat_maps')
         .select('*', { count: 'exact', head: true })
@@ -524,7 +543,8 @@ export const getSeatMapFn = createServerFn({ method: 'GET' })
         layout: migrateLayout(map.layout),
         inUse: (uses ?? 0) > 0,
         readOnly,
-        seats: (seats ?? []).map((s) => ({
+        updatedAt: map.updated_at,
+        seats: seats.map((s) => ({
           id: s.id,
           level: s.level,
           levelOrder: s.level_order,
@@ -551,6 +571,12 @@ export const saveSeatMapInput = z.object({
   layout: z.unknown().default({}),
   seats: z.array(seatInput).max(50_000),
   externalRef: z.string().max(200).optional().nullable(),
+  /**
+   * The map's `updated_at` when the editor loaded it. Sent back untouched so
+   * save_seat_map() can refuse a write that would overwrite somebody else's.
+   * Absent for a new map, and for a caller that never read one.
+   */
+  updatedAt: z.string().optional().nullable(),
 })
 
 /** The editor's save payload, before defaults are applied. */
@@ -563,90 +589,22 @@ export const saveSeatMapFn = createServerFn({ method: 'POST' })
       const actor = await requireOrganizer()
       assertCanEdit(actor)
       await ownVenue(actor, data.venueId)
-      const db = serviceClient()
 
-      // Store a canonical v2 layout whatever the client sent: the migration is
-      // also the validator, so unknown fields never reach the jsonb column.
-      const layout = migrateLayout(data.layout)
-      const objectCount = layout.levels.reduce(
-        (n, lv) => n + lv.objects.length,
-        0,
-      )
-      if (objectCount > MAX_OBJECTS) {
-        throw new VenueError(`Mapa smie mať najviac ${MAX_OBJECTS} objektov.`)
+      // Everything that touches the map itself — pinning the map to this venue,
+      // the in-use check, deleting the old seats and inserting the new ones —
+      // happens inside save_seat_map(), in one transaction and under a row lock.
+      // Splitting it across statements from here is what used to leave a map
+      // half rewritten, and let two editors interleave.
+      try {
+        const saved = await writeSeatMap(serviceClient(), {
+          ...data,
+          expectedUpdatedAt: data.updatedAt,
+        })
+        return { id: saved.id }
+      } catch (e) {
+        if (e instanceof SeatMapWriteError) throw new VenueError(e.message)
+        throw e
       }
-
-      let mapId = data.seatMapId ?? null
-      if (mapId) {
-        // The client sends venueId and seatMapId separately, so pin them
-        // together here: without this an organizer could pass one of their own
-        // venues alongside somebody else's (or a library hall's) map id and
-        // overwrite it through the venue check they do pass.
-        const { data: owner } = await db
-          .from('seat_maps')
-          .select('venue_id')
-          .eq('id', mapId)
-          .maybeSingle<{ venue_id: string }>()
-        if (!owner || owner.venue_id !== data.venueId) {
-          throw new VenueError('Mapa sa nenašla.')
-        }
-        // Editing an existing map: block structural changes while it is assigned
-        // to an event (its event_seats would cascade away). Duplicate to edit.
-        const { count: uses } = await db
-          .from('event_seat_maps')
-          .select('*', { count: 'exact', head: true })
-          .eq('seat_map_id', mapId)
-        if ((uses ?? 0) > 0) {
-          throw new VenueError(
-            'Mapa sa používa v podujatí — vytvorte kópiu na úpravu.',
-          )
-        }
-        await db
-          .from('seat_maps')
-          .update({
-            name: data.name,
-            layout,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', mapId)
-        await db.from('seats').delete().eq('seat_map_id', mapId)
-      } else {
-        const { data: row, error } = await db
-          .from('seat_maps')
-          .insert({
-            venue_id: data.venueId,
-            name: data.name,
-            layout,
-            external_ref: data.externalRef || null,
-          })
-          .select('id')
-          .single<{ id: string }>()
-        if (error) throw new VenueError('Mapu sa nepodarilo uložiť.')
-        mapId = row.id
-      }
-
-      if (data.seats.length > 0) {
-        const rows = data.seats.map((s) => ({
-          seat_map_id: mapId,
-          level: s.level,
-          level_order: s.levelOrder,
-          sector: s.sector,
-          row_label: s.rowLabel,
-          seat_number: s.seatNumber,
-          x: s.x,
-          y: s.y,
-          seat_type: s.seatType,
-          external_ref: s.externalRef || null,
-        }))
-        // Chunked insert to stay within statement limits on large halls.
-        for (let i = 0; i < rows.length; i += 1000) {
-          const { error } = await db
-            .from('seats')
-            .insert(rows.slice(i, i + 1000))
-          if (error) throw new VenueError('Sedadlá sa nepodarilo uložiť.')
-        }
-      }
-      return { id: mapId }
     })
   })
 

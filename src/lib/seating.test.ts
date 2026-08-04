@@ -24,7 +24,10 @@ import {
   rotatePoint,
   rotatePoints,
   MAX_HIT_R,
+  MAX_SECTOR_NAME,
+  orderedLevels,
   seatHitRadius,
+  sectorNameError,
   sectorsOf,
   snap,
   SEAT_R,
@@ -654,5 +657,66 @@ describe('rendered seat metrics', () => {
     expect(zoomPercentOf(400, 800)).toBe(200)
     expect(zoomPercentOf(1600, 800)).toBe(50)
     expect(zoomPercentOf(0, 800)).toBe(100)
+  })
+})
+
+describe('sectorNameError', () => {
+  it('accepts a fresh name', () => {
+    expect(sectorNameError('Balkón', ['A', 'B'])).toBeNull()
+  })
+
+  it('rejects an empty name', () => {
+    expect(sectorNameError('   ', [])).toMatch(/Zadajte/)
+  })
+
+  it('rejects the standing-area namespace', () => {
+    // '#' prefixes area keys in event_sector_pricing; a sector called '#o1'
+    // would collide with the price of the standing area o1.
+    expect(sectorNameError('#o1', [])).toMatch(/#/)
+  })
+
+  it('rejects a name already used anywhere on the map', () => {
+    // Across levels on purpose: the pricing key has no level in it.
+    expect(sectorNameError('A', ['A'])).toMatch(/už existuje/)
+    expect(sectorNameError(' A ', ['A'])).toMatch(/už existuje/)
+  })
+
+  it('rejects a name longer than the column allows', () => {
+    expect(sectorNameError('x'.repeat(MAX_SECTOR_NAME), [])).toBeNull()
+    expect(sectorNameError('x'.repeat(MAX_SECTOR_NAME + 1), [])).toMatch(
+      /najviac/,
+    )
+  })
+})
+
+describe('orderedLevels', () => {
+  it('keeps the order the map was stored with', () => {
+    // Alphabetically this is balkón, parter — which is exactly the reordering
+    // that used to happen on every save.
+    const seed = { parter: 0, balkón: 1 }
+    expect(orderedLevels(['balkón', 'parter'], seed)).toEqual([
+      'parter',
+      'balkón',
+    ])
+  })
+
+  it('puts levels created in this session after the stored ones', () => {
+    const seed = { parter: 0, balkón: 1 }
+    expect(
+      orderedLevels(['lóža', 'balkón', 'parter', 'galéria'], seed),
+    ).toEqual(['parter', 'balkón', 'galéria', 'lóža'])
+  })
+
+  it('falls back to alphabetical without a stored order', () => {
+    expect(orderedLevels(['b', 'a', 'c'])).toEqual(['a', 'b', 'c'])
+  })
+
+  it('deduplicates', () => {
+    expect(orderedLevels(['a', 'a', 'b'])).toEqual(['a', 'b'])
+  })
+
+  it('is stable when levels share a stored order', () => {
+    const seed = { x: 0, y: 0 }
+    expect(orderedLevels(['y', 'x'], seed)).toEqual(['x', 'y'])
   })
 })

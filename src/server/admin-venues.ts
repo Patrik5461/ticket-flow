@@ -23,16 +23,19 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
-import { requirePlatformAdmin, runAdmin, writeAuditLog, AdminError } from './admin'
-import { migrateLayout } from '../lib/seating'
 import {
-  AUDIT_ACTION_LABEL,
-  summarizeAuditChange,
-} from '../lib/audit-summary'
+  requirePlatformAdmin,
+  runAdmin,
+  writeAuditLog,
+  AdminError,
+} from './admin'
+import { migrateLayout } from '../lib/seating'
+import { AUDIT_ACTION_LABEL, summarizeAuditChange } from '../lib/audit-summary'
 import { filterVenues, isLibraryVenue } from '../lib/venue-library'
-import { saveSeatMapInput, MAX_OBJECTS } from './venues'
+import { saveSeatMapInput } from './venues'
+import { readAllSeats } from './db-paging'
+import { writeSeatMap, SeatMapWriteError } from './seat-map-write'
 import type { SeatMapDetail } from './venues'
-import type { SeatType } from '../lib/seating'
 
 /**
  * Halls shown at once. Counting seats costs one query per map, so the page is
@@ -88,7 +91,10 @@ async function libraryVenue(venueId: string): Promise<{
     }>()
   if (
     !data ||
-    !isLibraryVenue({ organizerId: data.organizer_id, isPublic: data.is_public })
+    !isLibraryVenue({
+      organizerId: data.organizer_id,
+      isPublic: data.is_public,
+    })
   ) {
     throw new AdminError('Hala sa nenašla v knižnici.')
   }
@@ -131,15 +137,24 @@ async function lockFromImport(
 }
 
 /** The map's hall, checked the same way — and the map's own in-use count. */
-async function libraryMap(
-  seatMapId: string,
-): Promise<{ id: string; venueId: string; name: string; uses: number }> {
+async function libraryMap(seatMapId: string): Promise<{
+  id: string
+  venueId: string
+  name: string
+  uses: number
+  updatedAt: string
+}> {
   const db = serviceClient()
   const { data: map } = await db
     .from('seat_maps')
-    .select('id, venue_id, name')
+    .select('id, venue_id, name, updated_at')
     .eq('id', seatMapId)
-    .maybeSingle<{ id: string; venue_id: string; name: string }>()
+    .maybeSingle<{
+      id: string
+      venue_id: string
+      name: string
+      updated_at: string
+    }>()
   if (!map) throw new AdminError('Mapa sa nenašla.')
   await libraryVenue(map.venue_id)
   const { count } = await db
@@ -151,6 +166,22 @@ async function libraryMap(
     venueId: map.venue_id,
     name: map.name,
     uses: count ?? 0,
+    updatedAt: map.updated_at,
+  }
+}
+
+/**
+ * Every seat of a map, or an error the admin can read. Truncation is the thing
+ * being guarded against: the editor writes back exactly what it loaded, so a
+ * hall read short would be a hall saved short (see db-paging.ts).
+ */
+async function loadSeats(seatMapId: string) {
+  try {
+    return await readAllSeats(serviceClient(), seatMapId)
+  } catch (e) {
+    throw new AdminError(
+      e instanceof Error ? e.message : 'Sedadlá sa nepodarilo načítať.',
+    )
   }
 }
 
@@ -307,7 +338,10 @@ export const adminGetVenueFn = createServerFn({ method: 'GET' })
           id: m.id,
           name: m.name,
           seatCount: seatCount ?? 0,
-          objectCount: layout.levels.reduce((n, lv) => n + lv.objects.length, 0),
+          objectCount: layout.levels.reduce(
+            (n, lv) => n + lv.objects.length,
+            0,
+          ),
           inUse: (uses ?? 0) > 0,
           importLockedAt: m.import_locked_at,
         })
@@ -338,27 +372,11 @@ export const adminGetSeatMapFn = createServerFn({ method: 'GET' })
         .select('layout')
         .eq('id', map.id)
         .maybeSingle<{ layout: unknown }>()
-      const { data: seats } = await db
-        .from('seats')
-        .select(
-          'id, level, level_order, sector, row_label, seat_number, x, y, seat_type',
-        )
-        .eq('seat_map_id', map.id)
-        .order('id', { ascending: true })
-        .limit(50_000)
-        .returns<
-          {
-            id: string
-            level: string
-            level_order: number
-            sector: string
-            row_label: string
-            seat_number: string
-            x: number
-            y: number
-            seat_type: SeatType
-          }[]
-        >()
+      // `.limit(50_000)` used to stand here and read like a safety margin; it is
+      // not one. PostgREST caps the response at 1000 rows whatever the limit
+      // says, so the biggest halls in the library came back as their first 1000
+      // seats — and saving then deleted the other ten thousand.
+      const seats = await loadSeats(map.id)
       return {
         id: map.id,
         venueId: map.venueId,
@@ -368,7 +386,8 @@ export const adminGetSeatMapFn = createServerFn({ method: 'GET' })
         // The admin IS the maintainer, so the editor opens unlocked — unless
         // the map is in use, which `inUse` already locks for everyone.
         readOnly: false,
-        seats: (seats ?? []).map((s) => ({
+        updatedAt: map.updatedAt,
+        seats: seats.map((s) => ({
           id: s.id,
           level: s.level,
           levelOrder: s.level_order,
@@ -400,21 +419,12 @@ export const adminSaveSeatMapFn = createServerFn({ method: 'POST' })
       await libraryVenue(data.venueId)
       const db = serviceClient()
 
-      const layout = migrateLayout(data.layout)
-      const objectCount = layout.levels.reduce(
-        (n, lv) => n + lv.objects.length,
-        0,
-      )
-      if (objectCount > MAX_OBJECTS) {
-        throw new AdminError(`Mapa smie mať najviac ${MAX_OBJECTS} objektov.`)
-      }
-
-      let mapId = data.seatMapId ?? null
+      // What the hall looked like before, for the audit trail. Read ahead of
+      // the write because afterwards it is gone — and the seat count is the
+      // number that makes a bad save recognisable later.
       let before: { name: string; seats: number } | null = null
-      if (mapId) {
-        const map = await libraryMap(mapId)
-        // venueId and seatMapId arrive separately; pin them together so a map
-        // cannot be written through a different hall's id.
+      if (data.seatMapId) {
+        const map = await libraryMap(data.seatMapId)
         if (map.venueId !== data.venueId) {
           throw new AdminError('Mapa nepatrí k tejto hale.')
         }
@@ -422,57 +432,24 @@ export const adminSaveSeatMapFn = createServerFn({ method: 'POST' })
         const { count } = await db
           .from('seats')
           .select('*', { count: 'exact', head: true })
-          .eq('seat_map_id', mapId)
+          .eq('seat_map_id', data.seatMapId)
         before = { name: map.name, seats: count ?? 0 }
-        const { error } = await db
-          .from('seat_maps')
-          .update({
-            name: data.name,
-            layout,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', mapId)
-        if (error) throw new AdminError('Mapu sa nepodarilo uložiť.')
-        const { error: delErr } = await db
-          .from('seats')
-          .delete()
-          .eq('seat_map_id', mapId)
-        if (delErr) throw new AdminError('Staré sedadlá sa nepodarilo zmazať.')
-      } else {
-        const { data: row, error } = await db
-          .from('seat_maps')
-          .insert({
-            venue_id: data.venueId,
-            name: data.name,
-            layout,
-            external_ref: data.externalRef || null,
-          })
-          .select('id')
-          .single<{ id: string }>()
-        if (error || !row) throw new AdminError('Mapu sa nepodarilo vytvoriť.')
-        mapId = row.id
       }
 
-      if (data.seats.length > 0) {
-        const rows = data.seats.map((s) => ({
-          seat_map_id: mapId,
-          level: s.level,
-          level_order: s.levelOrder,
-          sector: s.sector,
-          row_label: s.rowLabel,
-          seat_number: s.seatNumber,
-          x: s.x,
-          y: s.y,
-          seat_type: s.seatType,
-          external_ref: s.externalRef || null,
-        }))
-        for (let i = 0; i < rows.length; i += 1000) {
-          const { error } = await db
-            .from('seats')
-            .insert(rows.slice(i, i + 1000))
-          if (error) throw new AdminError('Sedadlá sa nepodarilo uložiť.')
-        }
+      // One transaction, one row lock, the in-use check inside it — the same
+      // write the organizer side performs (see seat-map-write.ts). The checks
+      // above are the fast path with the better message, not the guarantee.
+      let saved
+      try {
+        saved = await writeSeatMap(db, {
+          ...data,
+          expectedUpdatedAt: data.updatedAt,
+        })
+      } catch (e) {
+        if (e instanceof SeatMapWriteError) throw new AdminError(e.message)
+        throw e
       }
+      const mapId = saved.id
 
       await lockFromImport(data.venueId, mapId)
       await writeAuditLog({
@@ -483,8 +460,8 @@ export const adminSaveSeatMapFn = createServerFn({ method: 'POST' })
         oldValue: before,
         newValue: {
           name: data.name,
-          seats: data.seats.length,
-          objects: objectCount,
+          seats: saved.seatCount,
+          objects: saved.objectCount,
         },
       })
       return { id: mapId }
@@ -577,13 +554,14 @@ export interface AdminVenueHistoryEntry {
 export const adminVenueHistoryFn = createServerFn({ method: 'GET' })
   .validator((d: unknown) =>
     z
-      .object({ id: z.string().uuid(), limit: z.number().int().min(1).max(200).default(50) })
+      .object({
+        id: z.string().uuid(),
+        limit: z.number().int().min(1).max(200).default(50),
+      })
       .parse(d),
   )
   .handler(
-    async ({
-      data,
-    }): Promise<AdminVenueHistoryEntry[] | { error: string }> => {
+    async ({ data }): Promise<AdminVenueHistoryEntry[] | { error: string }> => {
       return runAdmin(async () => {
         await requirePlatformAdmin()
         await libraryVenue(data.id)
@@ -599,7 +577,9 @@ export const adminVenueHistoryFn = createServerFn({ method: 'GET' })
         const ids = [data.id, ...(maps ?? []).map((m) => m.id)]
         const { data: rows } = await db
           .from('audit_log')
-          .select('id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at')
+          .select(
+            'id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at',
+          )
           .in('entity_id', ids)
           .order('created_at', { ascending: false })
           .limit(data.limit)

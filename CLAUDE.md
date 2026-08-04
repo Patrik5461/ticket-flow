@@ -31,6 +31,8 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 
 - **Ticketio je cloud projekt `upymwphlrkxcegnyslky`** (`SUPABASE_URL` v `~/ticketio-secrets.env`). Overuj ref, nie meno.
 - **Pripojený MCP server `claude.ai Supabase ticketio` mieri na `upymwphlrkxcegnyslky`, teda na Ticketio** (overené 2026-08-03 cez `get_project_url`). Je to connector z claude.ai účtu (nie `.mcp.json`, nie `mcpServers` v `~/.claude.json`), takže sa dedí do každej session bez ohľadu na adresár — a rovnako sa môže bez varovania prepnúť inam: do 2026-08-03 mieril na `tmssxnluhjhzqmutflbl`, čo je Tendrik, CUDZÍ projekt. **Meno servera nie je dôkaz, ref áno.** Preto pred prvým dotazom v session vždy `get_project_url`; ak nevráti `upymwphlrkxcegnyslky`, MCP nepoužiť. `execute_sql` aj `apply_migration` idú naostro do toho projektu, ktorý connector práve drží — bez potvrdenia a bez stagingu.
+- **PostgREST vracia najviac 1000 riadkov na odpoveď** (`db-max-rows`) a nepovie to — `limit(50000)` cap nezdvihne, len vyzerá, že áno. Krátka stránka **neznamená** koniec dát. Každé čítanie, ktoré môže presiahnuť 1000 riadkov (`seats`, `event_seats`), musí ísť cez `readAllRows`/`readAllSeats` v `src/server/db-paging.ts`: posúva sa podľa skutočne prijatých riadkov, končí na **prázdnej** stránke a pri sedadlách sa porovná s `count=exact`. Takto sa v editore máp stratilo 10 604 z 11 604 sedadiel arény (načítalo sa 1000, uloženie prepísalo zvyšok) — a rovnako sa predávala len tisícka miest z veľkej haly.
+- **Sedadlá mapy prepisuje výhradne `save_seat_map()`** (migrácia `20260804110000`): jedna transakcia, `for update` zámok na `seat_maps`, kontrola „mapa sa používa v podujatí" a optimistický zámok cez `updated_at`. Cez PostgREST je každý príkaz vlastná transakcia, takže „zmaž sedadlá + vlož nové po 1000" sa dalo prerušiť v polovici. Funkcia je `service_role only`; autorizáciu (čí je hala, či je volajúci admin) robí ďalej `src/server/venues.ts` a `admin-venues.ts`.
 - Ticketio DB sa sonduje **service-role kľúčom cez PostgREST**: `node --env-file=~/ticketio-secrets.env <skript>` a `fetch(`${SUPABASE_URL}/rest/v1/…`)` s hlavičkami `apikey` + `Authorization: Bearer`. Service role obchádza RLS aj granty, takže vidí aj server-only tabuľky (`app_settings`, `email_jobs`).
 - Čo takto **nevidno**: PostgREST vystavuje len schémy `public` a `graphql_public` (`PGRST106 — Invalid schema` na čokoľvek iné). Cez REST teda neuvidíš:
   - schému `cron` — existenciu pg_cron jobov sa overiť nedá, len nepriamo z toho, že migrácia prebehla celá;
@@ -90,6 +92,7 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
   - archív `~/maxiticket-export-hall.zip` (3,8 MB).
 
   V čistom klone teda import spustiť **nejde**, aj keď to tak z repa vyzerá. Ak by tieto dáta z VM zmizli, knižnica sa nedá postaviť nanovo — inde záloha nie je.
+
 - Cesta k exportu je povinný argument, žiadny default:
   ```bash
   cd ~/ticketio
@@ -167,6 +170,7 @@ Host ticketio
 **Kde:** repo v `~/ticketio` (nie `/opt/...`), build v `.output/`, beží pod PM2 ako proces `ticketio` (fork mód), Nitro počúva na `127.0.0.1:3000` za HAProxy/OPNsense SNI routingom na ticketio.sk. Secrets v `~/ticketio-secrets.env`, PM2 ecosystem v `~/ecosystem.config.cjs` (obe NIE v repe).
 
 **Deploy z VM (keď už na nej bežíš — bez SSH):**
+
 ```bash
 cd ~/ticketio &&
   git remote -v &&                                   # musí byť ticket-flow.git; ak nie, STOP
@@ -179,7 +183,9 @@ cd ~/ticketio &&
   npm run verify:client-env &&
   pm2 restart ticketio --update-env && pm2 save
 ```
+
 > **`npm run build` na VM = výpadok, kým nereštartuješ PM2.** Build prepíše `.output/`, ale bežiaci proces má v pamäti starý server, ktorý v SSR HTML odkazuje na staré asset hashe — a tie build práve zmazal. Verejná stránka vracia 500 na entry chunk až do `pm2 restart`. Preto:
+>
 > - **Nikdy nebuilduj na VM „len na overenie".** Na overenie zmien stačí `npx tsc --noEmit` a `npx vitest run` — tie `.output/` nechajú na pokoji.
 > - Ak build musíš spustiť, počítaj s tým, že si sa zaviazal hneď aj reštartovať. Build + `pm2 restart` patria k sebe ako jeden krok.
 > - Ak buildeš z rozrobeného working tree, nasadzuješ tým necommitnutý kód. Buď to commitni a pushni, alebo sa vráť na `main`, prebuilduj a reštartuj.
@@ -187,6 +193,7 @@ cd ~/ticketio &&
 **Rollback na poslednú nasadenú verziu:** `git checkout main && NODE_OPTIONS="--max-old-space-size=4096" npm run build && pm2 restart ticketio --update-env`. Staré `.output/` sa nedá obnoviť — jediná cesta späť je prebuild z gitu.
 
 **Manuálny deploy (z lokálneho stroja, keď webhook nestačí):**
+
 ```bash
 ssh ticketio 'cd ~/ticketio &&
   git remote -v &&                                   # musí byť ticket-flow.git; ak nie, STOP
@@ -201,6 +208,7 @@ ssh ticketio 'cd ~/ticketio &&
 ```
 
 **Over po deployi:**
+
 - `curl -s http://127.0.0.1:3000/api/health` (z VM; inak cez `ssh ticketio '…'`) → `{"status":"ok","db":true}` — localhost je spoľahlivejší než verejná URL zvnútra VM.
 - Zmenený entry asset hash: `curl -s https://ticketio.sk/ | grep -aoE '/assets/index-[^"]+\.js'` — po úspešnom builde sa musí líšiť od predošlého.
 - Migrácie Supabase aplikuj samostatne (nie sú súčasťou VM buildu) — DB je cloud Supabase; RPC/tabuľky over service-role probe, nie len z migračných súborov.

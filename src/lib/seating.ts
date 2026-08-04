@@ -57,13 +57,7 @@ export interface SectorShape {
  * `area` on the way through — which would turn a wall into sellable floor.
  */
 export type MapObjectKind =
-  | 'stage'
-  | 'area'
-  | 'wall'
-  | 'door'
-  | 'text'
-  | 'icon'
-  | 'shape'
+  'stage' | 'area' | 'wall' | 'door' | 'text' | 'icon' | 'shape'
 
 const MAP_OBJECT_KINDS = new Set<string>([
   'stage',
@@ -347,6 +341,54 @@ export function respaceSector<T extends GeneratedSeat>(
 /** Distinct sectors present in a set of seats (for sector→price mapping). */
 export function sectorsOf(seats: { sector: string }[]): string[] {
   return [...new Set(seats.map((s) => s.sector))].sort()
+}
+
+/** Longest a sector name may be — matches the `seats.sector` column limit. */
+export const MAX_SECTOR_NAME = 60
+
+/**
+ * Why this sector name cannot be used, or null when it can.
+ *
+ * `existing` is every sector on the MAP, not just the level being edited: a
+ * price is mapped to a sector by name in event_sector_pricing, with no level in
+ * the key, so two sectors sharing a name would share a price and a capacity
+ * count. The DB constraint is per level and would allow it; the pricing model
+ * is what does not.
+ */
+export function sectorNameError(
+  name: string,
+  existing: Iterable<string>,
+): string | null {
+  const sector = name.trim()
+  if (!sector) return 'Zadajte názov sektora.'
+  if (sector.startsWith(AREA_KEY_PREFIX)) {
+    return 'Názov sektora nesmie začínať znakom „#".'
+  }
+  if (sector.length > MAX_SECTOR_NAME) {
+    return `Názov sektora smie mať najviac ${MAX_SECTOR_NAME} znakov.`
+  }
+  for (const taken of existing) {
+    if (taken === sector) return `Sektor „${sector}" už existuje.`
+  }
+  return null
+}
+
+/**
+ * Level keys in display order: the order they were stored with first, then
+ * anything new, alphabetically.
+ *
+ * `seed` is level → its stored `level_order`. Without it the editor sorted
+ * levels by name and wrote that back as the order, so saving a map could put
+ * the balcony before the stalls in the buyer's floor tabs.
+ */
+export function orderedLevels(
+  present: Iterable<string>,
+  seed: Record<string, number> = {},
+): string[] {
+  const at = (key: string) => seed[key] ?? Number.MAX_SAFE_INTEGER
+  return [...new Set(present)].sort(
+    (a, b) => at(a) - at(b) || a.localeCompare(b),
+  )
 }
 
 // ---------------------------------------------------------------------------

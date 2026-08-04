@@ -11,12 +11,13 @@
  * objects is shared with the buyer's picker via MapObjectShape.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   GRID_SIZE,
   LAYOUT_VERSION,
   angleFromCenter,
-  areaPricingKey,
+  orderedLevels,
+  sectorNameError,
   centroid,
   generateSeats,
   migrateLayout,
@@ -57,9 +58,9 @@ import type { SeatMapDetail, SaveSeatMapInput } from '../server/venues'
  * functions: the organizer's own-venue ones, or the admin's library ones.
  */
 export interface SeatMapEditorApi {
-  get(seatMapId: string): Promise<SeatMapDetail | { error: string }>
-  save(input: SaveSeatMapInput): Promise<{ id: string } | { error: string }>
-  remove(seatMapId: string): Promise<{ ok: true } | { error: string }>
+  get: (seatMapId: string) => Promise<SeatMapDetail | { error: string }>
+  save: (input: SaveSeatMapInput) => Promise<{ id: string } | { error: string }>
+  remove: (seatMapId: string) => Promise<{ ok: true } | { error: string }>
 }
 
 // A working seat carries a client id so we can move/delete before saving.
@@ -133,6 +134,26 @@ export function SeatMapEditor({
   const [sel, setSel] = useState<Selection>(null)
   const [snapOn, setSnapOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * An existing map is only editable once it has actually arrived. Saving what
+   * a failed load left behind would write an empty map over a real one — the
+   * editor always writes the whole map, so "nothing loaded" means "delete
+   * everything".
+   */
+  const [loaded, setLoaded] = useState(seatMapId === null)
+  /** True once anything has been changed, for the leave-without-saving guard. */
+  const [dirty, setDirty] = useState(false)
+  /**
+   * The map's updated_at at load time, sent back on save so the server can
+   * refuse to overwrite somebody else's newer version.
+   */
+  const [version, setVersion] = useState<string | null>(null)
+  /**
+   * level → its stored order, as loaded. Levels keep the order the map was
+   * saved with instead of being re-sorted alphabetically on every save, which
+   * used to shuffle the buyer's floor tabs (parter/balkón).
+   */
+  const [levelSeed, setLevelSeed] = useState<Record<string, number>>({})
   // The canvas owns the viewport; new objects are dropped where the user is
   // actually looking, so this mirrors it without re-rendering the editor.
   const viewRef = useRef<Viewport | null>(null)
@@ -154,11 +175,15 @@ export function SeatMapEditor({
       redo: history.current.future.length,
     })
 
+  // Every mutation in this component goes through checkpoint() first, which
+  // makes it the one honest place to notice that the map now differs from what
+  // was loaded.
   const checkpoint = useCallback(() => {
     const h = history.current
     h.past.push(docRef.current)
     if (h.past.length > HISTORY_LIMIT) h.past.shift()
     h.future = []
+    setDirty(true)
     syncHist()
   }, [])
 
@@ -242,47 +267,78 @@ export function SeatMapEditor({
       setName('Nová mapa')
       return
     }
-    void api.get(seatMapId).then((res) => {
-      if ('error' in res) return setError(res.error)
-      setName(res.name)
-      setInUse(res.inUse)
-      setSeats(
-        res.seats.map((s) => ({
-          cid: nextCid(),
-          level: s.level,
-          sector: s.sector,
-          row_label: s.rowLabel,
-          seat_number: s.seatNumber,
-          x: s.x,
-          y: s.y,
-          seat_type: s.seatType,
-        })),
-      )
-      // Older maps carry no objects at all — the migration fills them in.
-      const layout = migrateLayout(res.layout)
-      setObjects(
-        layout.levels.flatMap((lv) =>
-          lv.objects.map((o) => ({ ...o, level: lv.key })),
+    void api
+      .get(seatMapId)
+      .then((res) => {
+        if ('error' in res) return setError(res.error)
+        setName(res.name)
+        setInUse(res.inUse)
+        setVersion(res.updatedAt)
+        setSeats(
+          res.seats.map((s) => ({
+            cid: nextCid(),
+            level: s.level,
+            sector: s.sector,
+            row_label: s.rowLabel,
+            seat_number: s.seatNumber,
+            x: s.x,
+            y: s.y,
+            seat_type: s.seatType,
+          })),
+        )
+        // Older maps carry no objects at all — the migration fills them in.
+        const layout = migrateLayout(res.layout)
+        setObjects(
+          layout.levels.flatMap((lv) =>
+            lv.objects.map((o) => ({ ...o, level: lv.key })),
+          ),
+        )
+        // Remember the stored order of every level so a save preserves it.
+        const seed: Record<string, number> = {}
+        for (const lv of layout.levels) seed[lv.key] = lv.order
+        for (const s of res.seats)
+          if (!(s.level in seed)) seed[s.level] = s.levelOrder
+        setLevelSeed(seed)
+        const first = res.seats[0]?.level ?? layout.levels[0]?.key
+        if (first) setLevel(first)
+        resetHistory()
+        setDirty(false)
+        setLoaded(true)
+      })
+      .catch((e: unknown) =>
+        setError(
+          `Mapu sa nepodarilo načítať: ${
+            e instanceof Error ? e.message : 'neznáma chyba'
+          }`,
         ),
       )
-      const first = res.seats[0]?.level ?? layout.levels[0]?.key
-      if (first) setLevel(first)
-      resetHistory()
-    })
   }, [seatMapId])
 
-  const levels = useMemo(() => {
-    const set = new Set(seats.map((s) => s.level))
-    for (const o of objects) set.add(o.level)
-    set.add(level)
-    return [...set].sort()
-  }, [seats, objects, level])
+  // Known levels keep their stored order; levels created in this session sort
+  // after them by name.
+  const levels = useMemo(
+    () =>
+      orderedLevels(
+        [...seats.map((s) => s.level), ...objects.map((o) => o.level), level],
+        levelSeed,
+      ),
+    [seats, objects, level, levelSeed],
+  )
 
-  const levelSeats = seats.filter((s) => s.level === level)
-  const levelObjects = objects.filter((o) => o.level === level)
+  // Memoized so the canvas can memoize below it: a fresh array every render
+  // would make every sector group look changed and undo the whole point.
+  const levelSeats = useMemo(
+    () => seats.filter((s) => s.level === level),
+    [seats, level],
+  )
+  const levelObjects = useMemo(
+    () => objects.filter((o) => o.level === level),
+    [objects, level],
+  )
   // One gate for every mutation in this component — the tool panels, the canvas
-  // drag handlers and the Delete key all key off it.
-  const editable = !preview && !inUse && !readOnly
+  // drag handlers and the Delete key all key off it. `loaded` belongs here: an
+  // editor showing a map that never arrived must not be able to write one.
+  const editable = !preview && !inUse && !readOnly && loaded
 
   const selSector = sel?.kind === 'sector' ? sel.sector : null
   const selObject =
@@ -404,6 +460,31 @@ export function SeatMapEditor({
     setSeats((prev) => prev.map((s) => relaid.get(s.cid) ?? s))
   }
 
+  /**
+   * Rename a sector on this level. Returns the reason it was refused, or null.
+   *
+   * The name is checked against every sector on the map, not just this level's:
+   * event_sector_pricing keys a price by sector NAME alone, so two sectors
+   * sharing one would silently share a price and a capacity count.
+   */
+  const renameSector = (from: string, to: string): string | null => {
+    const next = to.trim()
+    if (!next || next === from) return null
+    const problem = sectorNameError(
+      next,
+      seats.map((s) => s.sector),
+    )
+    if (problem) return problem
+    checkpoint()
+    setSeats((prev) =>
+      prev.map((s) =>
+        s.level === level && s.sector === from ? { ...s, sector: next } : s,
+      ),
+    )
+    setSel({ kind: 'sector', sector: next })
+    return null
+  }
+
   const deleteSector = (sector: string) => {
     const n = sectorSeats(sector).length
     if (!confirm(`Zmazať sektor „${sector}" a jeho ${n} sedadiel?`)) return
@@ -416,6 +497,21 @@ export function SeatMapEditor({
 
   deleteSectorRef.current = deleteSector
   deleteObjectRef.current = deleteObject
+
+  // A map is minutes to hours of work and lives only in this component until it
+  // is saved, so a reload or a closed tab has to ask first.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  const close = () => {
+    if (dirty && !confirm('Máte neuložené zmeny. Naozaj zavrieť bez uloženia?'))
+      return
+    onClose()
+  }
 
   const save = async () => {
     setSaving(true)
@@ -438,7 +534,10 @@ export function SeatMapEditor({
       seatMapId,
       venueId,
       name: name.trim() || 'Mapa',
-      layout: buildLayout(seats, objects),
+      // Sent back exactly as loaded: the server refuses the write if the map
+      // has been saved by somebody else in the meantime.
+      updatedAt: version,
+      layout: buildLayout(seats, objects, levels),
       seats: seats.map((s) => ({
         level: s.level,
         levelOrder: levels.indexOf(s.level),
@@ -469,7 +568,10 @@ export function SeatMapEditor({
         ) : (
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value)
+              setDirty(true)
+            }}
             className="rounded-md border px-3 py-2 text-lg font-semibold"
           />
         )}
@@ -502,7 +604,7 @@ export function SeatMapEditor({
           >
             {preview ? 'Editor' : 'Náhľad kupujúceho'}
           </button>
-          {seatMapId && !inUse && !readOnly && (
+          {seatMapId && !inUse && !readOnly && loaded && (
             <button
               onClick={removeMap}
               className="rounded-md border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -513,15 +615,21 @@ export function SeatMapEditor({
           {!readOnly && (
             <button
               onClick={save}
-              disabled={saving || inUse}
+              disabled={saving || inUse || !loaded}
               className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-              title={inUse ? 'Mapa sa používa v podujatí' : ''}
+              title={
+                inUse
+                  ? 'Mapa sa používa v podujatí'
+                  : !loaded
+                    ? 'Mapa sa ešte nenačítala'
+                    : ''
+              }
             >
               {saving ? 'Ukladám…' : 'Uložiť'}
             </button>
           )}
           <button
-            onClick={onClose}
+            onClick={close}
             className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
           >
             Zavrieť
@@ -535,20 +643,18 @@ export function SeatMapEditor({
         </p>
       )}
 
-      {readOnly ? (
-        readOnlyNote && (
-          <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
-            {readOnlyNote}
-          </p>
-        )
-      ) : (
-        inUse && (
-          <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-            {inUseNote ??
-              'Mapa sa používa v podujatí — štruktúru nemožno meniť. Vytvorte kópiu.'}
-          </p>
-        )
-      )}
+      {readOnly
+        ? readOnlyNote && (
+            <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+              {readOnlyNote}
+            </p>
+          )
+        : inUse && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+              {inUseNote ??
+                'Mapa sa používa v podujatí — štruktúru nemožno meniť. Vytvorte kópiu.'}
+            </p>
+          )}
 
       {/* Level tabs */}
       <div className="flex flex-wrap gap-2">
@@ -582,6 +688,10 @@ export function SeatMapEditor({
                 ...levelObjects.map((o) => o.y + o.height),
               ) + 40
             }
+            // Across every level on purpose, though the DB constraint is
+            // per level: a price is mapped to a sector by NAME in
+            // event_sector_pricing, so two sectors called "A" on different
+            // floors would share one price and one capacity count.
             existingSectors={[...new Set(seats.map((s) => s.sector))]}
             onAdd={(gen) => {
               checkpoint()
@@ -643,8 +753,10 @@ export function SeatMapEditor({
 
       {editable && selSector && (
         <SectorTools
+          key={selSector}
           sector={selSector}
           seatCount={sectorSeats(selSector).length}
+          onRename={(to) => renameSector(selSector, to)}
           onDelete={() => deleteSector(selSector)}
           onDuplicate={() => duplicateSector(selSector)}
           onRotate={(deg) => rotateSector(selSector, deg)}
@@ -701,13 +813,10 @@ function AddSectorForm({
   const add = () => {
     const sec = sector.trim()
     if (!sec) return
-    // '#' is the namespace the event bridge uses for standing areas.
-    if (sec.startsWith(areaPricingKey(''))) {
-      return setWarn('Názov sektora nesmie začínať znakom „#".')
-    }
-    if (existingSectors.includes(sec)) {
-      return setWarn(`Sektor „${sec}" už existuje.`)
-    }
+    // Same rules as the rename, from one definition: '#' is the namespace the
+    // event bridge uses for standing areas, and names are unique per map.
+    const problem = sectorNameError(sec, existingSectors)
+    if (problem) return setWarn(problem)
     setWarn(null)
     const gen = generateSeats({
       level,
@@ -880,6 +989,7 @@ function ToolButton({
 function SectorTools({
   sector,
   seatCount,
+  onRename,
   onDelete,
   onDuplicate,
   onRotate,
@@ -888,6 +998,8 @@ function SectorTools({
 }: {
   sector: string
   seatCount: number
+  /** Returns the reason the rename was refused, or null when it went through. */
+  onRename: (to: string) => string | null
   onDelete: () => void
   onDuplicate: () => void
   onRotate: (deg: number) => void
@@ -898,16 +1010,30 @@ function SectorTools({
   const [seatGap, setSeatGap] = useState(String(DEFAULT_SEAT_GAP))
   const [rowGap, setRowGap] = useState(String(DEFAULT_ROW_GAP))
   const [curve, setCurve] = useState('0')
+  const [draftName, setDraftName] = useState(sector)
+  const [renameWarn, setRenameWarn] = useState<string | null>(null)
+
+  const rename = () => setRenameWarn(onRename(draftName))
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
-      <span className="font-medium">
-        Sektor {sector}{' '}
+      <label className="font-medium">
+        Sektor{' '}
+        <input
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onBlur={rename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') rename()
+            if (e.key === 'Escape') setDraftName(sector)
+          }}
+          title="Premenovať sektor"
+          className="w-28 rounded border px-2 py-1 font-medium"
+        />{' '}
         <span className="text-xs font-normal text-gray-500">
           ({seatCount} sedadiel)
         </span>
-        :
-      </span>
+      </label>
       {(['standard', 'wheelchair', 'blocked'] as const).map((t) => (
         <ToolButton key={t} onClick={() => onType(t)}>
           {t === 'standard'
@@ -931,6 +1057,9 @@ function SectorTools({
       <ToolButton onClick={onDelete} danger>
         Zmazať sektor
       </ToolButton>
+      {renameWarn && (
+        <p className="w-full text-xs text-red-600">{renameWarn}</p>
+      )}
       {open && (
         <div className="flex w-full flex-wrap items-end gap-2 border-t pt-2">
           <SpacingFields
@@ -1120,6 +1249,24 @@ function Canvas({
   objectsRef.current = objects
   const gridRef = useRef(grid)
   gridRef.current = grid
+  /** The sector being dragged and how far, until the drag is committed. */
+  const [drag, setDrag] = useState<{
+    sector: string
+    dx: number
+    dy: number
+  } | null>(null)
+
+  // Seats are drawn one <g> per sector so a drag can move the whole group with
+  // a transform, and so React skips the sectors whose props did not change.
+  const bySector = useMemo(() => {
+    const groups = new Map<string, WorkSeat[]>()
+    for (const s of seats) {
+      const arr = groups.get(s.sector)
+      if (arr) arr.push(s)
+      else groups.set(s.sector, [s])
+    }
+    return [...groups.entries()]
+  }, [seats])
 
   useEffect(() => {
     viewRef.current = view
@@ -1135,12 +1282,23 @@ function Canvas({
     onGestureStart?.()
   }
 
-  const color = (s: WorkSeat) =>
-    preview
-      ? s.seat_type === 'blocked'
-        ? '#9ca3af'
-        : '#22c55e'
-      : SEAT_COLORS[s.seat_type]
+  // Stable identity, so React.memo can skip the sector groups that did not
+  // change: an inline handler would differ on every render and defeat it.
+  const seatDownRef = useRef<(e: React.PointerEvent, sector: string) => void>(
+    () => {},
+  )
+  seatDownRef.current = (e, sector) => {
+    if (vp.otherPointerDown()) return // pinch starting
+    if (vp.spaceRef.current || e.button === 1) return vp.startPan(e)
+    onSelect({ kind: 'sector', sector })
+    if (!onMoveSector) return
+    edited.current = false
+    dragSector(e, sector)
+  }
+  const onSeatDown = useCallback(
+    (e: React.PointerEvent, sector: string) => seatDownRef.current(e, sector),
+    [],
+  )
 
   const grabbing = vp.space || vp.panning
   const editing = !!onPatchObject
@@ -1151,25 +1309,38 @@ function Canvas({
   const hs = view.w / 90
   const zoomPercent = zoomPercentOf(view.w, vp.pxWidth)
 
-  /** Drag a sector: measure from the press so snapping cannot eat small moves. */
+  /**
+   * Drag a sector: measure from the press so snapping cannot eat small moves.
+   *
+   * The drag only moves the sector's <g> by a transform; the seats themselves
+   * are rewritten once, on release. Rewriting them per pointermove meant a new
+   * array of every seat on the map on every frame — on an 11 604-seat arena
+   * that is a stall per mouse move, and the sectors that are not being dragged
+   * were re-rendered too.
+   */
   const dragSector = (e: React.PointerEvent, sector: string) => {
     const startX = e.clientX
     const startY = e.clientY
-    let appliedX = 0
-    let appliedY = 0
-    vp.claim(e, (ev) => {
-      const g = gridRef.current
-      const upp = vp.unitsPerPixel()
-      const wantX = snap((ev.clientX - startX) * upp, g)
-      const wantY = snap((ev.clientY - startY) * upp, g)
-      const dx = wantX - appliedX
-      const dy = wantY - appliedY
-      if (dx === 0 && dy === 0) return
-      beginEdit()
-      appliedX = wantX
-      appliedY = wantY
-      onMoveSector?.(sector, dx, dy)
-    })
+    let dx = 0
+    let dy = 0
+    vp.claim(
+      e,
+      (ev) => {
+        const g = gridRef.current
+        const upp = vp.unitsPerPixel()
+        const nextX = snap((ev.clientX - startX) * upp, g)
+        const nextY = snap((ev.clientY - startY) * upp, g)
+        if (nextX === dx && nextY === dy) return
+        beginEdit()
+        dx = nextX
+        dy = nextY
+        setDrag({ sector, dx, dy })
+      },
+      () => {
+        setDrag(null)
+        if (dx !== 0 || dy !== 0) onMoveSector?.(sector, dx, dy)
+      },
+    )
   }
 
   return (
@@ -1261,30 +1432,17 @@ function Canvas({
           )
         })}
 
-
-        {seats.map((s) => (
-          <circle
-            key={s.cid}
-            cx={s.x}
-            cy={s.y}
-            r={SEAT_R}
-            fill={color(s)}
-            stroke={selSector === s.sector ? '#fff' : 'none'}
-            strokeWidth={selSector === s.sector ? 1.5 : 0}
-            style={{
-              cursor: grabbing ? 'grabbing' : onMoveSector ? 'move' : 'pointer',
-            }}
-            onPointerDown={(e) => {
-              if (vp.otherPointerDown()) return // pinch starting
-              if (vp.spaceRef.current || e.button === 1) return vp.startPan(e)
-              onSelect({ kind: 'sector', sector: s.sector })
-              if (!onMoveSector) return
-              edited.current = false
-              dragSector(e, s.sector)
-            }}
-          >
-            <title>{`${s.sector} ${s.row_label}${s.seat_number}`}</title>
-          </circle>
+        {bySector.map(([sector, group]) => (
+          <SectorSeats
+            key={sector}
+            sector={sector}
+            seats={group}
+            preview={preview}
+            selected={selSector === sector}
+            cursor={grabbing ? 'grabbing' : onMoveSector ? 'move' : 'pointer'}
+            offset={drag?.sector === sector ? drag : null}
+            onPointerDown={onSeatDown}
+          />
         ))}
 
         {/* Resize + rotate handles for the selected object, drawn last (on top). */}
@@ -1342,6 +1500,64 @@ function Canvas({
     </div>
   )
 }
+
+/**
+ * One sector's seats, as a group that can be moved with a transform.
+ *
+ * Memoized on purpose: the big halls in the library run to five figures of
+ * seats, and without this every pointermove anywhere on the canvas re-rendered
+ * all of them. Dragging a sector now re-renders only that sector (its `offset`
+ * changed) and moving an object re-renders none of them.
+ *
+ * There is one <title> for the whole sector rather than one per seat — ten
+ * thousand tooltip nodes cost real memory and say nothing the sector tools do
+ * not already show.
+ */
+const SectorSeats = memo(function SectorSeats({
+  sector,
+  seats,
+  preview,
+  selected,
+  cursor,
+  offset,
+  onPointerDown,
+}: {
+  sector: string
+  seats: WorkSeat[]
+  preview: boolean
+  selected: boolean
+  cursor: string
+  /** Live drag displacement, applied without touching the seat coordinates. */
+  offset: { dx: number; dy: number } | null
+  onPointerDown: (e: React.PointerEvent, sector: string) => void
+}) {
+  return (
+    <g
+      transform={offset ? `translate(${offset.dx} ${offset.dy})` : undefined}
+      style={{ cursor }}
+      onPointerDown={(e) => onPointerDown(e, sector)}
+    >
+      <title>{`Sektor ${sector} — ${seats.length} sedadiel`}</title>
+      {seats.map((s) => (
+        <circle
+          key={s.cid}
+          cx={s.x}
+          cy={s.y}
+          r={SEAT_R}
+          fill={
+            preview
+              ? s.seat_type === 'blocked'
+                ? '#9ca3af'
+                : '#22c55e'
+              : SEAT_COLORS[s.seat_type]
+          }
+          stroke={selected ? '#fff' : 'none'}
+          strokeWidth={selected ? 1.5 : 0}
+        />
+      ))}
+    </g>
+  )
+})
 
 const HANDLE_ORDER: ResizeHandle[] = ['nw', 'ne', 'se', 'sw']
 const HANDLE_CURSOR: Record<ResizeHandle, string> = {
@@ -1442,10 +1658,22 @@ function CanvasButton({
  * layout jsonb). A level counts if it holds seats *or* objects — a standing-only
  * floor has no seats at all.
  */
-function buildLayout(seats: WorkSeat[], objects: WorkObject[]): SeatMapLayout {
+function buildLayout(
+  seats: WorkSeat[],
+  objects: WorkObject[],
+  /** Level keys in the order the editor shows them — see `levels`. */
+  levelOrder: string[],
+): SeatMapLayout {
+  const present = new Set([
+    ...seats.map((s) => s.level),
+    ...objects.map((o) => o.level),
+  ])
+  // Follow the editor's order (which starts from the map's stored order) rather
+  // than re-sorting alphabetically; anything unknown to it goes last.
   const keys = [
-    ...new Set([...seats.map((s) => s.level), ...objects.map((o) => o.level)]),
-  ].sort()
+    ...levelOrder.filter((k) => present.has(k)),
+    ...[...present].filter((k) => !levelOrder.includes(k)).sort(),
+  ]
 
   const levels = keys.map((key, order) => {
     const ls = seats.filter((s) => s.level === key)
