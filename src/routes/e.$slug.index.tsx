@@ -181,7 +181,9 @@ function EventPage() {
   const navigate = useNavigate()
   const [qty, setQty] = useState<Record<string, number>>({})
   const [seats, setSeats] = useState<string[]>([])
-  const [aboutOpen, setAboutOpen] = useState(false)
+  // The hall map is opened on demand: the buyer first reads the event and picks
+  // a category, then the map unfolds below for the actual seat pick.
+  const [mapOpen, setMapOpen] = useState(false)
 
 
   const seated = seatMap.seated
