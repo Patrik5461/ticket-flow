@@ -495,6 +495,9 @@ export type Database = {
       events: {
         Row: {
           allow_reentry: boolean
+          category: string | null
+          city: string | null
+          city_key: string | null
           cover_url: string | null
           created_at: string
           description: string | null
@@ -504,6 +507,7 @@ export type Database = {
           meta_pixel_id: string | null
           organizer_id: string
           qr_secret: string
+          search_text: string | null
           slug: string
           starts_at: string
           status: string
@@ -514,6 +518,9 @@ export type Database = {
         }
         Insert: {
           allow_reentry?: boolean
+          category?: string | null
+          city?: string | null
+          city_key?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -523,6 +530,7 @@ export type Database = {
           meta_pixel_id?: string | null
           organizer_id: string
           qr_secret?: string
+          search_text?: string | null
           slug: string
           starts_at: string
           status?: string
@@ -533,6 +541,9 @@ export type Database = {
         }
         Update: {
           allow_reentry?: boolean
+          category?: string | null
+          city?: string | null
+          city_key?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -542,6 +553,7 @@ export type Database = {
           meta_pixel_id?: string | null
           organizer_id?: string
           qr_secret?: string
+          search_text?: string | null
           slug?: string
           starts_at?: string
           status?: string
@@ -1773,6 +1785,7 @@ export type Database = {
         Args: { p_period_month: string }
         Returns: number
       }
+      immutable_unaccent: { Args: { "": string }; Returns: string }
       increment_coupon_use: {
         Args: { p_coupon_id: string }
         Returns: undefined
@@ -1781,6 +1794,14 @@ export type Database = {
       is_platform_admin: { Args: never; Returns: boolean }
       mark_seats_sold: { Args: { p_order_id: string }; Returns: number }
       organizer_is_active: { Args: { p_org: string }; Returns: boolean }
+      public_event_cities: {
+        Args: never
+        Returns: {
+          city: string
+          city_key: string
+          event_count: number
+        }[]
+      }
       recompute_settlement: { Args: { p_id: string }; Returns: number }
       release_expired_orders: { Args: never; Returns: number }
       release_pending_order: { Args: { p_order_id: string }; Returns: boolean }
