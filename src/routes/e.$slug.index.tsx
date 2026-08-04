@@ -350,19 +350,48 @@ function EventPage() {
 
 
           {/* RIGHT: sticky ticket panel */}
-          <aside
-            className={
-              showMap
-                ? 'lg:sticky lg:top-24 lg:self-start'
-                : 'md:sticky md:top-24 md:self-start'
-            }
-          >
+          <aside className="md:sticky md:top-24 md:self-start">
             <div className="card-surface p-6">
-              <h2 className="font-display text-xl font-bold">
-                {showMap ? 'Vstupenky a súhrn' : 'Vstupenky'}
-              </h2>
-              {/* Picked seats belong next to the total, not under the map: the
-                  buyer must see what is in the cart without scrolling back. */}
+              <h2 className="font-display text-xl font-bold">Vstupenky</h2>
+              {/* Seated categories: price up front, the map on demand. */}
+              {showMap && (
+                <>
+                  {seatedTypes.length > 0 && (
+                    <ul className="mt-4 space-y-2">
+                      {seatedTypes.map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-900/50 px-4 py-3"
+                        >
+                          <span className="min-w-0 truncate font-semibold text-ink-100">
+                            {t.name}
+                          </span>
+                          <span className="shrink-0 font-display font-bold text-accent">
+                            {formatEur(t.price_cents)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapOpen(true)
+                      // Give React a tick to mount the map before scrolling.
+                      requestAnimationFrame(() =>
+                        document
+                          .getElementById('hall-map')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                      )
+                    }}
+                    className={`mt-4 w-full ${mapOpen ? 'btn-ghost' : 'btn-primary'}`}
+                  >
+                    {seats.length > 0
+                      ? 'Upraviť výber sedadiel'
+                      : 'Vybrať sedadlá v hale'}
+                  </button>
+                </>
+              )}
               {showMap && (
                 <div className="mt-4 rounded-xl border border-ink-700 bg-ink-900/50 p-4">
                   <div className="flex items-baseline justify-between gap-2">
@@ -375,9 +404,10 @@ function EventPage() {
                   </div>
                   {seats.length === 0 ? (
                     <p className="mt-2 text-xs text-ink-500">
-                      Vyberte sedadlá kliknutím na mapu.
+                      Kliknite na „Vybrať sedadlá v hale“ a vyberte miesta v mape.
                     </p>
                   ) : (
+
                     <ul className="mt-2 max-h-44 space-y-1 overflow-auto pr-1 text-xs">
                       {seats.map((id) => {
                         const s = seatMap.seats.find((x) => x.seatId === id)
