@@ -181,6 +181,8 @@ function EventPage() {
   const navigate = useNavigate()
   const [qty, setQty] = useState<Record<string, number>>({})
   const [seats, setSeats] = useState<string[]>([])
+  const [aboutOpen, setAboutOpen] = useState(false)
+
 
   const seated = seatMap.seated
   // The map is worth showing whenever there is one — a standing-only floor has
