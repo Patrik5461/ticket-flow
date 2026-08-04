@@ -241,9 +241,24 @@ function EventPage() {
     <>
       <h2 className="font-display text-2xl font-bold">O podujatí</h2>
       {event.description ? (
-        <p className="mt-4 whitespace-pre-line text-ink-300 leading-relaxed">
-          {event.description}
-        </p>
+        <>
+          <p
+            className={`mt-4 whitespace-pre-line text-ink-300 leading-relaxed ${
+              aboutOpen ? '' : 'line-clamp-6'
+            }`}
+          >
+            {event.description}
+          </p>
+          {event.description.length > 260 && (
+            <button
+              type="button"
+              onClick={() => setAboutOpen((v) => !v)}
+              className="mt-3 text-sm font-semibold text-accent transition hover:opacity-80"
+            >
+              {aboutOpen ? 'Zobraziť menej' : 'Zobraziť viac'}
+            </button>
+          )}
+        </>
       ) : (
         <p className="mt-4 text-ink-500">
           Bližší popis podujatia bude čoskoro.
@@ -251,6 +266,7 @@ function EventPage() {
       )}
     </>
   )
+
 
   return (
     <div className="min-h-screen">
