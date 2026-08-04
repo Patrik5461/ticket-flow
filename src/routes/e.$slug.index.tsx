@@ -354,12 +354,10 @@ function EventPage() {
 
       {/* BODY */}
       <div className="mx-auto max-w-6xl px-6 pb-32 md:pb-16">
-        {/* Read first, pick second: on a seated event the description sits above
-            the map, and the map then sits BESIDE the ticket panel. Picking a
-            seat and seeing it land in the summary has to be one glance — with
-            the map full-width the buyer had to scroll down to the panel and
-            back up for every seat. */}
-        {showMap && <section className="mb-10">{about}</section>}
+        {/* Buy first, read after: the map sits BESIDE the ticket panel at the
+            top of the page and the (often long) description follows below, so a
+            wall of text no longer pushes the picker off the first screen. */}
+
 
         <div
           className={
