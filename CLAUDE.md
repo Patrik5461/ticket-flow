@@ -72,7 +72,20 @@ Ticketio (ticketio.sk) — self-service SaaS platforma na predaj vstupeniek pre 
 - **Čo v zálohe nie je:** password hashe (GoTrue admin API ich nevracia — po obnove si 3 používatelia musia nastaviť heslá), pg_cron joby, RLS policies a granty (tie sú v migráciách). `app_settings` v zálohe **je**, hoci sa needituje migráciami.
 - **Kontrola, že to naozaj beží:** `tail -3 ~/backups/backup.log` (jeden riadok na beh) a `ls ~/backups/db/`. Skript končí nenulovým exitom, keď tabuľka zlyhá alebo vyjde kratšia, než hlási `count=exact` — v logu je to `— N CHÝB`. **Adresár bez `manifest.json` = prerušený beh**, nie použiteľná záloha (retencia taký po 6 h sama zmaže a nikdy kvôli nemu nezmaže dobrú starú zálohu).
 - **Obnova skript nemá, robí sa ručne:** migrácie na čistý projekt → tabuľky v poradí `manifest.restoreOrder` cez PostgREST (`Prefer: resolution=merge-duplicates`, po dávkach) → používatelia cez `auth/v1/admin/users` → storage upload. Počítaj s tým, že sa to nikdy neskúšalo naostro.
-- **Stále to leží len na tej istej VM ako DB aj export hál.** Off-site kópia neexistuje — kým nebude, jeden stratený stroj je stále jeden bod zlyhania.
+
+### Off-site kópia (Hetzner Storage Box)
+
+- Zálohy, DB dump aj export hál ležia na tej istej VM, takže jeden stratený stroj bral všetky kópie naraz. Druhé miesto rieši `scripts/sync-backups-offsite.ts` (`npm run db:backup:offsite`, flagy `--dry-run`, `--quiet`, `--src <dir>`).
+- **Konfigurácia je v `~/ticketio-secrets.env`, nie v repe:** `OFFSITE_HOST`, `OFFSITE_USER`, `OFFSITE_PORT` (Storage Box počúva na **23**, nie 22), `OFFSITE_PATH`, `OFFSITE_SSH_KEY`. Bez nich skript vypíše presný zoznam a skončí nenulovo. **Použi vlastný SSH kľúč, nie GitHub deploy key** — dve služby, ktoré na seba vidia, znamenajú, že jeden prienik je rovno dvojitý.
+- **Zámerne bez `--delete`.** Bežné zrkadlenie je tu presne zlá vec: keby niečo lokálne vymazalo `~/backups` (čo je práve tá havária, kvôli ktorej to existuje), zrkadliaci beh by výmaz do dňa verne zopakoval aj off-site. Súbory sa vzdialene len pridávajú. Pri ~17 MB za noc je to ~6 GB za rok proti 1 TB boxu.
+- **Prerušené behy sa preskakujú.** Adresár bez `manifest.json` nie je záloha (manifest sa píše posledný), takže sa off-site vôbec nedostane.
+- **Overenie je druhý `rsync --dry-run`**: hotová kópia nemá čo prenášať. Pýta sa teda rsyncu, nie exit kódu, a nepotrebuje na druhej strane plný shell — Storage Box dáva len obmedzený.
+- Zapni na boxe **snapshoty** (Hetzner Robot). To je tá časť ochrany proti ransomvéru, ktorú samotný rsync bez `--delete` nedá.
+- Do cronu patrí **za** nočnú zálohu, ako samostatný riadok — aby zlyhanie synchronizácie nezamaskovalo zlyhanie zálohy a naopak:
+  ```
+  45 3 * * * /usr/bin/node --env-file=/home/patrik/ticketio-secrets.env \
+    /home/patrik/ticketio/scripts/sync-backups-offsite.ts --quiet >> /home/patrik/backups/offsite.log 2>&1
+  ```
 - Pri stránkovaní veľkých tabuliek pozor na dve pasce PostgRESTu, na ktoré skript už myslí: `limit` je serverom orezaný na 1000 riadkov (krátka stránka **neznamená** koniec), a hodnota kurzora sa posiela **bez úvodzoviek** — `id=gt."<uuid>"` vráti 400, a na textovom stĺpci filter ticho prestane filtrovať, čo je nekonečná slučka.
 
 ## Doménové pravidlá

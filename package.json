@@ -22,6 +22,7 @@
     "db:new": "supabase migration new",
     "db:seed": "node --env-file=.env scripts/seed.ts",
     "db:backup": "node --env-file=$HOME/ticketio-secrets.env scripts/backup-db.ts",
+    "db:backup:offsite": "node --env-file=$HOME/ticketio-secrets.env scripts/sync-backups-offsite.ts",
     "verify:polyfill": "node scripts/verify-polyfill.mjs",
     "verify:client-env": "node scripts/verify-client-env.mjs",
     "probe:rls": "node scripts/rls-anon-probe.mjs"
