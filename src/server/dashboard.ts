@@ -12,6 +12,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { getCurrentUser } from '../lib/supabase/auth'
 import { serviceClient } from '../lib/supabase/server'
+import { readAllRows, readAllByKeys } from './db-paging'
 import { isEventCategory } from '../lib/event-categories'
 import { slugify } from '../lib/slug'
 import { normalizeHexColor, detectImageKind } from '../lib/tickets/branding'
@@ -819,27 +820,40 @@ async function computeAvailablePayout(organizerId: string): Promise<number> {
 
   // Same net formula as settlements (gross − fee − refunded), so the payout
   // "available" figure matches settlement net even with partial refunds.
+  // Both reads are paged. This figure is money the organizer is told they can
+  // withdraw: a capped read of orders would quietly undercount it past the
+  // thousandth order, and a capped read of refunds would overcount it.
   let netPaid = 0
   if (eventIds.length > 0) {
-    const { data: orders } = await db
-      .from('orders')
-      .select('id, total_cents, fee_cents')
-      .in('event_id', eventIds)
-      .in('status', ['paid', 'partially_refunded', 'refunded'])
-      .returns<{ id: string; total_cents: number; fee_cents: number }[]>()
-    const orderList = orders ?? []
-    let refunds: { amount_cents: number; status: string }[] = []
-    if (orderList.length > 0) {
-      const { data: refundRows } = await db
-        .from('refunds')
-        .select('amount_cents, status')
-        .in(
-          'order_id',
-          orderList.map((o) => o.id),
-        )
-        .returns<{ amount_cents: number; status: string }[]>()
-      refunds = refundRows ?? []
-    }
+    const orderList = await readAllRows<{
+      id: string
+      total_cents: number
+      fee_cents: number
+    }>(
+      () =>
+        db
+          .from('orders')
+          .select('id, total_cents, fee_cents')
+          .in('event_id', eventIds)
+          .in('status', ['paid', 'partially_refunded', 'refunded'])
+          .order('id', { ascending: true })
+          .returns<{ id: string; total_cents: number; fee_cents: number }[]>(),
+      'objednávky pre výplatu',
+    )
+    const refunds = await readAllByKeys<{
+      amount_cents: number
+      status: string
+    }>(
+      orderList.map((o) => o.id),
+      (chunk) =>
+        db
+          .from('refunds')
+          .select('amount_cents, status')
+          .in('order_id', chunk)
+          .order('id', { ascending: true })
+          .returns<{ amount_cents: number; status: string }[]>(),
+      'refundácie pre výplatu',
+    )
     netPaid = settlementNet(orderList, refunds)
   }
 
@@ -961,24 +975,37 @@ export const getOrganizerOverviewFn = createServerFn({ method: 'GET' })
     }
     if (eventIds.length === 0) return empty
 
-    const { data: paid } = await db
-      .from('orders')
-      .select('id, total_cents, fee_cents, paid_at, created_at')
-      .in('event_id', eventIds)
-      .eq('status', 'paid')
-      .returns<
-        {
-          id: string
-          total_cents: number
-          fee_cents: number
-          paid_at: string | null
-          created_at: string
-        }[]
-      >()
+    // Paged: the period filter runs in JS over this set, so a capped read does
+    // not just shorten a list — it lowers the gross and fee the organizer sees.
+    const paid = await readAllRows<{
+      id: string
+      total_cents: number
+      fee_cents: number
+      paid_at: string | null
+      created_at: string
+    }>(
+      () =>
+        db
+          .from('orders')
+          .select('id, total_cents, fee_cents, paid_at, created_at')
+          .in('event_id', eventIds)
+          .eq('status', 'paid')
+          .order('id', { ascending: true })
+          .returns<
+            {
+              id: string
+              total_cents: number
+              fee_cents: number
+              paid_at: string | null
+              created_at: string
+            }[]
+          >(),
+      'zaplatené objednávky organizátora',
+    )
 
     const cutoff =
       data.period === '30d' ? Date.now() - 30 * 24 * 60 * 60 * 1000 : 0
-    const orders = (paid ?? []).filter((o) => {
+    const orders = paid.filter((o) => {
       const when = new Date(o.paid_at ?? o.created_at).getTime()
       return when >= cutoff
     })
@@ -990,18 +1017,18 @@ export const getOrganizerOverviewFn = createServerFn({ method: 'GET' })
       feeCents += o.fee_cents
     }
 
-    let soldTickets = 0
-    if (orders.length > 0) {
-      const { data: items } = await db
-        .from('order_items')
-        .select('quantity, order_id')
-        .in(
-          'order_id',
-          orders.map((o) => o.id),
-        )
-        .returns<{ quantity: number; order_id: string }[]>()
-      soldTickets = (items ?? []).reduce((s, i) => s + i.quantity, 0)
-    }
+    const items = await readAllByKeys<{ quantity: number; order_id: string }>(
+      orders.map((o) => o.id),
+      (chunk) =>
+        db
+          .from('order_items')
+          .select('quantity, order_id')
+          .in('order_id', chunk)
+          .order('id', { ascending: true })
+          .returns<{ quantity: number; order_id: string }[]>(),
+      'položky objednávok organizátora',
+    )
+    const soldTickets = items.reduce((s, i) => s + i.quantity, 0)
 
     return {
       soldTickets,

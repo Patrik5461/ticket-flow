@@ -13,6 +13,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { serviceClient } from '../lib/supabase/server'
+import { readAllRows } from './db-paging'
 import { requireEventManager, EventAuthzError } from './event-authz'
 import { bulkMessageEmail } from '../lib/email/templates'
 
@@ -81,15 +82,22 @@ export const sendBulkMessageFn = createServerFn({ method: 'POST' })
           .maybeSingle<{ title: string }>()
         if (!event) throw new EventAuthzError('Podujatie sa nenašlo.')
 
-        const { data: orders } = await db
-          .from('orders')
-          .select('buyer_email')
-          .eq('event_id', data.eventId)
-          .in('status', ['paid', 'partially_refunded'])
-          .returns<{ buyer_email: string }[]>()
+        // Paged: MAX_RECIPIENTS is 5000, but an unpaged read hands back 1000 at
+        // most, so the cap the organizer was promised was really the server's.
+        const orders = await readAllRows<{ buyer_email: string }>(
+          () =>
+            db
+              .from('orders')
+              .select('buyer_email')
+              .eq('event_id', data.eventId)
+              .in('status', ['paid', 'partially_refunded'])
+              .order('id', { ascending: true })
+              .returns<{ buyer_email: string }[]>(),
+          'príjemcovia hromadnej správy',
+        )
         const emails = [
           ...new Set(
-            (orders ?? [])
+            orders
               .map((o) => o.buyer_email.trim().toLowerCase())
               // POS sales may have no buyer e-mail — skip empty addresses.
               .filter((e) => e.length > 0),

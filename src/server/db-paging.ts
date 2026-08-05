@@ -63,6 +63,37 @@ export async function readAllRows<T>(
   }
 }
 
+/**
+ * Keys per `in.(…)` filter. A uuid costs 37 characters in the query string, so
+ * 100 of them is ~3.7 kB — comfortably inside the 8 kB request line that nginx
+ * and PostgREST accept. Paging a parent table correctly is what makes this
+ * necessary: once a read returns 10 000 orders instead of a capped 1000,
+ * `.in('order_id', ids)` with every id at once stops being a long URL and
+ * becomes a 414.
+ */
+export const IN_CHUNK = 100
+
+/**
+ * Read every row matching a set of keys, chunking the `in.(…)` filter.
+ *
+ * `build` receives one chunk of keys and returns the query for it; each chunk is
+ * then paged through readAllRows, so both limits are handled — the URL length
+ * and the 1000-row cap. As with readAllRows, the query must carry a
+ * deterministic order.
+ */
+export async function readAllByKeys<T>(
+  keys: string[],
+  build: (chunk: string[]) => Pageable<T>,
+  label: string,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let i = 0; i < keys.length; i += IN_CHUNK) {
+    const chunk = keys.slice(i, i + IN_CHUNK)
+    out.push(...(await readAllRows<T>(() => build(chunk), label)))
+  }
+  return out
+}
+
 /** One seat as the editor and the event bridge read it. */
 export interface SeatRow {
   id: string

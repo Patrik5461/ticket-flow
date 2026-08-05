@@ -8,6 +8,7 @@
  */
 
 import { serviceClient } from '../lib/supabase/server'
+import { readAllRows } from './db-paging'
 import type { OrderStatus, PaymentMethod } from '../lib/db-types'
 import { computeRealizedRevenue, isRealizedOrder } from './realized-revenue'
 
@@ -82,14 +83,25 @@ export async function buildSalesData(
     }>()
   if (!event) return null
 
-  const { data: rawOrders } = await db
-    .from('orders')
-    .select(
-      'id, created_at, buyer_email, buyer_name, status, total_cents, fee_cents, payment_method, order_items(quantity, ticket_type_id, ticket_types(name))',
-    )
-    .eq('event_id', eventId)
-    .order('created_at', { ascending: false })
-    .returns<RawSalesOrder[]>()
+  // Paged: this feeds both the sales screen and its CSV export, and the totals
+  // below are summed from these rows — a capped read understates the revenue as
+  // well as dropping orders off the end of the file.
+  //
+  // Ordered by id, not created_at: paging needs a unique key or rows repeat and
+  // vanish across page boundaries. The display order is restored afterwards.
+  const rawOrders = await readAllRows<RawSalesOrder>(
+    () =>
+      db
+        .from('orders')
+        .select(
+          'id, created_at, buyer_email, buyer_name, status, total_cents, fee_cents, payment_method, order_items(quantity, ticket_type_id, ticket_types(name))',
+        )
+        .eq('event_id', eventId)
+        .order('id', { ascending: true })
+        .returns<RawSalesOrder[]>(),
+    'objednávky podujatia',
+  )
+  rawOrders.sort((a, b) => b.created_at.localeCompare(a.created_at))
 
   const { data: types } = await db
     .from('ticket_types')
@@ -100,7 +112,7 @@ export async function buildSalesData(
       { id: string; name: string; capacity: number; sort_order: number }[]
     >()
 
-  const orders: SalesOrder[] = (rawOrders ?? []).map((o) => ({
+  const orders: SalesOrder[] = rawOrders.map((o) => ({
     id: o.id,
     ref: o.id.slice(0, 8).toUpperCase(),
     created_at: o.created_at,
@@ -114,19 +126,28 @@ export async function buildSalesData(
       .join(', '),
   }))
 
-  // Refund ledger for this event — nets into the realized totals below.
-  const { data: refundRows } = await db
-    .from('refunds')
-    .select('amount_cents, status')
-    .eq('event_id', eventId)
-    .returns<{ amount_cents: number; status: string }[]>()
+  // Refund ledger for this event — nets into the realized totals below, so it is
+  // paged for the same reason the orders are: a short read here inflates revenue.
+  const refundRows = await readAllRows<{
+    amount_cents: number
+    status: string
+  }>(
+    () =>
+      db
+        .from('refunds')
+        .select('amount_cents, status')
+        .eq('event_id', eventId)
+        .order('id', { ascending: true })
+        .returns<{ amount_cents: number; status: string }[]>(),
+    'refundácie podujatia',
+  )
 
-  const revenue = computeRealizedRevenue(rawOrders ?? [], refundRows ?? [])
+  const revenue = computeRealizedRevenue(rawOrders, refundRows)
 
   // "Sold by type" is the gross breakdown over realized orders (money collected);
   // the headline totals net refunds, and the per-type table stays a sales view.
   const soldByType = new Map<string, number>()
-  for (const o of rawOrders ?? []) {
+  for (const o of rawOrders) {
     if (!isRealizedOrder(o.status)) continue
     for (const i of o.order_items) {
       soldByType.set(

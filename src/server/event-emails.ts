@@ -7,6 +7,7 @@
  */
 
 import { serviceClient } from '../lib/supabase/server'
+import { readAllRows } from './db-paging'
 import { getEmailProvider } from '../lib/email'
 import { eventChangedEmail, escapeHtml } from '../lib/email/templates'
 import type { EventRow } from '../lib/db-types'
@@ -90,14 +91,23 @@ export async function notifyEventChanged(
   })
   if (!changesHtml) return 0
 
-  const { data: orders } = await serviceClient()
-    .from('orders')
-    .select('buyer_email')
-    .eq('event_id', event.id)
-    .in('status', ['paid', 'partially_refunded'])
-    .returns<{ buyer_email: string }[]>()
+  // Paged: this is the one mail nobody may miss — it says the event moved. A
+  // capped read would have told the first 1000 buyers and left the rest to turn
+  // up at the old venue, silently, with MAX_RECIPIENTS suggesting otherwise.
+  const db = serviceClient()
+  const orders = await readAllRows<{ buyer_email: string }>(
+    () =>
+      db
+        .from('orders')
+        .select('buyer_email')
+        .eq('event_id', event.id)
+        .in('status', ['paid', 'partially_refunded'])
+        .order('id', { ascending: true })
+        .returns<{ buyer_email: string }[]>(),
+    'príjemcovia oznámenia o zmene',
+  )
   const emails = [
-    ...new Set((orders ?? []).map((o) => o.buyer_email.toLowerCase())),
+    ...new Set(orders.map((o) => o.buyer_email.toLowerCase())),
   ].slice(0, MAX_RECIPIENTS)
   if (emails.length === 0) return 0
 

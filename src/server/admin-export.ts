@@ -7,6 +7,7 @@
  */
 
 import { serviceClient } from '../lib/supabase/server'
+import { readAllRows } from './db-paging'
 import { toCsv } from '../lib/csv'
 
 export interface DateRange {
@@ -29,29 +30,52 @@ function applyRange<T>(q: T, range: DateRange, col = 'created_at'): T {
 export async function buildOrdersCsv(
   range: DateRange,
 ): Promise<{ csv: string; count: number }> {
-  const { data } = await applyRange(
-    serviceClient()
-      .from('orders')
-      .select(
-        'id, created_at, paid_at, status, buyer_email, buyer_name, total_cents, fee_cents, gopay_payment_id, events(title, organizers(name))',
-      ),
-    range,
+  // Paged, and ordered by id so the pages line up. An accounting export is the
+  // worst place for the silent cap: the file looked complete, and the `count`
+  // returned below came from the truncated array, so it agreed with itself.
+  const db = serviceClient()
+  const data = await readAllRows<{
+    id: string
+    created_at: string
+    paid_at: string | null
+    status: string
+    buyer_email: string
+    buyer_name: string | null
+    total_cents: number
+    fee_cents: number
+    gopay_payment_id: string | null
+    events: { title: string; organizers: { name: string } | null } | null
+  }>(
+    () =>
+      applyRange(
+        db
+          .from('orders')
+          .select(
+            'id, created_at, paid_at, status, buyer_email, buyer_name, total_cents, fee_cents, gopay_payment_id, events(title, organizers(name))',
+          ),
+        range,
+      )
+        .order('id', { ascending: true })
+        .returns<
+          {
+            id: string
+            created_at: string
+            paid_at: string | null
+            status: string
+            buyer_email: string
+            buyer_name: string | null
+            total_cents: number
+            fee_cents: number
+            gopay_payment_id: string | null
+            events: {
+              title: string
+              organizers: { name: string } | null
+            } | null
+          }[]
+        >(),
+    'export objednávok',
   )
-    .order('created_at', { ascending: true })
-    .returns<
-      {
-        id: string
-        created_at: string
-        paid_at: string | null
-        status: string
-        buyer_email: string
-        buyer_name: string | null
-        total_cents: number
-        fee_cents: number
-        gopay_payment_id: string | null
-        events: { title: string; organizers: { name: string } | null } | null
-      }[]
-    >()
+  data.sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   const header = [
     'Číslo',
@@ -66,7 +90,7 @@ export async function buildOrdersCsv(
     'Podujatie',
     'Organizátor',
   ]
-  const rows = (data ?? []).map((o) => [
+  const rows = data.map((o) => [
     o.id.slice(0, 8).toUpperCase(),
     o.created_at,
     o.paid_at ?? '',
@@ -85,32 +109,53 @@ export async function buildOrdersCsv(
 export async function buildOrganizersCsv(
   range: DateRange,
 ): Promise<{ csv: string; count: number }> {
-  const { data } = await applyRange(
-    serviceClient()
-      .from('organizers')
-      .select(
-        'name, slug, status, ico, dic, ic_dph, iban, contact_email, phone, address, fee_percent, fee_min_cents, created_at',
-      ),
-    range,
+  // Paged for the same reason as the orders export above.
+  const db = serviceClient()
+  const data = await readAllRows<{
+    name: string
+    slug: string
+    status: string
+    ico: string | null
+    dic: string | null
+    ic_dph: string | null
+    iban: string | null
+    contact_email: string | null
+    phone: string | null
+    address: string | null
+    fee_percent: number
+    fee_min_cents: number
+    created_at: string
+  }>(
+    () =>
+      applyRange(
+        db
+          .from('organizers')
+          .select(
+            'name, slug, status, ico, dic, ic_dph, iban, contact_email, phone, address, fee_percent, fee_min_cents, created_at',
+          ),
+        range,
+      )
+        .order('id', { ascending: true })
+        .returns<
+          {
+            name: string
+            slug: string
+            status: string
+            ico: string | null
+            dic: string | null
+            ic_dph: string | null
+            iban: string | null
+            contact_email: string | null
+            phone: string | null
+            address: string | null
+            fee_percent: number
+            fee_min_cents: number
+            created_at: string
+          }[]
+        >(),
+    'export organizátorov',
   )
-    .order('created_at', { ascending: true })
-    .returns<
-      {
-        name: string
-        slug: string
-        status: string
-        ico: string | null
-        dic: string | null
-        ic_dph: string | null
-        iban: string | null
-        contact_email: string | null
-        phone: string | null
-        address: string | null
-        fee_percent: number
-        fee_min_cents: number
-        created_at: string
-      }[]
-    >()
+  data.sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   const header = [
     'Názov',
@@ -127,7 +172,7 @@ export async function buildOrganizersCsv(
     'Min. provízia',
     'Registrovaný',
   ]
-  const rows = (data ?? []).map((o) => [
+  const rows = data.map((o) => [
     o.name,
     o.slug,
     o.status,

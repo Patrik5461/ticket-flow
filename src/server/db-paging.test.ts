@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { readAllRows } from './db-paging'
+import { readAllRows, readAllByKeys, IN_CHUNK } from './db-paging'
 
 /**
  * A stand-in for the query builder: holds `total` rows and never returns more
@@ -81,5 +81,73 @@ describe('readAllRows', () => {
     const spy = vi.fn(build)
     await readAllRows(spy, 'test')
     expect(spy).toHaveBeenCalledTimes(4)
+  })
+})
+
+/**
+ * The second half of the same trap. Once a parent read is paged correctly it
+ * returns 10 000 orders instead of a capped 1000, and passing every id to a
+ * single `in.(…)` turns the silent truncation into a 414 — the query string
+ * outgrows what the server will accept. So the key list is chunked, and each
+ * chunk still has to be paged, because one chunk can match more than 1000 rows.
+ */
+describe('readAllByKeys', () => {
+  /**
+   * Records the chunks it was handed; each key matches `perKey` rows.
+   *
+   * `build` runs once per page, so a chunk is only recorded on its first page —
+   * otherwise the log would count round trips, not chunks.
+   */
+  function fakeChildTable(perKey: number, cap = 1000) {
+    const chunks: string[][] = []
+    const build = (chunk: string[]) => {
+      const all = chunk.flatMap((k) =>
+        Array.from({ length: perKey }, (_, i) => ({ key: k, i })),
+      )
+      return {
+        range: (from: number, to: number) => {
+          if (from === 0) chunks.push(chunk)
+          return Promise.resolve({
+            data: all.slice(from, Math.min(to + 1, from + cap)),
+            error: null,
+          })
+        },
+      }
+    }
+    return { build, chunks }
+  }
+
+  it('splits the key list so the query string stays inside the limit', async () => {
+    const keys = Array.from({ length: 250 }, (_, i) => `k${i}`)
+    const { build, chunks } = fakeChildTable(1)
+    const rows = await readAllByKeys(keys, build, 'test')
+
+    expect(rows).toHaveLength(250)
+    expect(chunks.map((c) => c.length)).toEqual([IN_CHUNK, IN_CHUNK, 50])
+    // Every key is asked for exactly once, in order.
+    expect(chunks.flat()).toEqual(keys)
+  })
+
+  it('pages within a chunk when one chunk matches more than a page', async () => {
+    // 100 keys × 30 rows = 3000 rows for a single chunk.
+    const keys = Array.from({ length: IN_CHUNK }, (_, i) => `k${i}`)
+    const { build } = fakeChildTable(30)
+    await expect(readAllByKeys(keys, build, 'test')).resolves.toHaveLength(3000)
+  })
+
+  it('does not query at all when there are no keys', async () => {
+    const { build, chunks } = fakeChildTable(1)
+    await expect(readAllByKeys([], build, 'test')).resolves.toEqual([])
+    expect(chunks).toHaveLength(0)
+  })
+
+  it('surfaces a failing chunk instead of returning the chunks that worked', async () => {
+    const build = vi.fn(() => ({
+      range: () =>
+        Promise.resolve({ data: null, error: { message: 'spojenie zlyhalo' } }),
+    }))
+    await expect(readAllByKeys(['a'], build, 'refundácie')).rejects.toThrow(
+      'refundácie: spojenie zlyhalo',
+    )
   })
 })
