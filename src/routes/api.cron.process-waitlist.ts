@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getEnv } from '../lib/env'
+import { cronUnauthorized } from '../server/cron-auth'
 import { processWaitlist } from '../server/waitlist'
 import { realWaitlistDeps } from '../server/waitlist-runtime'
 
@@ -10,11 +10,8 @@ import { realWaitlistDeps } from '../server/waitlist-runtime'
  * people per type with a time-limited checkout link; idempotent.
  */
 async function handle(request: Request): Promise<Response> {
-  const secret = getEnv().CRON_SECRET
-  const provided = request.headers.get('x-cron-secret') ?? ''
-  if (!secret || provided !== secret) {
-    return new Response('Unauthorized', { status: 401 })
-  }
+  const denied = cronUnauthorized(request)
+  if (denied) return denied
   const result = await processWaitlist(realWaitlistDeps(), { limit: 200 })
   return Response.json(result, { headers: { 'Cache-Control': 'no-store' } })
 }

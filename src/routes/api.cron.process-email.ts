@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getEnv } from '../lib/env'
+import { cronUnauthorized } from '../server/cron-auth'
 import { processEmailJobs } from '../server/email-jobs'
 import { realEmailJobsDeps } from '../server/email-jobs-runtime'
 
@@ -9,11 +9,8 @@ import { realEmailJobsDeps } from '../server/email-jobs-runtime'
  * shared CRON_SECRET. Drains a batch (reminders + bulk) idempotently with retries.
  */
 async function handle(request: Request): Promise<Response> {
-  const secret = getEnv().CRON_SECRET
-  const provided = request.headers.get('x-cron-secret') ?? ''
-  if (!secret || provided !== secret) {
-    return new Response('Unauthorized', { status: 401 })
-  }
+  const denied = cronUnauthorized(request)
+  if (denied) return denied
   const result = await processEmailJobs(realEmailJobsDeps(), { limit: 100 })
   return Response.json(result, { headers: { 'Cache-Control': 'no-store' } })
 }
