@@ -184,6 +184,7 @@ describe('issueSettlementInvoices', () => {
       failed: 0,
       adopted: 0,
       sent: 0,
+      blocked: 0,
     })
     expect(invoiced.map((i) => i.amountCents).sort()).toEqual([500, 800])
     expect(invoiced[0].externalId).toBeTruthy()
@@ -217,6 +218,7 @@ describe('issueSettlementInvoices', () => {
       failed: 1,
       adopted: 0,
       sent: 0,
+      blocked: 0,
     })
     const failed = s.settlements.find((x) => x.id === 's1')!
     expect(failed.invoice_status).toBe('failed')
@@ -273,6 +275,7 @@ describe('issueSettlementInvoices', () => {
       failed: 0,
       adopted: 0,
       sent: 0,
+      blocked: 0,
     })
     expect(invoiced).toHaveLength(0)
     // Still 'none', so they get invoiced once the provider is configured —
@@ -471,12 +474,12 @@ describe('issueSettlementInvoices', () => {
     )
   })
 
-  it('stops trying when the organizer has no e-mail to send to', async () => {
+  it('holds an invoice back when the organizer has no e-mail, without burning the retries', async () => {
     const s = baseStore()
     s.organizers.find((o) => o.id === 'org1')!.email = null
     const { deps } = makeDeps(s, async () => ({ id: 'inv-1' }))
     const sent: string[] = []
-    await issueSettlementInvoices({
+    const res = await issueSettlementInvoices({
       ...deps,
       sendInvoice: async (id) => {
         sent.push(id)
@@ -485,8 +488,37 @@ describe('issueSettlementInvoices', () => {
 
     const s1 = s.settlements.find((x) => x.id === 's1')!
     expect(sent).toHaveLength(1) // only org2's
-    expect(s1.invoice_attempts).toBe(MAX_INVOICE_ATTEMPTS)
+    expect(res.blocked).toBe(1)
     expect(s1.invoice_error).toMatch(/nemá e-mail/)
+    // A missing address is waiting on data, not a failed delivery. Maxing the
+    // attempts out here made it permanent, so filling the e-mail in afterwards
+    // fixed nothing and the invoice was simply never sent.
+    expect(s1.invoice_attempts).toBeLessThan(MAX_INVOICE_ATTEMPTS)
+    expect(s1.invoice_sent_at ?? null).toBeNull()
+  })
+
+  it('sends the held invoice as soon as the organizer has an address', async () => {
+    const s = baseStore()
+    const org1 = s.organizers.find((o) => o.id === 'org1')!
+    org1.email = null
+    const { deps } = makeDeps(s, async () => ({ id: 'inv-1' }))
+    const sent: string[] = []
+    const send = async (id: string) => {
+      sent.push(id)
+    }
+
+    await issueSettlementInvoices({ ...deps, sendInvoice: send })
+    expect(sent).toHaveLength(1)
+
+    // Someone fills the address in; the very next run delivers it.
+    org1.email = 'a@x.sk'
+    const res = await issueSettlementInvoices({ ...deps, sendInvoice: send })
+
+    expect(res.sent).toBe(1)
+    expect(res.blocked).toBe(0)
+    const s1 = s.settlements.find((x) => x.id === 's1')!
+    expect(s1.invoice_sent_at).toBe('2026-07-16T00:00:00.000Z')
+    expect(s1.invoice_error).toBeNull()
   })
 
   it('skips the mailing pass when the provider cannot send', async () => {

@@ -37,6 +37,12 @@ export interface InvoicingResult {
   adopted: number
   /** Invoices mailed to the organizer in this run. */
   sent: number
+  /**
+   * Issued invoices that could not be mailed because the organizer has no
+   * e-mail address. Waiting on data, not on a retry — counted separately so a
+   * run that "did nothing" says which kind of nothing it was.
+   */
+  blocked: number
 }
 
 interface SettlementToInvoice {
@@ -52,7 +58,11 @@ interface PendingSend {
   organizer_id: string
   invoice_ref: string | null
   invoice_attempts: number
+  invoice_error: string | null
 }
+
+/** Recorded on a settlement whose organizer has no address to mail to. */
+const NO_EMAIL_ERROR = 'Organizátor nemá e-mail, faktúru nebolo kam poslať.'
 
 /**
  * Give up after this many tries, so a permanent error stops calling out.
@@ -88,7 +98,14 @@ export async function issueSettlementInvoices(
   // invoice number nobody can produce, and burning an attempt on a call that
   // was never made would spend the retry budget on our own misconfiguration.
   if (deps.configured && !deps.configured()) {
-    return { processed: 0, created: 0, failed: 0, adopted: 0, sent: 0 }
+    return {
+      processed: 0,
+      created: 0,
+      failed: 0,
+      adopted: 0,
+      sent: 0,
+      blocked: 0,
+    }
   }
 
   let query = deps.db
@@ -109,6 +126,7 @@ export async function issueSettlementInvoices(
     failed: 0,
     adopted: 0,
     sent: 0,
+    blocked: 0,
   }
 
   for (const s of settlements) {
@@ -248,7 +266,7 @@ async function mailIssuedInvoices(
 
   const { data } = await deps.db
     .from('settlements')
-    .select('id, organizer_id, invoice_ref, invoice_attempts')
+    .select('id, organizer_id, invoice_ref, invoice_attempts, invoice_error')
     .eq('invoice_status', 'created')
     .is('invoice_sent_at', null)
     .lt('invoice_attempts', MAX_INVOICE_ATTEMPTS)
@@ -265,14 +283,23 @@ async function mailIssuedInvoices(
       .maybeSingle()
     const email = (org as { email: string | null } | null)?.email
     if (!email) {
-      // Nowhere to send it. Say so on the row instead of retrying forever.
-      await deps.db
-        .from('settlements')
-        .update({
-          invoice_attempts: MAX_INVOICE_ATTEMPTS,
-          invoice_error: 'Organizátor nemá e-mail, faktúru nebolo kam poslať.',
-        })
-        .eq('id', s.id)
+      // Missing address is a BLOCKED state, not a failed one: nothing is wrong
+      // with the invoice and no number of retries will help, but the moment
+      // someone fills the organizer's e-mail in it can go out. Burning the
+      // attempts to the ceiling here — which is what this used to do — made
+      // that permanent, so filling the address in later fixed nothing and the
+      // commission invoice was never delivered at all.
+      //
+      // The attempt counter is therefore left alone, and the error is only
+      // written when it would actually change, so an hourly tick does not
+      // rewrite the same sentence forever.
+      if (s.invoice_error !== NO_EMAIL_ERROR) {
+        await deps.db
+          .from('settlements')
+          .update({ invoice_error: NO_EMAIL_ERROR })
+          .eq('id', s.id)
+      }
+      result.blocked++
       continue
     }
 
