@@ -33,7 +33,7 @@
  * also notices, independently of whether the mail got out.
  */
 
-import { readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, writeFile } from 'node:fs/promises'
 
 const args = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
@@ -49,9 +49,12 @@ const EMAIL_FROM = process.env.EMAIL_FROM
 const ALERT_EMAIL = process.env.ALERT_EMAIL
 
 const STATE_FILE = `${process.env.HOME}/.ticketio-watchdog.json`
+const BACKUP_ROOT = `${process.env.HOME}/backups/db`
 const REPEAT_HOURS = 6
 /** A job pending longer than this means the worker is not draining it. */
 const STUCK_MINUTES = 20
+/** Backups run nightly; a little over a day allows for one late run. */
+const BACKUP_MAX_AGE_HOURS = 26
 const HTTP_TIMEOUT_MS = 15_000
 
 interface State {
@@ -194,6 +197,57 @@ async function checkInvoices(problems: string[]): Promise<void> {
   }
 }
 
+/**
+ * A backup cron that stops running is silent by nature — there is no error to
+ * see, just an absence nobody looks for. The freshest directory has to be
+ * recent AND finished; the manifest is written last, so a directory without one
+ * is an interrupted run and does not count as a backup.
+ */
+async function checkBackups(problems: string[]): Promise<void> {
+  let dirs: string[]
+  try {
+    dirs = (await readdir(BACKUP_ROOT, { withFileTypes: true }))
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort()
+  } catch (e) {
+    problems.push(`Adresár so zálohami sa nedá prečítať: ${msg(e)}`)
+    return
+  }
+  if (dirs.length === 0) {
+    problems.push('V ~/backups/db nie je ani jedna záloha.')
+    return
+  }
+
+  const newest = dirs[dirs.length - 1]
+  try {
+    const raw = await readFile(`${BACKUP_ROOT}/${newest}/manifest.json`, 'utf8')
+    const m = JSON.parse(raw) as {
+      finishedAt?: string
+      failures?: unknown[]
+    }
+    if (!m.finishedAt) {
+      problems.push(`Záloha ${newest} nemá finishedAt — prerušený beh.`)
+      return
+    }
+    const ageH = (Date.now() - new Date(m.finishedAt).getTime()) / 3_600_000
+    if (ageH > BACKUP_MAX_AGE_HOURS) {
+      problems.push(
+        `Posledná záloha je stará ${Math.round(ageH)} h (${newest}) — nočný cron pravdepodobne nebeží.`,
+      )
+    }
+    if (m.failures && m.failures.length > 0) {
+      problems.push(
+        `Záloha ${newest} hlási ${m.failures.length} zlyhaní — je neúplná.`,
+      )
+    }
+  } catch {
+    problems.push(
+      `Najnovšia záloha ${newest} nemá čitateľný manifest — prerušený beh, nie záloha.`,
+    )
+  }
+}
+
 function msg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
@@ -255,6 +309,7 @@ async function main(): Promise<void> {
   const problems: string[] = []
   await checkApp(problems)
   await checkPublic(problems)
+  await checkBackups(problems)
   try {
     await checkQueue(problems, 'email_jobs', 'e-maily', [
       'pending',
