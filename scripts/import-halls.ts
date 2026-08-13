@@ -1211,10 +1211,10 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
     pointsY.push(c.sy - halfAreaH, c.sy + halfAreaH)
   }
   for (const d of decor) {
-    const halfW = d.width / 2 / scale
-    const halfH = d.height / 2 / scale
-    pointsX.push(d.cx - halfW, d.cx + halfW)
-    pointsY.push(d.cy - halfH, d.cy + halfH)
+    const decorHalfW = d.width / 2 / scale
+    const decorHalfH = d.height / 2 / scale
+    pointsX.push(d.cx - decorHalfW, d.cx + decorHalfW)
+    pointsY.push(d.cy - decorHalfH, d.cy + decorHalfH)
   }
   if (pointsX.length === 0) {
     throw new HallError('hala nemá ani sedadlá, ani státie, ani pódium')
@@ -1375,7 +1375,10 @@ function transformHall(sourceId: string, raw: SourceHall): ImportHall {
       sectors: sectorBounds.size,
       suffixedSectors,
       renumberedSeats,
-      stages: decorCounts.E ?? 0,
+      // Counted from the elements rather than looked up in decorCounts: a
+      // Record<string, number> index is typed as always-present, so the `?? 0`
+      // that made this safe at runtime read as dead code to the type checker.
+      stages: decor.filter((d) => d.sourceType === 'E').length,
       decor: decorCounts,
       skippedDecor,
       collapsedBands,
@@ -1448,12 +1451,12 @@ function collapseVerticalGaps(
   // Each cut records: from this y downwards, move up by this much.
   const limit = ROW_HEIGHT * MAX_EMPTY_BAND_ROWS
   const cuts: { from: number; shift: number }[] = []
-  let total = 0
+  let shiftSoFar = 0
   for (let i = 1; i < merged.length; i++) {
     const gap = merged[i].top - merged[i - 1].bottom
     if (gap > limit) {
-      total += gap - ROW_HEIGHT
-      cuts.push({ from: merged[i].top, shift: total })
+      shiftSoFar += gap - ROW_HEIGHT
+      cuts.push({ from: merged[i].top, shift: shiftSoFar })
     }
   }
   if (cuts.length === 0) return 0
@@ -1903,7 +1906,7 @@ async function main(): Promise<void> {
   }[] = []
   let spreadGrandTotal = 0
 
-  let lockedHalls: string[] = []
+  const lockedHalls: string[] = []
   let processed = 0
   for (const id of pending) {
     // Pause between batches so a 456-hall run does not hammer PostgREST for

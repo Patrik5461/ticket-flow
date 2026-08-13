@@ -15,6 +15,8 @@ import { serviceClient } from '../lib/supabase/server'
 import { getEnv, isGoPayConfigured } from '../lib/env'
 import { gopayHealthy } from '../lib/gopay'
 import { requirePlatformAdmin, runAdmin } from './admin'
+import { readAllRows } from './db-paging'
+import { MAX_INVOICE_ATTEMPTS } from './settlement-invoicing'
 
 export type HealthStatus = 'ok' | 'degraded' | 'down' | 'not_configured'
 
@@ -177,23 +179,31 @@ async function jobQueue(
   activeStatuses: string[],
 ): Promise<QueueStat> {
   const db = serviceClient()
-  const { data: rows } = await db
-    .from(table)
-    .select('status, attempts, max_attempts, created_at')
-    .in('status', activeStatuses)
-    .returns<
-      {
-        status: string
-        attempts: number
-        max_attempts: number
-        created_at: string
-      }[]
-    >()
+  type JobRow = {
+    id: string
+    status: string
+    attempts: number
+    max_attempts: number
+    created_at: string
+  }
+  // Paged on purpose. A backed-up queue is the one moment this number matters,
+  // and an unpaged select stops at PostgREST's 1000-row cap without saying so —
+  // the panel would report a steady 1000 while the backlog kept growing.
+  const rows = await readAllRows<JobRow>(
+    () =>
+      db
+        .from(table)
+        .select('id, status, attempts, max_attempts, created_at')
+        .in('status', activeStatuses)
+        .order('id')
+        .returns<JobRow[]>(),
+    `health:${table}`,
+  )
   const now = Date.now()
   let pending = 0
   let failed = 0
   let stuck = 0
-  for (const r of rows ?? []) {
+  for (const r of rows) {
     const retryable = r.status !== 'failed' || r.attempts < r.max_attempts
     if (r.status === 'failed' && r.attempts >= r.max_attempts) failed++
     if (retryable) {
@@ -237,28 +247,86 @@ async function waitlistQueue(): Promise<QueueStat> {
   }
 }
 
+/**
+ * Commission invoicing has no job table, so its queue is derived from the
+ * settlements — and the filter has to mirror issueSettlementInvoices() in BOTH
+ * of its passes, or the panel reports on a different queue than the worker
+ * actually drains. A settlement still owes work when it has yet to be issued,
+ * or has been issued but not yet mailed.
+ *
+ * This used to ask `invoiced_at is null`, which was wrong twice over: it missed
+ * the mailing pass entirely, and a failed issuing attempt used to stamp
+ * invoiced_at, so the rows most in need of attention were the ones that
+ * disappeared from the panel.
+ */
+export interface InvoiceQueueRow {
+  invoice_status: string
+  invoice_sent_at: string | null
+  invoice_attempts: number
+}
+
+/**
+ * Turn the outstanding settlements into counts. Split out from the query and
+ * exported so the classification — the part that was actually wrong — can be
+ * tested without standing up a fake PostgREST.
+ */
+export function classifyInvoiceQueue(rows: InvoiceQueueRow[]): {
+  pending: number
+  failed: number
+  stuck: number
+} {
+  let pending = 0
+  let failed = 0
+  let stuck = 0
+  for (const r of rows) {
+    // Out of attempts is not pending: nothing will pick the row up again, so
+    // it is the one state that needs a human rather than more waiting.
+    if (r.invoice_attempts >= MAX_INVOICE_ATTEMPTS) {
+      failed++
+      continue
+    }
+    pending++
+    // Age is the wrong signal here — the worker runs on a schedule, not
+    // continuously, so a settlement waiting for the next tick is healthy. One
+    // that has already been tried and did not stick is not.
+    if (r.invoice_attempts > 0) stuck++
+  }
+  return { pending, failed, stuck }
+}
+
 async function invoiceQueue(): Promise<QueueStat> {
   const db = serviceClient()
-  // Settlements with a commission but no Faktero invoice yet.
-  const { data: rows } = await db
+  type Row = InvoiceQueueRow & { id: string }
+  const rows = await readAllRows<Row>(
+    () =>
+      db
+        .from('settlements')
+        .select('id, invoice_status, invoice_sent_at, invoice_attempts')
+        .or(
+          'and(invoice_status.in.(none,failed),fee_cents.gt.0),' +
+            'and(invoice_status.eq.created,invoice_sent_at.is.null)',
+        )
+        .order('id')
+        .returns<Row[]>(),
+    'health:settlements',
+  )
+
+  const { pending, failed, stuck } = classifyInvoiceQueue(rows)
+
+  const { data: last } = await db
     .from('settlements')
-    .select('created_at, invoiced_at, fee_cents')
-    .is('invoiced_at', null)
-    .gt('fee_cents', 0)
-    .returns<
-      { created_at: string; invoiced_at: string | null; fee_cents: number }[]
-    >()
-  const now = Date.now()
-  let stuck = 0
-  for (const r of rows ?? []) {
-    if (now - new Date(r.created_at).getTime() > STUCK_AGE_MS) stuck++
-  }
+    .select('invoiced_at')
+    .not('invoiced_at', 'is', null)
+    .order('invoiced_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ invoiced_at: string }>()
+
   return {
     name: 'invoice',
-    pending: (rows ?? []).length,
-    failed: 0,
+    pending,
+    failed,
     stuck,
-    lastActivity: null,
+    lastActivity: last?.invoiced_at ?? null,
   }
 }
 

@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { classifyInvoiceQueue } from './health'
+import type { InvoiceQueueRow } from './health'
+import { MAX_INVOICE_ATTEMPTS } from './settlement-invoicing'
 
 /**
  * The Resend probe lists domains, which a sending-only key is not allowed to do.
@@ -66,6 +69,85 @@ describe('checkResend', () => {
     expect(await probe('re_full', mockFetch(500, {}))).toEqual({
       status: 'degraded',
       detail: 'HTTP 500',
+    })
+  })
+})
+
+/**
+ * The invoice queue used to be counted as `invoiced_at is null`, which hid the
+ * two states worth seeing: a settlement whose invoicing failed (the worker
+ * stamped invoiced_at even on failure, so it looked done) and one issued but
+ * never mailed (it has invoiced_at, so it never appeared). The panel therefore
+ * read all-clear precisely when a commission was going unbilled.
+ */
+describe('classifyInvoiceQueue', () => {
+  const row = (over: Partial<InvoiceQueueRow> = {}): InvoiceQueueRow => ({
+    invoice_status: 'none',
+    invoice_sent_at: null,
+    invoice_attempts: 0,
+    ...over,
+  })
+
+  it('counts an untouched settlement as pending, not stuck', () => {
+    expect(classifyInvoiceQueue([row()])).toEqual({
+      pending: 1,
+      failed: 0,
+      stuck: 0,
+    })
+  })
+
+  it('counts a settlement that has already failed a try as stuck', () => {
+    const rows = [row({ invoice_status: 'failed', invoice_attempts: 2 })]
+    expect(classifyInvoiceQueue(rows)).toEqual({
+      pending: 1,
+      failed: 0,
+      stuck: 1,
+    })
+  })
+
+  it('reports an exhausted settlement as failed, never as pending', () => {
+    const rows = [
+      row({
+        invoice_status: 'failed',
+        invoice_attempts: MAX_INVOICE_ATTEMPTS,
+      }),
+    ]
+    expect(classifyInvoiceQueue(rows)).toEqual({
+      pending: 0,
+      failed: 1,
+      stuck: 0,
+    })
+  })
+
+  it('still counts an issued-but-unmailed invoice as work', () => {
+    const rows = [
+      row({
+        invoice_status: 'created',
+        invoice_sent_at: null,
+        invoice_attempts: 1,
+      }),
+    ]
+    expect(classifyInvoiceQueue(rows)).toEqual({
+      pending: 1,
+      failed: 0,
+      stuck: 1,
+    })
+  })
+
+  it('reports an invoice nobody could be mailed as failed', () => {
+    // mailIssuedInvoices() maxes out the attempts when the organizer has no
+    // e-mail address, which is the "needs a human" state, not a pending one.
+    const rows = [
+      row({
+        invoice_status: 'created',
+        invoice_sent_at: null,
+        invoice_attempts: MAX_INVOICE_ATTEMPTS,
+      }),
+    ]
+    expect(classifyInvoiceQueue(rows)).toEqual({
+      pending: 0,
+      failed: 1,
+      stuck: 0,
     })
   })
 })

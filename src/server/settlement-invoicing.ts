@@ -207,11 +207,16 @@ export async function issueSettlementInvoices(
         .eq('id', s.id)
       result.created++
     } catch (e) {
+      // invoiced_at is deliberately NOT stamped here: it means "an invoice
+      // exists for this period", and a failed attempt did not produce one.
+      // Stamping it made the row look finished to anything reading that column
+      // — the admin health panel counted the invoice queue as invoiced_at is
+      // null, so a settlement that failed to bill vanished from the panel at
+      // the exact moment it needed attention.
       await deps.db
         .from('settlements')
         .update({
           invoice_status: 'failed',
-          invoiced_at: deps.now(),
           invoice_attempts: s.invoice_attempts + 1,
           invoice_error: errorText(e),
         })

@@ -218,12 +218,17 @@ describe('issueSettlementInvoices', () => {
       adopted: 0,
       sent: 0,
     })
-    expect(s.settlements.find((x) => x.id === 's1')!.invoice_status).toBe(
-      'failed',
-    )
-    expect(s.settlements.find((x) => x.id === 's2')!.invoice_status).toBe(
-      'created',
-    )
+    const failed = s.settlements.find((x) => x.id === 's1')!
+    expect(failed.invoice_status).toBe('failed')
+    // invoiced_at means "an invoice exists for this period". A failed attempt
+    // produced none, and stamping it anyway made the row read as finished to
+    // the admin health panel — which counted the queue by that column, so the
+    // settlements that needed attention were exactly the ones that vanished.
+    expect(failed.invoiced_at ?? null).toBeNull()
+
+    const ok = s.settlements.find((x) => x.id === 's2')!
+    expect(ok.invoice_status).toBe('created')
+    expect(ok.invoiced_at).toBe('2026-07-16T00:00:00.000Z')
   })
 
   it('stores a newly created provider customer and reuses a known one', async () => {

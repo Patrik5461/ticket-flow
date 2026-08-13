@@ -16,9 +16,10 @@
  *     `dic`, also undocumented.
  *   - Issuing is idempotent on `external_id`: the first POST answers 201, a
  *     repeat answers 200 with the same invoice id and number, and no second
- *     invoice appears. Verified, not assumed — but the reconciliation in
- *     settlement-invoicing.ts does not lean on it, so this staying true is not
- *     the only thing between an organizer and a double bill.
+ *     invoice appears. Verified, not assumed — and treat it as the PRIMARY
+ *     defence against a double bill, because the reconciliation in
+ *     settlement-invoicing.ts turns out to be a weak second one (see
+ *     findByExternalId).
  *   - `GET /customers?external_id=…` accepts the parameter and ignores it,
  *     answering with the whole list. Looking a customer up by external_id over
  *     the API is therefore not possible, and we keep the mapping on our side.
@@ -194,10 +195,20 @@ export class FakteroClient implements InvoiceProvider {
    *
    * The filter has to be done here: GET /invoices accepts external_id, limit,
    * page and per_page and ignores all of them, answering with a bare
-   * `{ data: [...] }` and no pagination metadata. Whether that list is capped
-   * server-side cannot be told from one invoice, so treat a miss as "probably
-   * not there" rather than proof — the caller only uses this to avoid a second
-   * invoice, never to conclude that money was billed.
+   * `{ data: [...] }` and no pagination metadata.
+   *
+   * Worse, and measured on 2026-08-13: that list is server-capped at the newest
+   * 50 invoices, and `page=2` returns the very same 50. So this can only ever
+   * see a sliding window — and the window is shared, because the Faktero
+   * account also carries Tobify's ordinary invoicing (47 unrelated invoices in
+   * it already). Ticketio issues a handful of commission invoices a month into
+   * a stream that will bury them well inside 50.
+   *
+   * A miss is therefore NOT evidence that no invoice exists; it mostly means
+   * the invoice scrolled out of the window. Which is fine for what the caller
+   * does with it — adopt on a hit, otherwise go ahead and POST — precisely
+   * because the POST is itself idempotent on external_id. This is the cheap
+   * check, not the guarantee.
    */
   async findByExternalId(externalId: string): Promise<InvoiceResult | null> {
     const json = await this.get('/invoices')
