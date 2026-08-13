@@ -25,7 +25,8 @@
     "db:backup:offsite": "node --env-file=$HOME/ticketio-secrets.env scripts/sync-backups-offsite.ts",
     "verify:polyfill": "node scripts/verify-polyfill.mjs",
     "verify:client-env": "node scripts/verify-client-env.mjs",
-    "probe:rls": "node scripts/rls-anon-probe.mjs"
+    "probe:rls": "node scripts/rls-anon-probe.mjs",
+    "watchdog": "node --env-file=$HOME/ticketio-secrets.env scripts/watchdog.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
