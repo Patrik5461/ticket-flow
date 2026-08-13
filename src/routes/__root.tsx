@@ -1,6 +1,12 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRoute,
+  useRouterState,
+} from '@tanstack/react-router'
 
 import appCss from '../styles.css?url'
+import { absoluteUrl } from '../lib/site'
 import { CookieConsent } from '../components/CookieConsent'
 import { SupportChat } from '../components/SupportChat'
 import { Devtools } from '../components/Devtools'
@@ -43,6 +49,7 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
   return (
     <html lang="sk">
       <head>
@@ -84,6 +91,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               "(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.add('light');}}catch(e){}})();",
           }}
         />
+        {/* Canonical URL. Both ticketio.sk and www.ticketio.sk answer 200, so
+            without this every page exists twice as far as a crawler is
+            concerned; SITE_URL decides which one counts. Deliberately the
+            pathname only — /podujatia normalises its filters into the query
+            string (?q=&kat=&mesto=&page=1), and those permutations are exactly
+            the duplicates worth collapsing onto one address. */}
+        <link rel="canonical" href={absoluteUrl(pathname)} />
         <HeadContent />
       </head>
       <body>
