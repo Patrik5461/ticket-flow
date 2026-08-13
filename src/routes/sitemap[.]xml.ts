@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { anonClient } from '../lib/supabase/server'
 import { SITE_URL } from '../lib/site'
+import { stillOnFilter } from '../server/order-service'
 
 const STATIC_PATHS = [
   '/',
@@ -31,11 +32,14 @@ function urlTag(loc: string, lastmod?: string): string {
 async function build(): Promise<string> {
   const urls = STATIC_PATHS.map((p) => urlTag(`${SITE_URL}${p}`))
 
-  // Published events (public data via anon client).
+  // Published events that have not happened yet (public data via anon client).
+  // The same filter the program uses, so the sitemap never advertises an event
+  // that /podujatia has already stopped listing.
   const { data } = await anonClient()
     .from('events')
     .select('slug')
     .eq('status', 'published')
+    .or(stillOnFilter(new Date().toISOString()))
     .order('starts_at', { ascending: false })
     .returns<{ slug: string }[]>()
   for (const e of data ?? []) {

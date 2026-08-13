@@ -194,6 +194,18 @@ function cityKey(raw: string | null | undefined): string | null {
  * page and the total have to agree — dropping ended events from an already
  * paged result would leave short pages and a count that promises more.
  */
+/**
+ * PostgREST `.or()` expression for "this event has not happened yet": it runs
+ * until ends_at, or — when no end is given — starts_at is the whole of it.
+ *
+ * Shared with the sitemap on purpose. The program and the sitemap disagreeing
+ * about what is still on is how a finished event stays advertised to Google
+ * long after it has dropped off /podujatia.
+ */
+export function stillOnFilter(nowIso: string): string {
+  return `ends_at.gte.${nowIso},and(ends_at.is.null,starts_at.gte.${nowIso})`
+}
+
 export async function listPublishedEvents(
   filter: PublicEventFilter = {},
 ): Promise<PublicEventPage> {
@@ -210,7 +222,7 @@ export async function listPublishedEvents(
   // Request time, not query time: a bare `now()` is not something PostgREST
   // can be handed, and the boundary has to be identical for rows and count.
   const nowIso = new Date().toISOString()
-  const stillOn = `ends_at.gte.${nowIso},and(ends_at.is.null,starts_at.gte.${nowIso})`
+  const stillOn = stillOnFilter(nowIso)
 
   let primaryQuery = db
     .from('events')
