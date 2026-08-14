@@ -27,7 +27,8 @@
     "verify:client-env": "node scripts/verify-client-env.mjs",
     "probe:rls": "node scripts/rls-anon-probe.mjs",
     "watchdog": "node --env-file=$HOME/ticketio-secrets.env scripts/watchdog.ts",
-    "verify:backup": "node scripts/verify-backup.ts"
+    "verify:backup": "node scripts/verify-backup.ts",
+    "db:restore": "node --env-file=$HOME/ticketio-secrets.env scripts/restore-db.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
