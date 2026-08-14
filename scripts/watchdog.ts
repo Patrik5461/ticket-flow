@@ -55,23 +55,54 @@ const REPEAT_HOURS = 6
 const STUCK_MINUTES = 20
 /** Backups run nightly; a little over a day allows for one late run. */
 const BACKUP_MAX_AGE_HOURS = 26
+/** Cron fires every 10 minutes; three missed slots is a real gap. */
+const MAX_RUN_GAP_MINUTES = 35
 const HTTP_TIMEOUT_MS = 15_000
 
 interface State {
   problems: string[]
   notifiedAt: string | null
+  /** End of the previous run — the only trace that this thing is alive. */
+  lastRunAt?: string | null
 }
 
 async function readState(): Promise<State> {
   try {
     return JSON.parse(await readFile(STATE_FILE, 'utf8')) as State
   } catch {
-    return { problems: [], notifiedAt: null }
+    return { problems: [], notifiedAt: null, lastRunAt: null }
   }
 }
 
 async function writeState(s: State): Promise<void> {
-  await writeFile(STATE_FILE, JSON.stringify(s, null, 2), { mode: 0o600 })
+  await writeFile(
+    STATE_FILE,
+    JSON.stringify({ ...s, lastRunAt: new Date().toISOString() }, null, 2),
+    { mode: 0o600 },
+  )
+}
+
+/**
+ * Report a gap since the previous run.
+ *
+ * Under --quiet a healthy watchdog prints nothing, so an empty log looks
+ * exactly like a watchdog that never ran — the same silence this script exists
+ * to remove. Recording the previous run means a cron that stopped and came back
+ * says so on its next run.
+ *
+ * It cannot report a watchdog that is dead *right now*; nothing running on the
+ * same box can. That needs an off-box dead-man's switch. This catches the
+ * commoner case — a cron that was interrupted, a box that was down, a run that
+ * hung — and leaves a timestamp anyone can check.
+ */
+function checkOwnGap(problems: string[], prev: State): void {
+  if (!prev.lastRunAt) return
+  const gapMin = (Date.now() - new Date(prev.lastRunAt).getTime()) / 60_000
+  if (gapMin > MAX_RUN_GAP_MINUTES) {
+    problems.push(
+      `Watchdog nebežal ${Math.round(gapMin)} min (čaká sa každých 10) — cron bol zastavený alebo stroj mimo.`,
+    )
+  }
 }
 
 async function getJson(path: string): Promise<unknown[]> {
@@ -306,7 +337,12 @@ async function main(): Promise<void> {
     process.exit(2)
   }
 
+  // Read before the checks: the gap is measured against the previous run, and
+  // the checks below take seconds of their own.
+  const prev = await readState()
+
   const problems: string[] = []
+  checkOwnGap(problems, prev)
   await checkApp(problems)
   await checkPublic(problems)
   await checkBackups(problems)
@@ -331,7 +367,6 @@ async function main(): Promise<void> {
     problems.push(`Nedá sa prečítať stav front: ${msg(e)}`)
   }
 
-  const prev = await readState()
   const changed =
     JSON.stringify(prev.problems.slice().sort()) !==
     JSON.stringify(problems.slice().sort())
