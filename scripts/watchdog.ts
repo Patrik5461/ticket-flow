@@ -18,9 +18,13 @@
  *   - the five job queues have nothing pending far longer than they should be
  *   - commission invoices are not stuck or out of retries
  *
- * Alert policy: mail on a CHANGE of state, then at most once every
- * REPEAT_HOURS while the same problem persists, and once more when it clears.
- * A watchdog that mails every five minutes is a watchdog people filter away.
+ * Alert policy: a problem must survive MIN_FAILING_RUNS consecutive checks
+ * before anyone is mailed — the dependencies blip, and a blip is not an
+ * outage. After that: once when it is confirmed, again if the problem set
+ * changes, then at most once every REPEAT_HOURS while it lasts, and once when
+ * it clears. Blips below the threshold are logged and go no further. A watchdog
+ * that mails about nothing is a watchdog people filter away, and then it is
+ * worth nothing on the day it is right.
  *
  * Run:
  *   node --env-file=~/ticketio-secrets.env scripts/watchdog.ts
@@ -57,6 +61,21 @@ const STUCK_MINUTES = 20
 const BACKUP_MAX_AGE_HOURS = 26
 /** Cron fires every 10 minutes; three missed slots is a real gap. */
 const MAX_RUN_GAP_MINUTES = 35
+/**
+ * Consecutive failing runs before anyone is mailed.
+ *
+ * Supabase's gateway answers 504 every so often — measured over 26 days, 23
+ * blips in ~3744 runs, 0.6%, while nightly backups read all 256k rows without
+ * trouble and query latency sits at 50-500 ms. Mailing on the first failed poll
+ * turned each of those single blips into two e-mails (problem, then recovery),
+ * which is roughly 46 e-mails about nothing and exactly the boy-who-cried-wolf
+ * this script was written to avoid.
+ *
+ * At a 10-minute interval, three runs means a problem has to hold for ~20-30
+ * minutes to be worth waking someone. A genuine outage still reports; a blip
+ * lands in the log and nowhere else.
+ */
+const MIN_FAILING_RUNS = 3
 const HTTP_TIMEOUT_MS = 15_000
 
 interface State {
@@ -64,13 +83,23 @@ interface State {
   notifiedAt: string | null
   /** End of the previous run — the only trace that this thing is alive. */
   lastRunAt?: string | null
+  /** Unbroken run of checks that found something. Reset by a clean run. */
+  failingRuns?: number
+  /** Whether the current streak has already been mailed about. */
+  alerted?: boolean
 }
 
 async function readState(): Promise<State> {
   try {
     return JSON.parse(await readFile(STATE_FILE, 'utf8')) as State
   } catch {
-    return { problems: [], notifiedAt: null, lastRunAt: null }
+    return {
+      problems: [],
+      notifiedAt: null,
+      lastRunAt: null,
+      failingRuns: 0,
+      alerted: false,
+    }
   }
 }
 
@@ -367,26 +396,52 @@ async function main(): Promise<void> {
     problems.push(`Nedá sa prečítať stav front: ${msg(e)}`)
   }
 
+  // Count consecutive failing runs, not matching problem sets: during a real
+  // outage the message text moves around (a 504 names whichever table was asked
+  // first), and comparing sets would restart the streak every run and never
+  // reach the threshold.
+  const failingRuns = problems.length > 0 ? (prev.failingRuns ?? 0) + 1 : 0
+  const sustained = failingRuns >= MIN_FAILING_RUNS
+  const wasAlerted = prev.alerted ?? false
+
   const changed =
     JSON.stringify(prev.problems.slice().sort()) !==
     JSON.stringify(problems.slice().sort())
   const lastAgeH = prev.notifiedAt
     ? (Date.now() - new Date(prev.notifiedAt).getTime()) / 3_600_000
     : Infinity
-  const recovered = problems.length === 0 && prev.problems.length > 0
+  // Only announce recovery from something that was actually announced.
+  const recovered = problems.length === 0 && wasAlerted
 
+  const stamp = new Date().toISOString()
   if (problems.length === 0) {
-    if (!QUIET) console.log('Ticketio watchdog: všetko v poriadku.')
+    if (!QUIET) console.log(`${stamp} watchdog: všetko v poriadku.`)
   } else {
-    console.error(`Ticketio watchdog: ${problems.length} problém(ov)`)
+    // Transient blips still get written down — just not mailed. Without the
+    // timestamp the log cannot be correlated with anything afterwards.
+    const kind = sustained
+      ? `trvá ${failingRuns} beh(ov)`
+      : `výkyv ${failingRuns}/${MIN_FAILING_RUNS}`
+    console.error(`${stamp} watchdog: ${problems.length} problém(ov) [${kind}]`)
     for (const p of problems) console.error(`  - ${p}`)
   }
 
-  const shouldMail =
-    !DRY_RUN &&
-    (FORCE ||
-      recovered ||
-      (problems.length > 0 && (changed || lastAgeH >= REPEAT_HOURS)))
+  // Decided separately from DRY_RUN so a dry run is a faithful simulation:
+  // it reports the decision and advances the streak exactly as a real run
+  // would, which is the only way to rehearse the damping without sending mail.
+  const wouldMail =
+    FORCE ||
+    recovered ||
+    (sustained && (!wasAlerted || changed || lastAgeH >= REPEAT_HOURS))
+  const shouldMail = !DRY_RUN && wouldMail
+
+  if (DRY_RUN) {
+    console.log(
+      wouldMail
+        ? `  → ostrý beh by teraz mailoval${recovered ? ' (návrat do poriadku)' : ''}`
+        : '  → ostrý beh by nemailoval',
+    )
+  }
 
   if (shouldMail) {
     try {
@@ -402,17 +457,42 @@ async function main(): Promise<void> {
           'Appka, verejná stránka aj všetky fronty sú v poriadku.',
         ])
       } else {
-        await sendMail(`Ticketio: ${problems.length} problém(ov)`, problems)
+        await sendMail(`Ticketio: ${problems.length} problém(ov)`, [
+          ...problems,
+          '',
+          `Trvá ${failingRuns} po sebe idúcich kontrol (~${failingRuns * 10} min).`,
+        ])
       }
-      await writeState({ problems, notifiedAt: new Date().toISOString() })
+      await writeState({
+        problems,
+        notifiedAt: stamp,
+        failingRuns,
+        alerted: problems.length > 0,
+      })
     } catch (e) {
       // Keep the exit code meaningful even when the mail itself fails.
       console.error(`Watchdog nevedel odoslať e-mail: ${msg(e)}`)
-      await writeState({ problems, notifiedAt: prev.notifiedAt })
+      await writeState({
+        problems,
+        notifiedAt: prev.notifiedAt,
+        failingRuns,
+        alerted: wasAlerted,
+      })
       process.exit(1)
     }
   } else {
-    await writeState({ problems, notifiedAt: prev.notifiedAt })
+    await writeState({
+      problems,
+      // A dry run advances this too, otherwise the six-hour repeat suppression
+      // never engages in a rehearsal and every simulated run looks like it
+      // would mail.
+      notifiedAt: DRY_RUN && wouldMail ? stamp : prev.notifiedAt,
+      failingRuns,
+      // A clean run ends the episode; a blip below the threshold has not
+      // started one yet. In a dry run, follow what a real run would have done.
+      alerted:
+        problems.length > 0 && (wasAlerted || (DRY_RUN && wouldMail && !FORCE)),
+    })
   }
 
   process.exit(problems.length > 0 ? 1 : 0)
